@@ -16,6 +16,7 @@ import { render as renderGantt } from './gantt.js';
 import { render as renderWbsOrganizer } from './wbs-organizer.js';
 import { render as renderWbsRollup } from './wbs-rollup.js';
 import { render as renderDistribution } from './distribution.js';
+import { render as renderEvm } from './evm.js';
 
 function ph(title, group) {
   return ({ A, B }) => renderPlaceholder({ title, groupLabel: group });
@@ -44,7 +45,7 @@ export const SECTIONS = [
   { id: 'wbs-organizer',   title: 'WBS Organizer',        group: 'Visual',    render: renderWbsOrganizer },
   { id: 'wbs-rollup',      title: 'WBS Roll-up',          group: 'Visual',    render: renderWbsRollup },
   { id: 'distribution',    title: 'Distribution',         group: 'Visual',    render: renderDistribution },
-  { id: 'evm',             title: 'EVM / S-Curves Lite',  group: 'Visual',    render: ph('EVM / S-Curves Lite', 'Visual') },
+  { id: 'evm',             title: 'EVM / S-Curves Lite',  group: 'Visual',    render: renderEvm },
   { id: 'dashboard-creator', title: 'Dashboard Creator',  group: 'Visual',    render: ph('Dashboard Creator', 'Visual') },
 
   // Compare & Period
