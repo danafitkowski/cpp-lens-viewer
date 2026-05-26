@@ -13,6 +13,7 @@ import { render as renderResourcesCost } from './resources-cost.js';
 import { render as renderRiskRegister } from './risk-register.js';
 import { render as renderCalendarViewer } from './calendar-viewer.js';
 import { render as renderGantt } from './gantt.js';
+import { render as renderWbsOrganizer } from './wbs-organizer.js';
 
 function ph(title, group) {
   return ({ A, B }) => renderPlaceholder({ title, groupLabel: group });
@@ -38,7 +39,7 @@ export const SECTIONS = [
 
   // Visual
   { id: 'gantt',           title: 'Gantt Chart',          group: 'Visual',    render: renderGantt },
-  { id: 'wbs-organizer',   title: 'WBS Organizer',        group: 'Visual',    render: ph('WBS Organizer', 'Visual') },
+  { id: 'wbs-organizer',   title: 'WBS Organizer',        group: 'Visual',    render: renderWbsOrganizer },
   { id: 'wbs-rollup',      title: 'WBS Roll-up',          group: 'Visual',    render: ph('WBS Roll-up', 'Visual') },
   { id: 'distribution',    title: 'Distribution',         group: 'Visual',    render: ph('Distribution', 'Visual') },
   { id: 'evm',             title: 'EVM / S-Curves Lite',  group: 'Visual',    render: ph('EVM / S-Curves Lite', 'Visual') },

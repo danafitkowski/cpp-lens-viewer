@@ -126,3 +126,11 @@ main.lens-content h2 { color: var(--ink); margin: 0 0 12px; font-size: 22px; }
 .lens-toolbar { display: flex; gap: 12px; align-items: center; margin: 10px 0; }
 .lens-search { flex: 1; max-width: 360px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; font-family: var(--font-sans); font-size: 13px; }
 .lens-count { color: var(--muted); font-size: 12px; }
+
+.lens-wbs-tree { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 8px 0; }
+.lens-wbs-row { display: flex; align-items: center; padding: 6px 12px; border-bottom: 1px solid #F1F5F9; font-size: 13px; cursor: pointer; }
+.lens-wbs-row:hover { background: var(--bg); }
+.lens-wbs-row .chev { display: inline-block; width: 14px; color: var(--muted); font-size: 10px; margin-right: 6px; }
+.lens-wbs-row .name { flex: 1; color: var(--ink); }
+.lens-wbs-row .meta { color: var(--muted); font-size: 12px; margin-left: 12px; }
+.lens-wbs-row .pct { display: inline-block; padding: 2px 8px; border-radius: 99px; background: var(--pill-bg); color: var(--pill-text); font-size: 11px; font-weight: 700; margin-left: 8px; }
