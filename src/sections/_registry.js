@@ -9,6 +9,9 @@ import { render as renderLogic } from './logic-network.js';
 import { render as renderConstraintsFloat } from './constraints-float.js';
 import { render as renderActivityCodes } from './activity-codes.js';
 import { render as renderUdfExplorer } from './udf-explorer.js';
+import { render as renderResourcesCost } from './resources-cost.js';
+import { render as renderRiskRegister } from './risk-register.js';
+import { render as renderCalendarViewer } from './calendar-viewer.js';
 
 function ph(title, group) {
   return ({ A, B }) => renderPlaceholder({ title, groupLabel: group });
@@ -28,9 +31,9 @@ export const SECTIONS = [
   { id: 'constraints',     title: 'Constraints / Float',  group: 'Schedule',  render: renderConstraintsFloat },
   { id: 'codes',           title: 'Activity Codes',       group: 'Schedule',  render: renderActivityCodes },
   { id: 'udf',             title: 'UDF Explorer',         group: 'Schedule',  render: renderUdfExplorer },
-  { id: 'resources',       title: 'Resources / Cost',     group: 'Schedule',  render: ph('Resources / Cost', 'Schedule') },
-  { id: 'risk',            title: 'Risk Register',        group: 'Schedule',  render: ph('Risk Register', 'Schedule') },
-  { id: 'calendar',        title: 'Calendar Viewer',      group: 'Schedule',  render: ph('Calendar Viewer', 'Schedule') },
+  { id: 'resources',       title: 'Resources / Cost',     group: 'Schedule',  render: renderResourcesCost },
+  { id: 'risk',            title: 'Risk Register',        group: 'Schedule',  render: renderRiskRegister },
+  { id: 'calendar',        title: 'Calendar Viewer',      group: 'Schedule',  render: renderCalendarViewer },
 
   // Visual
   { id: 'gantt',           title: 'Gantt Chart',          group: 'Visual',    render: ph('Gantt Chart', 'Visual') },

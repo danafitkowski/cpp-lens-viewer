@@ -11,7 +11,11 @@ export function dataTable({ columns, rows, limit = 0, emptyMsg = 'No rows.' }) {
     h('thead', {}, h('tr', {}, columns.map(c => h('th', {}, c.label)))),
     h('tbody', {}, shown.map(r => h('tr', {}, columns.map(c => {
       const v = r[c.key];
-      return h('td', {}, c.render ? String(c.render(v, r)) : (v == null ? '' : String(v)));
+      if (c.render) {
+        const rendered = c.render(v, r);
+        return h('td', {}, rendered instanceof Node ? rendered : String(rendered));
+      }
+      return h('td', {}, v == null ? '' : String(v));
     }))))
   ]);
   wrap.appendChild(table);

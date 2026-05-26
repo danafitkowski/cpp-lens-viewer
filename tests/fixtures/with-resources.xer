@@ -1,0 +1,21 @@
+ERMHDR	24.12	2026-01-01	Project	admin	Test User	dbxDB	Project Management	USD
+%T	PROJECT
+%F	proj_id	proj_short_name	last_recalc_date
+%R	1	RES-TEST	2026-01-01 00:00
+%T	PROJWBS
+%F	wbs_id	parent_wbs_id	wbs_name	proj_id
+%R	W1		Root	1
+%T	TASK
+%F	task_id	task_code	task_name	proj_id	wbs_id	status_code	task_type
+%R	T1	A1	Activity One	1	W1	TK_NotStart	TT_Task
+%R	T2	A2	Activity Two	1	W1	TK_NotStart	TT_Task
+%T	RSRC
+%F	rsrc_id	rsrc_name	rsrc_short_name	rsrc_type
+%R	R1	John Smith	J.Smith	RT_Labor
+%R	R2	Excavator	Excav	RT_Equipment
+%T	TASKRSRC
+%F	taskrsrc_id	task_id	rsrc_id	target_qty	remain_qty
+%R	TR1	T1	R1	40	40
+%R	TR2	T1	R2	8	8
+%R	TR3	T2	R1	80	80
+%E
