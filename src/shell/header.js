@@ -1,0 +1,19 @@
+import { h } from '../lib/dom.js';
+import { modelStore } from '../state/model.js';
+
+export function renderHeader() {
+  const statusSpan = h('div', { class: 'status', id: 'lens-status' }, 'No XER loaded');
+  const el = h('header', { class: 'lens-header' }, [
+    h('div', { class: 'brand' }, 'CPP Lens'),
+    h('div', { class: 'tagline' }, 'Primavera P6 viewer + forensic engine'),
+    h('div', { class: 'spacer' }),
+    statusSpan
+  ]);
+  modelStore.subscribe(({ A, B }) => {
+    let msg = 'No XER loaded';
+    if (A) msg = `${A.filename || '(unnamed)'} loaded`;
+    if (A && B) msg = `${A.filename} | comparing with ${B.filename}`;
+    statusSpan.textContent = msg;
+  });
+  return el;
+}
