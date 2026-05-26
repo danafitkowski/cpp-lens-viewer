@@ -19,6 +19,8 @@ import { render as renderDistribution } from './distribution.js';
 import { render as renderEvm } from './evm.js';
 import { render as renderDashboardCreator } from './dashboard-creator.js';
 import { render as renderXerComparison } from './xer-comparison.js';
+import { render as renderPeriodReporting } from './period-reporting.js';
+import { render as renderNarrativeFlip } from './narrative-flip.js';
 
 function ph(title, group) {
   return ({ A, B }) => renderPlaceholder({ title, groupLabel: group });
@@ -52,8 +54,8 @@ export const SECTIONS = [
 
   // Compare & Period
   { id: 'compare',         title: 'XER Comparison',       group: 'Compare & Period', render: renderXerComparison },
-  { id: 'period',          title: 'Period Reporting',     group: 'Compare & Period', render: ph('Period Reporting', 'Compare & Period') },
-  { id: 'narrative-flip',  title: 'Narrative Flip',       group: 'Compare & Period', render: ph('Narrative Flip', 'Compare & Period') },
+  { id: 'period',          title: 'Period Reporting',     group: 'Compare & Period', render: renderPeriodReporting },
+  { id: 'narrative-flip',  title: 'Narrative Flip',       group: 'Compare & Period', render: renderNarrativeFlip },
 
   // CPP Forensic
   { id: 'path-explorer',   title: 'Path Explorer',        group: 'CPP Forensic',     render: ph('Path Explorer', 'CPP Forensic') },
