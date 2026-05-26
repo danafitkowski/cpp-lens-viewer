@@ -20,7 +20,8 @@ const DEFAULT_PREFS = {
   longDurationDays: 20,
   largeFloatHours: 320,
   largeDateShiftDays: 5,
-  projectHealthTarget: 80
+  projectHealthTarget: 80,
+  dashboardLayout: ['total-activities', 'pct-complete', 'critical-pct']
 };
 
 export const prefsStore = new Store(load() || DEFAULT_PREFS);

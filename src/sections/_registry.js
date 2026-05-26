@@ -17,6 +17,7 @@ import { render as renderWbsOrganizer } from './wbs-organizer.js';
 import { render as renderWbsRollup } from './wbs-rollup.js';
 import { render as renderDistribution } from './distribution.js';
 import { render as renderEvm } from './evm.js';
+import { render as renderDashboardCreator } from './dashboard-creator.js';
 
 function ph(title, group) {
   return ({ A, B }) => renderPlaceholder({ title, groupLabel: group });
@@ -46,7 +47,7 @@ export const SECTIONS = [
   { id: 'wbs-rollup',      title: 'WBS Roll-up',          group: 'Visual',    render: renderWbsRollup },
   { id: 'distribution',    title: 'Distribution',         group: 'Visual',    render: renderDistribution },
   { id: 'evm',             title: 'EVM / S-Curves Lite',  group: 'Visual',    render: renderEvm },
-  { id: 'dashboard-creator', title: 'Dashboard Creator',  group: 'Visual',    render: ph('Dashboard Creator', 'Visual') },
+  { id: 'dashboard-creator', title: 'Dashboard Creator',  group: 'Visual',    render: renderDashboardCreator },
 
   // Compare & Period
   { id: 'compare',         title: 'XER Comparison',       group: 'Compare & Period', render: ph('XER Comparison', 'Compare & Period') },

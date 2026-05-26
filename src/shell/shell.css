@@ -134,3 +134,16 @@ main.lens-content h2 { color: var(--ink); margin: 0 0 12px; font-size: 22px; }
 .lens-wbs-row .name { flex: 1; color: var(--ink); }
 .lens-wbs-row .meta { color: var(--muted); font-size: 12px; margin-left: 12px; }
 .lens-wbs-row .pct { display: inline-block; padding: 2px 8px; border-radius: 99px; background: var(--pill-bg); color: var(--pill-text); font-size: 11px; font-weight: 700; margin-left: 8px; }
+
+.lens-dash-grid { display: grid; grid-template-columns: 320px 1fr; gap: 16px; margin-top: 12px; }
+.lens-dash-catalog { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 8px 0; max-height: 600px; overflow: auto; }
+.lens-dash-catalog .row { display: flex; align-items: center; padding: 8px 12px; border-bottom: 1px solid #F1F5F9; font-size: 13px; }
+.lens-dash-catalog .row .name { flex: 1; }
+.lens-dash-catalog button { border: 0; background: var(--red); color: #fff; padding: 4px 10px; border-radius: 6px; font-weight: 700; font-size: 11px; cursor: pointer; }
+.lens-dash-catalog button:disabled { background: #94A3B8; cursor: not-allowed; }
+.lens-dash-canvas { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; min-height: 320px; }
+.lens-dash-canvas .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+.lens-dash-canvas .tile { position: relative; }
+.lens-dash-canvas .tile .close { position: absolute; top: 6px; right: 8px; background: transparent; border: 0; color: var(--muted); font-size: 14px; cursor: pointer; line-height: 1; }
+.lens-dash-canvas .tile .close:hover { color: var(--red); }
+.lens-dash-canvas .tile.dragging { opacity: 0.4; }
