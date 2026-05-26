@@ -1,0 +1,13 @@
+ERMHDR	24.12	2026-01-01	Project	admin	Test User	dbxDB	Project Management	USD
+%T	PROJECT
+%F	proj_id	proj_short_name	last_recalc_date
+%R	1	UDF-TEST	2026-01-01 00:00
+%T	UDFTYPE
+%F	udf_type_id	table_name	udf_type_label	udf_type_name	logical_data_type
+%R	U1	TASK	Task Note	task_note	FT_TEXT
+%R	U2	PROJECT	Risk Score	risk_score	FT_INT
+%T	UDFVALUE
+%F	udf_type_id	fk_id	udf_text	udf_number	udf_date
+%R	U1	100	task-note-value
+%R	U2	1	project-note-value
+%E
