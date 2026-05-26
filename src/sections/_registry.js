@@ -22,6 +22,7 @@ import { render as renderXerComparison } from './xer-comparison.js';
 import { render as renderPeriodReporting } from './period-reporting.js';
 import { render as renderNarrativeFlip } from './narrative-flip.js';
 import { render as renderPathExplorer } from './path-explorer.js';
+import { render as renderLookahead } from './lookahead.js';
 
 function ph(title, group) {
   return ({ A, B }) => renderPlaceholder({ title, groupLabel: group });
@@ -60,7 +61,7 @@ export const SECTIONS = [
 
   // CPP Forensic
   { id: 'path-explorer',   title: 'Path Explorer',        group: 'CPP Forensic',     render: renderPathExplorer },
-  { id: 'lookahead',       title: '3-Week Lookahead',     group: 'CPP Forensic',     render: ph('3-Week Lookahead', 'CPP Forensic') },
+  { id: 'lookahead',       title: '3-Week Lookahead',     group: 'CPP Forensic',     render: renderLookahead },
   { id: 'half-step',       title: 'Half-Step XER',        group: 'CPP Forensic',     render: ph('Half-Step XER', 'CPP Forensic') },
   { id: 'deep-forensic',   title: 'Deep Forensic',        group: 'CPP Forensic',     render: ph('Deep Forensic', 'CPP Forensic') },
 
