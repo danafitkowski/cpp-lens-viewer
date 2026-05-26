@@ -11,21 +11,10 @@
  */
 
 import { h, clear } from '../lib/dom.js';
-import { writeXer } from '@criticalpathpartners/lens-parser';
+import { writeXer, gzipToBase64 } from '@criticalpathpartners/lens-parser';
 import { runDeepForensic } from '../mcp/client.js';
 import { anonymizeModel } from '../mcp/anonymizer.js';
 import { prefsStore } from '../state/prefs.js';
-
-// Convert a Uint8Array to a base64 string. Chunked to avoid blowing the
-// call stack on large XERs (String.fromCharCode(...arr) caps at ~64K args).
-function bytesToBase64(bytes) {
-  let binary = '';
-  const chunk = 32768;
-  for (let i = 0; i < bytes.length; i += chunk) {
-    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
-  }
-  return btoa(binary);
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TOOL DEFINITIONS
@@ -206,10 +195,12 @@ export function render({ A, B }) {
           }
         }
 
-        setStatus('Encoding XER...');
+        setStatus('Compressing XER...');
         const xerText = writeXer(xerModel);
-        const xerBytes = new TextEncoder().encode(xerText);
-        const xerBase64 = bytesToBase64(xerBytes);
+        // gzip + base64. The /lens/run facade sniffs the gzip magic 0x1f 0x8b
+        // on the decoded bytes and inflates transparently (facade v0.1.2+).
+        // Shrinks the wire payload ~80% on typical EPC schedules.
+        const xerBase64 = await gzipToBase64(xerText);
 
         setStatus('Submitting to Engine...');
 
@@ -218,7 +209,7 @@ export function render({ A, B }) {
           xerBase64,
           anonymized:    anonymize,
           anonMapSha256,
-          lensVersion:   '1.0.0'
+          lensVersion:   '1.2.0'
         });
 
         if (result.status === 'rate_limited') {

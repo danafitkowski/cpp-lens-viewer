@@ -2,23 +2,32 @@ import { h, on } from '../lib/dom.js';
 import { SECTIONS, GROUPS } from '../sections/_registry.js';
 import { navStore } from '../state/nav.js';
 import { modelStore } from '../state/model.js';
-import { parseXer } from '@criticalpathpartners/lens-parser';
+import { parseXer, parseP6Xml } from '@criticalpathpartners/lens-parser';
+
+// File loader that picks the parser based on extension. P6 XML uploads
+// produce the same model shape as XER so downstream sections don't notice.
+async function parseUploadedFile(file) {
+  const text = await file.text();
+  const name = file.name || '';
+  const isXml = /\.xml$/i.test(name) || /^\s*<\?xml/i.test(text.slice(0, 64));
+  return isXml
+    ? parseP6Xml(text, { filename: name })
+    : parseXer(text, { filename: name });
+}
 
 function renderFileBox() {
-  const fileA = h('input', { type: 'file', accept: '.xer,.txt', id: 'lens-file-a' });
-  const fileB = h('input', { type: 'file', accept: '.xer,.txt', id: 'lens-file-b' });
+  const fileA = h('input', { type: 'file', accept: '.xer,.xml,.txt', id: 'lens-file-a' });
+  const fileB = h('input', { type: 'file', accept: '.xer,.xml,.txt', id: 'lens-file-b' });
   const analyze = h('button', {}, 'Analyze');
   const reset = h('button', { class: 'secondary' }, 'Reset');
 
   on(analyze, 'click', async () => {
     const fa = fileA.files[0];
-    if (!fa) { alert('Pick a current XER first.'); return; }
-    const textA = await fa.text();
-    const A = parseXer(textA, { filename: fa.name });
+    if (!fa) { alert('Pick a current XER or XML first.'); return; }
+    const A = await parseUploadedFile(fa);
     let B = null;
     if (fileB.files[0]) {
-      const fb = fileB.files[0];
-      B = parseXer(await fb.text(), { filename: fb.name });
+      B = await parseUploadedFile(fileB.files[0]);
     }
     modelStore.set({ A, B });
   });

@@ -1,6 +1,6 @@
 {
   "name": "cpp-lens-viewer",
-  "version": "0.1.0",
+  "version": "1.2.0",
   "description": "CPP Lens — browser-based Primavera P6 viewer. Live at criticalpathpartners.ca/viewer.",
   "type": "module",
   "private": true,
