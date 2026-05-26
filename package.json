@@ -1,0 +1,29 @@
+{
+  "name": "cpp-lens-viewer",
+  "version": "0.1.0",
+  "description": "CPP Lens — browser-based Primavera P6 viewer. Live at criticalpathpartners.ca/viewer.",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "build": "node esbuild.config.js",
+    "build:viewer": "node esbuild.config.js --target=viewer",
+    "build:lib": "node esbuild.config.js --target=lib",
+    "dev": "node esbuild.config.js --watch"
+  },
+  "dependencies": {
+    "@criticalpathpartners/lens-parser": "file:../cpp-lens-parser"
+  },
+  "devDependencies": {
+    "vitest": "^1.5.0",
+    "happy-dom": "^14.0.0",
+    "esbuild": "^0.20.0"
+  },
+  "engines": { "node": ">=18" },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/danafitkowski/cpp-lens-viewer.git"
+  }
+}
