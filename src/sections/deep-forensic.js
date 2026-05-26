@@ -1,21 +1,31 @@
 /**
- * Deep Forensic — MCP handoff modal (UI-complete stub, Plan 3 backend pending)
+ * Deep Forensic — MCP handoff modal, wired to lens-facade-v0.1.0.
  *
- * Wires to src/mcp/client.js (runDeepForensic) and src/mcp/anonymizer.js.
- * When the /lens/run facade goes live on mcp.criticalpathpartners.ca, this
- * section auto-functions with no code changes needed here.
+ * Flow:
+ *   1. (Optional) anonymize the in-memory model client-side.
+ *   2. writeXer(model) → re-emit canonical XER text → base64 the bytes.
+ *   3. POST /lens/run, poll /lens/job/:id, open /lens/r/:id in a new tab.
  *
- * v1 limitation: full gzip+base64 of XER text requires `pako` which is not
- * yet a viewer dependency.  A placeholder base64 string is used for the
- * xerBase64 payload.  The real implementation lands when the MCP facade ships
- * and `pako` is added as a viewer dep.
+ * Anonymization is on by default. The anon map never leaves the browser;
+ * only SHA-256(map) is sent so the result can be receipt-validated locally.
  */
 
 import { h, clear } from '../lib/dom.js';
-import { kpiCard } from './_shared/kpi-card.js';
+import { writeXer } from '@criticalpathpartners/lens-parser';
 import { runDeepForensic } from '../mcp/client.js';
 import { anonymizeModel } from '../mcp/anonymizer.js';
 import { prefsStore } from '../state/prefs.js';
+
+// Convert a Uint8Array to a base64 string. Chunked to avoid blowing the
+// call stack on large XERs (String.fromCharCode(...arr) caps at ~64K args).
+function bytesToBase64(bytes) {
+  let binary = '';
+  const chunk = 32768;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TOOL DEFINITIONS
@@ -170,6 +180,11 @@ export function render({ A, B }) {
       runBtn.disabled = true;
       runBtn.style.opacity = '0.7';
 
+      // Open a placeholder tab synchronously so the popup blocker keeps it
+      // attached to the user click. We assign location.href once the job
+      // finishes. Closed on rate_limit / failure paths.
+      const resultTab = window.open('about:blank', '_blank');
+
       try {
         setStatus('Anonymizing XER...');
 
@@ -191,40 +206,44 @@ export function render({ A, B }) {
           }
         }
 
-        setStatus('Submitting to Engine...');
+        setStatus('Encoding XER...');
+        const xerText = writeXer(xerModel);
+        const xerBytes = new TextEncoder().encode(xerText);
+        const xerBase64 = bytesToBase64(xerBytes);
 
-        /**
-         * v1 stub: full gzip+base64 encoding requires `pako` (not yet a
-         * viewer dependency).  Using a placeholder base64 value.  The real
-         * implementation lands when the MCP facade ships and pako is added.
-         */
-        const xerBase64 = btoa(unescape(encodeURIComponent('placeholder')));
+        setStatus('Submitting to Engine...');
 
         const result = await runDeepForensic({
           tool:          selectedTool,
           xerBase64,
           anonymized:    anonymize,
           anonMapSha256,
-          lensVersion:   '0.1.0'
+          lensVersion:   '1.0.0'
         });
 
         if (result.status === 'rate_limited') {
+          if (resultTab) resultTab.close();
           setStatus(
             'Daily limit reached — try again tomorrow or contact us for engagement-grade access.',
             '#B45309'
           );
         } else if (result.status === 'done' && result.resultUrl) {
-          window.open(result.resultUrl, '_blank');
+          if (resultTab) {
+            resultTab.location.href = result.resultUrl;
+          } else {
+            window.open(result.resultUrl, '_blank');
+          }
           setStatus('Result opened in new tab.', '#15803D');
         } else {
-          throw new Error(result.errors?.[0] || 'Unknown error');
+          if (resultTab) resultTab.close();
+          const detail = (result.errors && result.errors[0]) || `status: ${result.status}`;
+          throw new Error(detail);
         }
 
       } catch (err) {
-        // Backend not yet live — friendly stub message
+        if (resultTab && !resultTab.closed) resultTab.close();
         setStatus(
-          'Engine not yet available — Plan 3 (MCP facade) ships separately.  ' +
-          'This section’s UI is in place; the backend goes live with v1.1.',
+          'Run failed: ' + (err && err.message ? err.message : 'unknown error'),
           '#C8392F'
         );
       } finally {
