@@ -122,3 +122,7 @@ main.lens-content h2 { color: var(--ink); margin: 0 0 12px; font-size: 22px; }
 .lens-table-wrap th { position: sticky; top: 0; z-index: 1; }
 .lens-table-foot { padding: 8px 12px; color: var(--muted); font-size: 12px; background: var(--bg); border-top: 1px solid var(--line); }
 .lens-empty { padding: 32px; text-align: center; color: var(--muted); font-style: italic; }
+
+.lens-toolbar { display: flex; gap: 12px; align-items: center; margin: 10px 0; }
+.lens-search { flex: 1; max-width: 360px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; font-family: var(--font-sans); font-size: 13px; }
+.lens-count { color: var(--muted); font-size: 12px; }
