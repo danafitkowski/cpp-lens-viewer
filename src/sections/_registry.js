@@ -1,6 +1,7 @@
 import { renderPlaceholder } from './_placeholder.js';
 import { render as renderDashboard } from './dashboard.js';
 import { render as renderSummary } from './summary.js';
+import { render as renderComparePage } from './compare-page.js';
 
 function ph(title, group) {
   return ({ A, B }) => renderPlaceholder({ title, groupLabel: group });
@@ -10,7 +11,7 @@ export const SECTIONS = [
   // Overview
   { id: 'dashboard',       title: 'Executive Dashboard',  group: 'Overview',  render: renderDashboard },
   { id: 'summary',         title: 'Executive Summary',    group: 'Overview',  render: renderSummary },
-  { id: 'compare-page',    title: 'How Lens compares',    group: 'Overview',  render: ph('How Lens compares', 'Overview') },
+  { id: 'compare-page',    title: 'How Lens compares',    group: 'Overview',  render: renderComparePage },
 
   // Schedule
   { id: 'viewer',          title: 'Schedule Viewer',      group: 'Schedule',  render: ph('Schedule Viewer', 'Schedule') },
