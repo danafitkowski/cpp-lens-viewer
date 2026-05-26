@@ -42,10 +42,11 @@ describe('shell', () => {
     document.body.removeChild(el);
   });
 
-  it('content area renders the active section placeholder', () => {
+  it('content area renders the active section', () => {
     const el = renderContent();
     expect(el.textContent).toContain('Executive Dashboard');
-    expect(el.textContent).toContain('Coming soon');
+    // dashboard now renders real empty-state when no XER is loaded
+    expect(el.textContent).toContain('Drop an XER');
   });
 
   it('content swaps when navStore changes', () => {

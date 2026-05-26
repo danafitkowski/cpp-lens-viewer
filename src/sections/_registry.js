@@ -1,4 +1,5 @@
 import { renderPlaceholder } from './_placeholder.js';
+import { render as renderDashboard } from './dashboard.js';
 
 function ph(title, group) {
   return ({ A, B }) => renderPlaceholder({ title, groupLabel: group });
@@ -6,7 +7,7 @@ function ph(title, group) {
 
 export const SECTIONS = [
   // Overview
-  { id: 'dashboard',       title: 'Executive Dashboard',  group: 'Overview',  render: ph('Executive Dashboard', 'Overview') },
+  { id: 'dashboard',       title: 'Executive Dashboard',  group: 'Overview',  render: renderDashboard },
   { id: 'summary',         title: 'Executive Summary',    group: 'Overview',  render: ph('Executive Summary', 'Overview') },
   { id: 'compare-page',    title: 'How Lens compares',    group: 'Overview',  render: ph('How Lens compares', 'Overview') },
 
