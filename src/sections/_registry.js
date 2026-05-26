@@ -18,6 +18,7 @@ import { render as renderWbsRollup } from './wbs-rollup.js';
 import { render as renderDistribution } from './distribution.js';
 import { render as renderEvm } from './evm.js';
 import { render as renderDashboardCreator } from './dashboard-creator.js';
+import { render as renderXerComparison } from './xer-comparison.js';
 
 function ph(title, group) {
   return ({ A, B }) => renderPlaceholder({ title, groupLabel: group });
@@ -50,7 +51,7 @@ export const SECTIONS = [
   { id: 'dashboard-creator', title: 'Dashboard Creator',  group: 'Visual',    render: renderDashboardCreator },
 
   // Compare & Period
-  { id: 'compare',         title: 'XER Comparison',       group: 'Compare & Period', render: ph('XER Comparison', 'Compare & Period') },
+  { id: 'compare',         title: 'XER Comparison',       group: 'Compare & Period', render: renderXerComparison },
   { id: 'period',          title: 'Period Reporting',     group: 'Compare & Period', render: ph('Period Reporting', 'Compare & Period') },
   { id: 'narrative-flip',  title: 'Narrative Flip',       group: 'Compare & Period', render: ph('Narrative Flip', 'Compare & Period') },
 
