@@ -26,6 +26,7 @@ import { render as renderLookahead } from './lookahead.js';
 import { render as renderHalfStep } from './half-step.js';
 import { render as renderDeepForensic } from './deep-forensic.js';
 import { render as renderDataDictionary } from './data-dictionary.js';
+import { render as renderRawTables } from './raw-tables.js';
 
 function ph(title, group) {
   return ({ A, B }) => renderPlaceholder({ title, groupLabel: group });
@@ -70,7 +71,7 @@ export const SECTIONS = [
 
   // Tools
   { id: 'data-dictionary', title: 'Data Dictionary',      group: 'Tools',     render: renderDataDictionary },
-  { id: 'raw-tables',      title: 'Raw Tables',           group: 'Tools',     render: ph('Raw Tables', 'Tools') },
+  { id: 'raw-tables',      title: 'Raw Tables',           group: 'Tools',     render: renderRawTables },
   { id: 'xer-utilities',   title: 'XER Utilities',        group: 'Tools',     render: ph('XER Utilities', 'Tools') }
 ];
 
