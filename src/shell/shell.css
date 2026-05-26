@@ -96,3 +96,14 @@ main.lens-content h2 { color: var(--ink); margin: 0 0 12px; font-size: 22px; }
 .lens-status-banner[data-tone="red"]   { background: #FEE2E2; color: #991B1B; border: 1px solid #FECACA; }
 
 .lens-card.lens-warn { background: #FEF3C7; border-color: #FDE68A; color: #92400E; font-weight: 600; }
+
+.lens-narrative-header { font-weight: 700; font-size: 16px; margin-bottom: 8px; color: var(--ink); }
+.lens-narrative p { margin: 0; line-height: 1.55; color: var(--ink); font-size: 14px; }
+
+.lens-concerns { padding-left: 18px; margin: 8px 0 0; }
+.lens-concerns li { margin: 4px 0; color: var(--ink); }
+
+.lens-table { border-collapse: collapse; width: 100%; font-size: 13px; margin-top: 8px; }
+.lens-table th { text-align: left; background: var(--ink); color: #FFFFFF; padding: 8px 10px; font-weight: 700; font-size: 12px; }
+.lens-table td { padding: 7px 10px; border-bottom: 1px solid var(--line); }
+.lens-table tr:hover td { background: var(--bg); }
