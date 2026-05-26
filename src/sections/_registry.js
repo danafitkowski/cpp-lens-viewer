@@ -4,6 +4,7 @@ import { render as renderSummary } from './summary.js';
 import { render as renderComparePage } from './compare-page.js';
 import { render as renderScheduleViewer } from './schedule-viewer.js';
 import { render as renderQuality } from './schedule-quality.js';
+import { render as renderDcma } from './dcma-lite.js';
 
 function ph(title, group) {
   return ({ A, B }) => renderPlaceholder({ title, groupLabel: group });
@@ -18,7 +19,7 @@ export const SECTIONS = [
   // Schedule
   { id: 'viewer',          title: 'Schedule Viewer',      group: 'Schedule',  render: renderScheduleViewer },
   { id: 'quality',         title: 'Schedule Quality',     group: 'Schedule',  render: renderQuality },
-  { id: 'dcma',            title: 'DCMA Lite',            group: 'Schedule',  render: ph('DCMA Lite', 'Schedule') },
+  { id: 'dcma',            title: 'DCMA Lite',            group: 'Schedule',  render: renderDcma },
   { id: 'logic',           title: 'Logic Network',        group: 'Schedule',  render: ph('Logic Network', 'Schedule') },
   { id: 'constraints',     title: 'Constraints / Float',  group: 'Schedule',  render: ph('Constraints / Float', 'Schedule') },
   { id: 'codes',           title: 'Activity Codes',       group: 'Schedule',  render: ph('Activity Codes', 'Schedule') },
