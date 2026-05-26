@@ -12,6 +12,7 @@ import { render as renderUdfExplorer } from './udf-explorer.js';
 import { render as renderResourcesCost } from './resources-cost.js';
 import { render as renderRiskRegister } from './risk-register.js';
 import { render as renderCalendarViewer } from './calendar-viewer.js';
+import { render as renderGantt } from './gantt.js';
 
 function ph(title, group) {
   return ({ A, B }) => renderPlaceholder({ title, groupLabel: group });
@@ -36,7 +37,7 @@ export const SECTIONS = [
   { id: 'calendar',        title: 'Calendar Viewer',      group: 'Schedule',  render: renderCalendarViewer },
 
   // Visual
-  { id: 'gantt',           title: 'Gantt Chart',          group: 'Visual',    render: ph('Gantt Chart', 'Visual') },
+  { id: 'gantt',           title: 'Gantt Chart',          group: 'Visual',    render: renderGantt },
   { id: 'wbs-organizer',   title: 'WBS Organizer',        group: 'Visual',    render: ph('WBS Organizer', 'Visual') },
   { id: 'wbs-rollup',      title: 'WBS Roll-up',          group: 'Visual',    render: ph('WBS Roll-up', 'Visual') },
   { id: 'distribution',    title: 'Distribution',         group: 'Visual',    render: ph('Distribution', 'Visual') },
