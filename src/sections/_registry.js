@@ -24,6 +24,7 @@ import { render as renderNarrativeFlip } from './narrative-flip.js';
 import { render as renderPathExplorer } from './path-explorer.js';
 import { render as renderLookahead } from './lookahead.js';
 import { render as renderHalfStep } from './half-step.js';
+import { render as renderDeepForensic } from './deep-forensic.js';
 
 function ph(title, group) {
   return ({ A, B }) => renderPlaceholder({ title, groupLabel: group });
@@ -64,7 +65,7 @@ export const SECTIONS = [
   { id: 'path-explorer',   title: 'Path Explorer',        group: 'CPP Forensic',     render: renderPathExplorer },
   { id: 'lookahead',       title: '3-Week Lookahead',     group: 'CPP Forensic',     render: renderLookahead },
   { id: 'half-step',       title: 'Half-Step XER',        group: 'CPP Forensic',     render: renderHalfStep },
-  { id: 'deep-forensic',   title: 'Deep Forensic',        group: 'CPP Forensic',     render: ph('Deep Forensic', 'CPP Forensic') },
+  { id: 'deep-forensic',   title: 'Deep Forensic',        group: 'CPP Forensic',     render: renderDeepForensic },
 
   // Tools
   { id: 'data-dictionary', title: 'Data Dictionary',      group: 'Tools',     render: ph('Data Dictionary', 'Tools') },
