@@ -1,0 +1,26 @@
+ERMHDR	24.12	2026-01-01	Project	admin	Test User	dbxDB	Project Management	USD
+%T	PROJECT
+%F	proj_id	proj_short_name	last_recalc_date
+%R	1	CODE-TEST	2026-01-01 00:00
+%T	PROJWBS
+%F	wbs_id	parent_wbs_id	wbs_name	proj_id
+%R	W1		Root	1
+%T	TASK
+%F	task_id	task_code	task_name	proj_id	wbs_id	status_code	task_type
+%R	T1	A1	Activity One	1	W1	TK_NotStart	TT_Task
+%R	T2	A2	Activity Two	1	W1	TK_NotStart	TT_Task
+%T	ACTVTYPE
+%F	actv_code_type_id	actv_code_type	actv_short_len	proj_id
+%R	AT1	Phase	10	1
+%R	AT2	Area	10	1
+%T	ACTVCODE
+%F	actv_code_id	actv_code_type_id	short_name	actv_code_name	seq_num
+%R	AC1	AT1	CIVIL	Civil Works	10
+%R	AC2	AT1	ELEC	Electrical	20
+%R	AC3	AT2	NORTH	North Zone	10
+%T	TASKACTV
+%F	task_id	actv_code_type_id	actv_code_id
+%R	T1	AT1	AC1
+%R	T1	AT2	AC3
+%R	T2	AT1	AC2
+%E
