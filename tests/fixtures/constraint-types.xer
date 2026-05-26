@@ -1,0 +1,14 @@
+ERMHDR	24.12	2026-01-01	Project	admin	Test User	dbxDB	Project Management	USD
+%T	PROJECT
+%F	proj_id	proj_short_name	last_recalc_date
+%R	1	CSTR-TEST	2026-01-01 00:00
+%T	TASK
+%F	task_id	task_code	task_name	proj_id	task_type	status_code	cstr_type
+%R	1	A	Task A	1	TT_Task	TK_NotStart	CS_MSO
+%R	2	B	Task B	1	TT_Task	TK_NotStart	CS_MSO
+%R	3	C	Task C	1	TT_Task	TK_NotStart	CS_MEO
+%R	4	D	Task D	1	TT_Task	TK_NotStart	CS_MSOA
+%R	5	E	Task E	1	TT_Task	TK_NotStart	CS_MEOB
+%R	6	F	Task F	1	TT_Task	TK_NotStart	CS_MANDSTART
+%R	7	G	Task G	1	TT_Task	TK_NotStart	CS_MANDFIN
+%E
