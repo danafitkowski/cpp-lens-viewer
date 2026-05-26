@@ -82,3 +82,10 @@ main.lens-content h2 { color: var(--ink); margin: 0 0 12px; font-size: 22px; }
   background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
   padding: 16px; margin: 12px 0; box-shadow: 0 2px 8px rgba(15, 37, 64, 0.04);
 }
+
+.lens-card.kpi { padding: 14px 16px; }
+.kpi-title { color: var(--muted); font-size: 12px; font-weight: 700; margin: 0 0 6px; text-transform: uppercase; letter-spacing: 0.04em; }
+.kpi-big { line-height: 1.05; margin: 4px 0 2px; }
+.kpi-sub { color: var(--muted); font-size: 12px; }
+.kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+.kpi-grid + .kpi-grid { margin-top: 14px; }
