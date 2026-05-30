@@ -54,4 +54,68 @@ describe('shell', () => {
     navStore.set({ active: 'gantt' });
     expect(el.textContent).toContain('Gantt Chart');
   });
+
+  // ── upload error handling (hardening) ─────────────────────────────────────
+  // A bad upload must surface a visible message, not silently white-screen.
+  const VALID_XER =
+    'ERMHDR\t24.12\t2026-01-01\tProject\tadmin\tDemo\tdb\tProject Management\tUSD\n' +
+    '%T\tPROJECT\n%F\tproj_id\tproj_short_name\n%R\t1\tDEMO\n' +
+    '%T\tTASK\n%F\ttask_id\ttask_code\ttask_name\n%R\t1000\tA1\tMobilize\n%E\n';
+
+  function setFiles(input, file) {
+    Object.defineProperty(input, 'files', { value: file ? [file] : [], configurable: true });
+  }
+  const flush = () => new Promise((r) => setTimeout(r, 0));
+
+  it('shows an error (not silent failure) when Analyze clicked with no file', async () => {
+    const el = renderSidebar();
+    document.body.appendChild(el);
+    el.querySelector('button').textContent; // ensure rendered
+    const analyze = [...el.querySelectorAll('button')].find((b) => /analyze/i.test(b.textContent));
+    analyze.click();
+    await flush();
+    expect(el.textContent.toLowerCase()).toContain('pick a current');
+    expect(modelStore.get().A).toBeNull();
+    document.body.removeChild(el);
+  });
+
+  it('loads a valid XER and reports activity count', async () => {
+    const el = renderSidebar();
+    document.body.appendChild(el);
+    const fileA = el.querySelector('#lens-file-a');
+    const analyze = [...el.querySelectorAll('button')].find((b) => /analyze/i.test(b.textContent));
+    setFiles(fileA, new File([VALID_XER], 'demo.xer', { type: 'text/plain' }));
+    analyze.click();
+    await flush(); await flush();
+    expect(modelStore.get().A).not.toBeNull();
+    expect(el.textContent).toMatch(/Loaded\s+1\s+activit/i);
+    document.body.removeChild(el);
+  });
+
+  it('rejects a non-XER file with a clear message and does not load it', async () => {
+    const el = renderSidebar();
+    document.body.appendChild(el);
+    const fileA = el.querySelector('#lens-file-a');
+    const analyze = [...el.querySelectorAll('button')].find((b) => /analyze/i.test(b.textContent));
+    setFiles(fileA, new File(['just some notes, not a schedule'], 'notes.txt', { type: 'text/plain' }));
+    analyze.click();
+    await flush(); await flush();
+    expect(modelStore.get().A).toBeNull();
+    expect(el.textContent.toLowerCase()).toContain('no project or task');
+    document.body.removeChild(el);
+  });
+
+  it('surfaces a parse error for malformed XML instead of crashing', async () => {
+    const el = renderSidebar();
+    document.body.appendChild(el);
+    const fileA = el.querySelector('#lens-file-a');
+    const analyze = [...el.querySelectorAll('button')].find((b) => /analyze/i.test(b.textContent));
+    setFiles(fileA, new File(['<?xml version="1.0"?><APIBusinessObjects><unclosed>'], 'bad.xml', { type: 'text/xml' }));
+    analyze.click();
+    await flush(); await flush();
+    // Either a parse error or a no-content message — both are graceful, neither crashes.
+    expect(modelStore.get().A).toBeNull();
+    expect(el.textContent.toLowerCase()).toMatch(/couldn.t read|no project or task/);
+    document.body.removeChild(el);
+  });
 });
