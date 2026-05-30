@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { runDeepForensic } from '../../src/mcp/client.js';
+import { runDeepForensic, convertMpp } from '../../src/mcp/client.js';
 
 const OK = { tool: 'schedule-risk-analysis', xerBase64: 'x', pollIntervalMs: 1, maxPolls: 5 };
 function resp(body, { ok = true, status = 200 } = {}) {
@@ -59,5 +59,41 @@ describe('runDeepForensic — network/error robustness', () => {
   it('does not loop forever — gives up with a clean message after maxPolls', async () => {
     globalThis.fetch = vi.fn().mockResolvedValue(resp({ jobId: 'J', status: 'running' }));
     await expect(runDeepForensic({ ...OK, maxPolls: 3, pollIntervalMs: 1 })).rejects.toThrow(/taking longer than expected/);
+  });
+});
+
+describe('convertMpp — MPP→P6XML server call', () => {
+  const mpp = new Uint8Array([0xD0, 0xCF, 0x11, 0xE0, 1, 2, 3]); // OLE magic-ish
+
+  it('returns the P6 XML on success', async () => {
+    const xml = '<?xml version="1.0"?><APIBusinessObjects/>';
+    globalThis.fetch = vi.fn().mockResolvedValue(resp({ status: 'done', xml }));
+    expect(await convertMpp(mpp)).toBe(xml);
+  });
+
+  it('503 → friendly "not enabled, use XML" message', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue(resp({ status: 'unavailable', errors: ['x'] }, { ok: false, status: 503 }));
+    await expect(convertMpp(mpp)).rejects.toThrow(/isn.t enabled|export.*XML/i);
+  });
+
+  it('429 → friendly daily-limit message', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue(resp({ status: 'rate_limited' }, { ok: false, status: 429 }));
+    await expect(convertMpp(mpp)).rejects.toThrow(/Daily limit/i);
+  });
+
+  it('422 conversion failure → surfaces server error', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue(resp({ status: 'failed', errors: ['unrecognized/corrupt MPP'] }, { ok: false, status: 422 }));
+    await expect(convertMpp(mpp)).rejects.toThrow(/corrupt MPP/);
+  });
+
+  it('accepts an ArrayBuffer as well as a Uint8Array', async () => {
+    const xml = '<?xml version="1.0"?><APIBusinessObjects/>';
+    globalThis.fetch = vi.fn().mockResolvedValue(resp({ status: 'done', xml }));
+    expect(await convertMpp(mpp.buffer)).toBe(xml);
+  });
+
+  it('network failure → friendly reach error (no raw TypeError)', async () => {
+    globalThis.fetch = vi.fn().mockRejectedValue(new TypeError('Failed to fetch'));
+    await expect(convertMpp(mpp)).rejects.toThrow(/failed to reach the Engine/);
   });
 });

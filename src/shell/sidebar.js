@@ -3,13 +3,27 @@ import { SECTIONS, GROUPS } from '../sections/_registry.js';
 import { navStore } from '../state/nav.js';
 import { modelStore } from '../state/model.js';
 import { parseXer, parseP6Xml, getTable } from '@criticalpathpartners/lens-parser';
+import { convertMpp } from '../mcp/client.js';
 
-// File loader that picks the parser based on extension. P6 XML uploads
-// produce the same model shape as XER so downstream sections don't notice.
-// May throw (parseP6Xml rejects malformed XML) — callers must handle it.
-async function parseUploadedFile(file) {
-  const text = await file.text();
+// File loader that picks the parser based on extension.
+//   .xer / .txt → parseXer        (100% local)
+//   .xml        → parseP6Xml      (100% local)
+//   .mpp        → server-side mpxj conversion to P6 XML, then parseP6Xml local.
+//                MS Project .mpp is a proprietary binary with no browser parser,
+//                so the raw file is sent to /lens/convert (the ONLY server
+//                exposure); everything after stays local. `onStatus` lets the
+//                caller surface that round-trip.
+// May throw (parseP6Xml rejects malformed XML; convertMpp throws on
+// unavailable/rate-limit/failure) — callers must handle it.
+async function parseUploadedFile(file, onStatus) {
   const name = file.name || '';
+  if (/\.mpp$/i.test(name)) {
+    if (onStatus) onStatus(`Converting "${name}" on the CPP server (MS Project files can’t be read in the browser)…`);
+    const buf = await file.arrayBuffer();
+    const xml = await convertMpp(buf);
+    return parseP6Xml(xml, { filename: name.replace(/\.mpp$/i, '.xml') });
+  }
+  const text = await file.text();
   const isXml = /\.xml$/i.test(name) || /^\s*<\?xml/i.test(text.slice(0, 64));
   return isXml
     ? parseP6Xml(text, { filename: name })
@@ -25,8 +39,8 @@ function modelHasContent(model) {
 }
 
 function renderFileBox() {
-  const fileA = h('input', { type: 'file', accept: '.xer,.xml,.txt', id: 'lens-file-a' });
-  const fileB = h('input', { type: 'file', accept: '.xer,.xml,.txt', id: 'lens-file-b' });
+  const fileA = h('input', { type: 'file', accept: '.xer,.xml,.mpp,.txt', id: 'lens-file-a' });
+  const fileB = h('input', { type: 'file', accept: '.xer,.xml,.mpp,.txt', id: 'lens-file-b' });
   const analyze = h('button', {}, 'Analyze');
   const reset = h('button', { class: 'secondary' }, 'Reset');
 
@@ -49,12 +63,12 @@ function renderFileBox() {
 
   on(analyze, 'click', async () => {
     const fa = fileA.files[0];
-    if (!fa) { showStatus('Pick a current XER or XML file first.', 'error'); return; }
+    if (!fa) { showStatus('Pick a current XER, XML, or MPP file first.', 'error'); return; }
 
     analyze.disabled = true;
     try {
       showStatus('Parsing…', 'info');
-      const A = await parseUploadedFile(fa);
+      const A = await parseUploadedFile(fa, (m) => showStatus(m, 'info'));
       if (!modelHasContent(A)) {
         showStatus(
           `"${fa.name}" has no PROJECT or TASK data — is it a valid P6 XER/XML export?`,
@@ -64,7 +78,7 @@ function renderFileBox() {
       let B = null;
       if (fileB.files[0]) {
         const fb = fileB.files[0];
-        B = await parseUploadedFile(fb);
+        B = await parseUploadedFile(fb, (m) => showStatus(m, 'info'));
         if (!modelHasContent(B)) {
           showStatus(
             `Baseline "${fb.name}" has no PROJECT or TASK data — loaded the current file only.`,

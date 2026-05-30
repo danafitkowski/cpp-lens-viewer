@@ -96,3 +96,48 @@ export async function runDeepForensic(opts) {
 }
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// MPP conversion runs a JVM (mpxj) server-side, so it's slower than a JSON call.
+const CONVERT_TIMEOUT_MS = 90000;
+
+// Convert a Uint8Array to base64, chunked to survive multi-MB files.
+function bytesToBase64(bytes) {
+  let binary = '';
+  const chunk = 32768;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
+}
+
+/**
+ * Convert an MS Project .mpp file to Primavera P6 XML via the CPP server.
+ *
+ * MPP is a proprietary binary format with no usable browser parser, so the raw
+ * bytes are sent to /lens/convert; mpxj converts to P6 XML in-memory (discarded
+ * after) and the XML comes back for the browser to parse locally with
+ * parseP6Xml. This is the ONLY server exposure of the file — all analysis stays
+ * client-side afterward.
+ *
+ * @param {ArrayBuffer|Uint8Array} mppBytes
+ * @returns {Promise<string>} the P6 XML text
+ * @throws {Error} with a clean message on unavailable / rate-limit / failure
+ */
+export async function convertMpp(mppBytes) {
+  const u8 = mppBytes instanceof Uint8Array ? mppBytes : new Uint8Array(mppBytes);
+  const resp = await fetchWithTimeout(`${MCP_BASE_URL}/lens/convert`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ mpp_base64: bytesToBase64(u8) }),
+  }, CONVERT_TIMEOUT_MS, 'MPP conversion');
+
+  if (resp.status === 503) {
+    throw new Error('MPP conversion isn’t enabled on the server yet — export your schedule from MS Project as XML, or use a P6 XER/XML file.');
+  }
+  if (resp.status === 429) {
+    throw new Error('Daily limit reached — try again tomorrow, or use a P6 XER/XML file (no limit).');
+  }
+  const data = await jsonOrThrow(resp, 'MPP conversion');
+  if (resp.ok && data.status === 'done' && data.xml) return data.xml;
+  throw new Error((data.errors && data.errors[0]) || `MPP conversion failed (HTTP ${resp.status}).`);
+}
