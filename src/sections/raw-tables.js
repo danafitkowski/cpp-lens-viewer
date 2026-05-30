@@ -7,12 +7,29 @@ const MAX_ROWS = 5000;
 
 /**
  * Escape a single field value for CSV output.
- * Wraps in quotes if the value contains a comma, double-quote, or newline.
- * Doubles internal double-quote characters.
+ *
+ * Two layers:
+ *  1. CSV formula-injection guard (OWASP). XER field text is untrusted; a cell
+ *     beginning with = @ + - (or a tab/CR formula-lead) is executed as a
+ *     formula when the CSV is opened in Excel / Sheets / LibreOffice — e.g.
+ *     =HYPERLINK / =cmd|'…' — a data-exfil / command-exec vector on the
+ *     analyst's machine. CSV quoting does NOT prevent it (the app evaluates
+ *     after unquoting). We neutralize with a leading apostrophe, which those
+ *     apps render as inert text without showing the quote. Plain numbers
+ *     (incl. negatives like "-40" total float) are left intact so numeric
+ *     columns still sort/sum.
+ *  2. RFC 4180 quoting for comma / quote / CR / LF.
  */
 function csvEscape(value) {
-  const s = value == null ? '' : String(value);
-  if (s.includes(',') || s.includes('"') || s.includes('\n')) {
+  let s = value == null ? '' : String(value);
+  if (s.length > 0) {
+    const c = s[0];
+    const isFormulaLead =
+      c === '=' || c === '@' || c === '\t' || c === '\r' ||
+      ((c === '+' || c === '-') && !/^[+-]?\d+(?:\.\d+)?$/.test(s));
+    if (isFormulaLead) s = "'" + s;
+  }
+  if (s.includes(',') || s.includes('"') || s.includes('\n') || s.includes('\r')) {
     return '"' + s.replace(/"/g, '""') + '"';
   }
   return s;

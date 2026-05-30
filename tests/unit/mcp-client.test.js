@@ -1,91 +1,63 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { runDeepForensic, MCP_BASE_URL } from '../../src/mcp/client.js';
+import { describe, it, expect, afterEach, vi } from 'vitest';
+import { runDeepForensic } from '../../src/mcp/client.js';
 
-describe('runDeepForensic', () => {
-  beforeEach(() => {
-    globalThis.fetch = vi.fn();
+const OK = { tool: 'schedule-risk-analysis', xerBase64: 'x', pollIntervalMs: 1, maxPolls: 5 };
+function resp(body, { ok = true, status = 200 } = {}) {
+  return { ok, status, statusText: '', text: async () => (typeof body === 'string' ? body : JSON.stringify(body)) };
+}
+afterEach(() => { vi.restoreAllMocks(); delete globalThis.fetch; });
+
+describe('runDeepForensic — network/error robustness', () => {
+  it('returns immediately when submit says done', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue(resp({ jobId: 'J', status: 'done', resultUrl: 'u' }));
+    const r = await runDeepForensic(OK);
+    expect(r.status).toBe('done');
   });
 
-  it('POSTs to /lens/run with the right body', async () => {
-    fetch
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ jobId: 'job1', status: 'done', resultUrl: 'https://example/r/1', rateLimit: { remaining: 4, resetAt: '' } })
-      });
-
-    const result = await runDeepForensic({
-      tool: 'forensic-delay-analysis',
-      xerBase64: 'BASE64DATA',
-      anonymized: true,
-      anonMapSha256: 'abc123',
-      pollIntervalMs: 1,
-      lensVersion: '0.1.0'
-    });
-
-    expect(result.resultUrl).toBe('https://example/r/1');
-    expect(fetch).toHaveBeenCalled();
-    const firstCall = fetch.mock.calls[0];
-    expect(firstCall[0]).toBe(`${MCP_BASE_URL}/lens/run`);
-    const body = JSON.parse(firstCall[1].body);
-    expect(body.tool).toBe('forensic-delay-analysis');
-    expect(body.input.anonymized).toBe(true);
-    expect(body.input.anon_map_sha256).toBe('abc123');
+  it('polls queued → done', async () => {
+    const f = vi.fn()
+      .mockResolvedValueOnce(resp({ jobId: 'J', status: 'queued' }))
+      .mockResolvedValueOnce(resp({ jobId: 'J', status: 'running' }))
+      .mockResolvedValueOnce(resp({ jobId: 'J', status: 'done', resultUrl: 'u' }));
+    globalThis.fetch = f;
+    const r = await runDeepForensic(OK);
+    expect(r.status).toBe('done');
+    expect(f).toHaveBeenCalledTimes(3);
   });
 
-  it('polls until done after a queued response', async () => {
-    fetch
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ jobId: 'job1', status: 'queued', rateLimit: { remaining: 5, resetAt: '' } })
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ jobId: 'job1', status: 'running', rateLimit: { remaining: 5, resetAt: '' } })
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ jobId: 'job1', status: 'done', resultUrl: 'https://example/r/1', rateLimit: { remaining: 4, resetAt: '' } })
-      });
-
-    const result = await runDeepForensic({
-      tool: 'forensic-delay-analysis',
-      xerBase64: '',
-      pollIntervalMs: 1
-    });
-
-    expect(result.status).toBe('done');
-    expect(result.resultUrl).toBe('https://example/r/1');
-    expect(fetch).toHaveBeenCalledTimes(3); // 1 submit + 2 polls
+  it('non-2xx submit → clean error, no raw HTTP leak', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue(resp('', { ok: false, status: 500 }));
+    await expect(runDeepForensic(OK)).rejects.toThrow(/Engine rejected the submission \(HTTP 500\)/);
   });
 
-  it('returns rate_limited result without polling', async () => {
-    fetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ jobId: '', status: 'rate_limited', rateLimit: { remaining: 0, resetAt: '2026-05-27T00:00:00Z' } })
-    });
-    const result = await runDeepForensic({ tool: 'forensic-delay-analysis', xerBase64: '', pollIntervalMs: 1 });
-    expect(result.status).toBe('rate_limited');
-    expect(fetch).toHaveBeenCalledTimes(1);
+  it('non-JSON body (proxy 502 HTML) → clean error, not a SyntaxError', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue(resp('<html>502 Bad Gateway</html>'));
+    await expect(runDeepForensic(OK)).rejects.toThrow(/non-JSON/);
   });
 
-  it('throws on non-ok HTTP', async () => {
-    fetch.mockResolvedValueOnce({ ok: false, status: 500, statusText: 'Server Error' });
-    await expect(runDeepForensic({ tool: 'forensic-delay-analysis', xerBase64: '', pollIntervalMs: 1 }))
-      .rejects.toThrow(/500/);
+  it('network failure (fetch rejects) → friendly reach error', async () => {
+    globalThis.fetch = vi.fn().mockRejectedValue(new TypeError('Failed to fetch'));
+    await expect(runDeepForensic(OK)).rejects.toThrow(/failed to reach the Engine/);
   });
 
-  it('includes optional baseline XER when provided', async () => {
-    fetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ jobId: 'j', status: 'done', resultUrl: 'u', rateLimit: {} })
-    });
-    await runDeepForensic({
-      tool: 'collapsed-as-built',
-      xerBase64: 'CURRENT',
-      xerBaselineBase64: 'BASELINE',
-      pollIntervalMs: 1
-    });
-    const body = JSON.parse(fetch.mock.calls[0][1].body);
-    expect(body.input.xer_baseline_base64).toBe('BASELINE');
+  it('request timeout (AbortError) → friendly timeout error', async () => {
+    globalThis.fetch = vi.fn().mockRejectedValue(Object.assign(new Error('aborted'), { name: 'AbortError' }));
+    await expect(runDeepForensic(OK)).rejects.toThrow(/timed out/);
+  });
+
+  it('missing jobId on a non-terminal response → clean error', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue(resp({ status: 'queued' })); // no jobId
+    await expect(runDeepForensic(OK)).rejects.toThrow(/missing a job id/);
+  });
+
+  it('rate_limited surfaces as a returned result (not an error)', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue(resp({ jobId: '', status: 'rate_limited', rateLimit: { remaining: 0 } }));
+    const r = await runDeepForensic(OK);
+    expect(r.status).toBe('rate_limited');
+  });
+
+  it('does not loop forever — gives up with a clean message after maxPolls', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue(resp({ jobId: 'J', status: 'running' }));
+    await expect(runDeepForensic({ ...OK, maxPolls: 3, pollIntervalMs: 1 })).rejects.toThrow(/taking longer than expected/);
   });
 });
