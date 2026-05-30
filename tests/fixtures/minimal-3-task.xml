@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<APIBusinessObjects xmlns="http://xmlns.oracle.com/Primavera/P6/V19.12/API/BusinessObjects"
+                    Version="19.12.0.0" ExportDate="2026-02-13T10:00:00" User="admin" Database="CPP_Demo">
+  <Project>
+    <ObjectId>1</ObjectId>
+    <Id>DEMO</Id>
+    <Name>Lens Demo Project</Name>
+    <PlannedStartDate>2026-01-01T08:00:00</PlannedStartDate>
+    <DataDate>2026-02-13T08:00:00</DataDate>
+    <MustFinishByDate>2026-06-30T17:00:00</MustFinishByDate>
+    <Calendar>
+      <ObjectId>10</ObjectId>
+      <Name>Standard 5-day</Name>
+      <Type>Global</Type>
+      <HoursPerDay>8</HoursPerDay>
+      <HoursPerWeek>40</HoursPerWeek>
+    </Calendar>
+    <WBS>
+      <ObjectId>100</ObjectId>
+      <ProjectObjectId>1</ProjectObjectId>
+      <Code>ROOT</Code>
+      <Name>Root</Name>
+      <SequenceNumber>1</SequenceNumber>
+    </WBS>
+    <WBS>
+      <ObjectId>101</ObjectId>
+      <ProjectObjectId>1</ProjectObjectId>
+      <ParentObjectId>100</ParentObjectId>
+      <Code>CIVIL</Code>
+      <Name>Civil Works</Name>
+      <SequenceNumber>2</SequenceNumber>
+    </WBS>
+    <Activity>
+      <ObjectId>1000</ObjectId>
+      <Id>A1000</Id>
+      <Name>Mobilize</Name>
+      <ProjectObjectId>1</ProjectObjectId>
+      <WBSObjectId>101</WBSObjectId>
+      <CalendarObjectId>10</CalendarObjectId>
+      <Type>Task Dependent</Type>
+      <Status>Not Started</Status>
+      <PlannedDuration>40</PlannedDuration>
+      <RemainingDuration>40</RemainingDuration>
+      <PlannedStartDate>2026-01-01T08:00:00</PlannedStartDate>
+      <PlannedFinishDate>2026-01-07T17:00:00</PlannedFinishDate>
+      <EarlyStartDate>2026-01-01T08:00:00</EarlyStartDate>
+      <EarlyFinishDate>2026-01-07T17:00:00</EarlyFinishDate>
+      <TotalFloat>0</TotalFloat>
+    </Activity>
+    <Activity>
+      <ObjectId>1001</ObjectId>
+      <Id>A1001</Id>
+      <Name>Pour Foundation</Name>
+      <ProjectObjectId>1</ProjectObjectId>
+      <WBSObjectId>101</WBSObjectId>
+      <CalendarObjectId>10</CalendarObjectId>
+      <Type>Task Dependent</Type>
+      <Status>Not Started</Status>
+      <PlannedDuration>80</PlannedDuration>
+      <RemainingDuration>80</RemainingDuration>
+      <PlannedStartDate>2026-01-08T08:00:00</PlannedStartDate>
+      <PlannedFinishDate>2026-01-21T17:00:00</PlannedFinishDate>
+      <EarlyStartDate>2026-01-08T08:00:00</EarlyStartDate>
+      <EarlyFinishDate>2026-01-21T17:00:00</EarlyFinishDate>
+      <TotalFloat>0</TotalFloat>
+    </Activity>
+    <Activity>
+      <ObjectId>1002</ObjectId>
+      <Id>A1002</Id>
+      <Name>Mechanical Rough-In</Name>
+      <ProjectObjectId>1</ProjectObjectId>
+      <WBSObjectId>101</WBSObjectId>
+      <CalendarObjectId>10</CalendarObjectId>
+      <Type>Task Dependent</Type>
+      <Status>Not Started</Status>
+      <PlannedDuration>120</PlannedDuration>
+      <RemainingDuration>120</RemainingDuration>
+      <PlannedStartDate>2026-01-22T08:00:00</PlannedStartDate>
+      <PlannedFinishDate>2026-02-04T17:00:00</PlannedFinishDate>
+      <EarlyStartDate>2026-01-22T08:00:00</EarlyStartDate>
+      <EarlyFinishDate>2026-02-04T17:00:00</EarlyFinishDate>
+      <TotalFloat>5</TotalFloat>
+    </Activity>
+    <Relationship>
+      <ObjectId>2000</ObjectId>
+      <PredecessorActivityObjectId>1000</PredecessorActivityObjectId>
+      <SuccessorActivityObjectId>1001</SuccessorActivityObjectId>
+      <Type>Finish to Start</Type>
+      <Lag>0</Lag>
+    </Relationship>
+    <Relationship>
+      <ObjectId>2001</ObjectId>
+      <PredecessorActivityObjectId>1001</PredecessorActivityObjectId>
+      <SuccessorActivityObjectId>1002</SuccessorActivityObjectId>
+      <Type>Finish to Start</Type>
+      <Lag>0</Lag>
+    </Relationship>
+  </Project>
+</APIBusinessObjects>

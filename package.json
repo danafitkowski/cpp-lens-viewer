@@ -1,6 +1,6 @@
 {
   "name": "cpp-lens-viewer",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "CPP Lens — browser-based Primavera P6 viewer. Live at criticalpathpartners.ca/viewer.",
   "type": "module",
   "private": true,
@@ -16,11 +16,14 @@
     "@criticalpathpartners/lens-parser": "file:../cpp-lens-parser"
   },
   "devDependencies": {
-    "vitest": "^1.5.0",
+    "esbuild": "^0.20.0",
     "happy-dom": "^14.0.0",
-    "esbuild": "^0.20.0"
+    "jsdom": "^29.1.1",
+    "vitest": "^1.5.0"
   },
-  "engines": { "node": ">=18" },
+  "engines": {
+    "node": ">=18"
+  },
   "license": "MIT",
   "repository": {
     "type": "git",
