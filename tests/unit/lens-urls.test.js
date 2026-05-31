@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { brandShareUrl } from '../src/mcp/lens-urls.js';
+import { brandShareUrl } from '../../src/mcp/lens-urls.js';
 
 describe('brandShareUrl', () => {
   it('builds the canonical brand /r/<id> URL', () => {
