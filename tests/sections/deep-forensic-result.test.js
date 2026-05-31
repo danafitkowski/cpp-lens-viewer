@@ -35,4 +35,20 @@ describe('buildResultPanel', () => {
     await Promise.resolve();
     expect(writes).toEqual([`https://criticalpathpartners.ca/r/${JOB}`]);
   });
+  it('falls back to a selectable input when the clipboard is blocked', async () => {
+    globalThis.navigator = globalThis.navigator || {};
+    Object.defineProperty(globalThis.navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: () => Promise.reject(new Error('blocked')) }
+    });
+    const node = buildResultPanel({ jobId: JOB, resultUrl: RESULT_URL });
+    const share = [...node.querySelectorAll('button')].find(b => /share/i.test(b.textContent));
+    share.click();
+    await new Promise(r => setTimeout(r, 0)); // allow the rejected promise + catch to run
+    const input = node.querySelector('input[readonly]');
+    expect(input).toBeTruthy();
+    expect(input.value).toBe(`https://criticalpathpartners.ca/r/${JOB}`);
+    const copied = [...node.querySelectorAll('span')].find(s => /copied/i.test(s.textContent));
+    expect(copied && copied.style.visibility).toBe('hidden');
+  });
 });
