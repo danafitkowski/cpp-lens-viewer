@@ -4,6 +4,7 @@ import { navStore } from '../state/nav.js';
 import { modelStore } from '../state/model.js';
 import { parseXer, parseP6Xml, getTable } from '@criticalpathpartners/lens-parser';
 import { convertMpp } from '../mcp/client.js';
+import { SAMPLE_XER } from '../sample/sample-schedule.js';
 
 // File loader that picks the parser based on extension.
 //   .xer / .txt → parseXer        (100% local)
@@ -43,6 +44,7 @@ function renderFileBox() {
   const fileB = h('input', { type: 'file', accept: '.xer,.xml,.mpp,.txt', id: 'lens-file-b' });
   const analyze = h('button', {}, 'Analyze');
   const reset = h('button', { class: 'secondary' }, 'Reset');
+  const sample = h('button', { class: 'secondary' }, 'Load a sample schedule');
 
   // Visible status line — explicit fg+bg so it reads on any sidebar background
   // (never relies on inherited contrast).
@@ -107,10 +109,24 @@ function renderFileBox() {
     modelStore.set({ A: null, B: null });
   });
 
+  // One-click demo: parse the bundled synthetic schedule locally (no upload) so a
+  // visitor can explore every section with zero setup. parseXer is synchronous and
+  // the input is trusted/inlined, but wrap it anyway so a future parser change can't
+  // throw an unhandled error into the click handler.
+  on(sample, 'click', () => {
+    try {
+      const A = parseXer(SAMPLE_XER, { filename: 'sample-demo.xer' });
+      modelStore.set({ A, B: null });
+      showStatus(`Loaded sample — ${getTable(A, 'TASK').length} activities (demo data).`, 'ok');
+    } catch (err) {
+      showStatus('Could not load the sample schedule: ' + ((err && err.message) || 'unknown'), 'error');
+    }
+  });
+
   return h('div', { class: 'file-box' }, [
     h('label', {}, 'Current / update XER'), fileA,
     h('label', {}, 'Previous / baseline XER (optional)'), fileB,
-    analyze, reset, statusSlot
+    analyze, reset, sample, statusSlot
   ]);
 }
 
