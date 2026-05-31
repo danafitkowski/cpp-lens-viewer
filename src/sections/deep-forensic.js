@@ -4,7 +4,8 @@
  * Flow:
  *   1. (Optional) anonymize the in-memory model client-side.
  *   2. writeXer(model) → re-emit canonical XER text → base64 the bytes.
- *   3. POST /lens/run, poll /lens/job/:id, open /lens/r/:id in a new tab.
+ *   3. POST /lens/run, poll /lens/job/:id, embed /lens/r/:id in an in-viewer
+ *      result panel (see deep-forensic-result.js).
  *
  * Anonymization is on by default. The anon map never leaves the browser;
  * only SHA-256(map) is sent so the result can be receipt-validated locally.
@@ -15,6 +16,7 @@ import { writeXer, gzipToBase64 } from '@criticalpathpartners/lens-parser';
 import { runDeepForensic } from '../mcp/client.js';
 import { anonymizeModel } from '../mcp/anonymizer.js';
 import { prefsStore } from '../state/prefs.js';
+import { buildResultPanel } from './deep-forensic-result.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TOOL DEFINITIONS
@@ -158,6 +160,9 @@ export function render({ A, B }) {
     statusArea.appendChild(h('span', { style: { color } }, msg));
   }
 
+  // In-viewer result panel slot (populated on a successful run).
+  const resultPanelSlot = h('div', {});
+
   // ── Run button ──────────────────────────────────────────────────────────────
   const runBtn = h('button', {
     style: {
@@ -168,11 +173,6 @@ export function render({ A, B }) {
     onclick: async () => {
       runBtn.disabled = true;
       runBtn.style.opacity = '0.7';
-
-      // Open a placeholder tab synchronously so the popup blocker keeps it
-      // attached to the user click. We assign location.href once the job
-      // finishes. Closed on rate_limit / failure paths.
-      const resultTab = window.open('about:blank', '_blank');
 
       try {
         setStatus('Anonymizing XER...');
@@ -213,26 +213,25 @@ export function render({ A, B }) {
         });
 
         if (result.status === 'rate_limited') {
-          if (resultTab) resultTab.close();
+          clear(resultPanelSlot);
           setStatus(
             'Daily limit reached — try again tomorrow or contact us for engagement-grade access.',
             '#B45309'
           );
         } else if (result.status === 'done' && result.resultUrl) {
-          if (resultTab) {
-            resultTab.location.href = result.resultUrl;
-          } else {
-            window.open(result.resultUrl, '_blank');
-          }
-          setStatus('Result opened in new tab.', '#15803D');
+          clear(resultPanelSlot);
+          resultPanelSlot.appendChild(buildResultPanel({
+            jobId: result.jobId, resultUrl: result.resultUrl
+          }));
+          setStatus('Done — result below. Use Share to send a link.', '#15803D');
         } else {
-          if (resultTab) resultTab.close();
+          clear(resultPanelSlot);
           const detail = (result.errors && result.errors[0]) || `status: ${result.status}`;
           throw new Error(detail);
         }
 
       } catch (err) {
-        if (resultTab && !resultTab.closed) resultTab.close();
+        clear(resultPanelSlot);
         setStatus(
           'Run failed: ' + (err && err.message ? err.message : 'unknown error'),
           '#C8392F'
@@ -250,6 +249,7 @@ export function render({ A, B }) {
     anonRow,
     toolPickerCard,
     runBtn,
-    statusArea
+    statusArea,
+    resultPanelSlot
   ]);
 }
