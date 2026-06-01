@@ -85,9 +85,20 @@ export async function runDeepForensic(opts) {
 
   const pollMs = opts.pollIntervalMs ?? 2000;
   const maxPolls = opts.maxPolls ?? 120;
+  // FX-030: capture the job id ONCE. `result` is reassigned to each poll body
+  // below, so deriving the URL from `result.jobId` would hit /lens/job/undefined
+  // the moment a poll response omits the id.
+  const jobId = result.jobId;
   for (let i = 0; i < maxPolls; i++) {
     await sleep(pollMs);
-    const poll = await fetchWithTimeout(`${MCP_BASE_URL}/lens/job/${encodeURIComponent(result.jobId)}`, {}, REQUEST_TIMEOUT_MS, 'Status check');
+    const poll = await fetchWithTimeout(`${MCP_BASE_URL}/lens/job/${encodeURIComponent(jobId)}`, {}, REQUEST_TIMEOUT_MS, 'Status check');
+    // FX-030: a poll-time 429 carries a clean rate_limited envelope — surface it
+    // rather than masking it as a generic "Status check failed (HTTP 429)".
+    if (poll.status === 429) {
+      let body = {};
+      try { body = await poll.json(); } catch { /* empty / non-JSON 429 body */ }
+      return { jobId, status: 'rate_limited', resultUrl: body.resultUrl || '', rateLimit: body.rateLimit, errors: body.errors || [] };
+    }
     if (!poll.ok) throw new Error(`Status check failed (HTTP ${poll.status}). Try again shortly.`);
     result = await jsonOrThrow(poll, 'Status check');
     if (result.status === 'done' || result.status === 'failed' || result.status === 'rate_limited') return result;

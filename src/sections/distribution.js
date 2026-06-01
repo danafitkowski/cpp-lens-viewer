@@ -122,9 +122,10 @@ function buildMonthHistogram(tasks, dataDate) {
     const d   = addMonths(start, i);
     const key = toYYYYMM(d);
     const cnt = monthCounts[key] || 0;
-    if (cnt > 0) {
-      result.push({ label: key, value: cnt });
-    }
+    // FX-026: push EVERY month (incl. zero-completion) so the equal-width bars
+    // form a contiguous time axis. Skipping empty months made non-adjacent
+    // months render side-by-side and misrepresent the intervals.
+    result.push({ label: key, value: cnt });
   }
   return result;
 }
@@ -173,7 +174,7 @@ export function render({ A, B }) {
 
   const card3 = h('div', { class: 'lens-card' }, [
     h('h3', {}, 'Activities finishing per month'),
-    monthData.length === 0
+    monthData.every(m => m.value === 0)
       ? h('div', { class: 'lens-empty' }, 'No activities finish in the next 12 months from data date.')
       : svgBarChart({ data: monthData, tone: '#1a6b3c', width: 700 })
   ]);

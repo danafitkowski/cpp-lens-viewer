@@ -14,7 +14,21 @@ export function renderContent() {
       mount(root, h('div', {}, 'Unknown section.'));
       return;
     }
-    mount(root, section.render({ A, B }));
+    // FX-009: error boundary — a throw inside any one section's render (e.g. a
+    // malformed XER tripping a parser invariant such as a circular WBS) must not
+    // propagate out of this store-subscribe callback and wedge the whole content
+    // pane + nav. Catch it and mount a recoverable error card instead.
+    try {
+      mount(root, section.render({ A, B }));
+    } catch (err) {
+      mount(root, h('div', { class: 'lens-section-content' }, [
+        h('div', { class: 'lens-card' }, [
+          h('h3', {}, 'This section could not render'),
+          h('p', {}, (err && err.message) ? String(err.message) : 'An unexpected error occurred rendering this section.'),
+          h('p', { class: 'lens-section-stub' }, 'Other sections are unaffected — pick another from the sidebar, or reload the schedule.')
+        ])
+      ]));
+    }
   }
 
   navStore.subscribe(rerender);

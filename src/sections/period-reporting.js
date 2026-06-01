@@ -21,16 +21,20 @@ function calDayDelta(after, before) {
 }
 
 /**
- * Build a Map from task_id → task row.
+ * Index tasks by the STABLE cross-schedule key task_code (the Activity ID),
+ * falling back to task_id only when task_code is absent. P6 reassigns the
+ * internal task_id on re-export, so matching A↔B on task_id would orphan every
+ * activity; task_code is stable across exports. Exported for cross-schedule
+ * matching tests.
  *
  * @param {object|null} model
  * @returns {Map<string, object>}
  */
-function indexTasks(model) {
+export function indexTasks(model) {
   const idx = new Map();
   for (const t of getTable(model, 'TASK')) {
-    const id = getFirstField(t, ['task_id', 'task_code']);
-    if (id) idx.set(String(id), t);
+    const id = getFirstField(t, ['task_code', 'task_id']);
+    if (id != null && String(id).trim() !== '') idx.set(String(id).trim(), t);
   }
   return idx;
 }

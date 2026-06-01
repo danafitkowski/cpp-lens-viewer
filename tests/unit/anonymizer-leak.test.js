@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { anonymizeModel, deanonymizeRecords, ANON_STRIP_FIELDS } from '../../src/mcp/anonymizer.js';
-import { writeXer } from '@criticalpathpartners/lens-parser';
+import { writeXer, parseXer } from '@criticalpathpartners/lens-parser';
 
 // Every identifying value carries a distinctive "LEAK_" sentinel. After
 // anonymizeModel + writeXer (exactly what the Deep Forensic modal uploads),
@@ -17,21 +17,27 @@ function fullModel() {
     },
     filename: 'secret-client.xer',
     tables: {
-      PROJECT:  tbl([{ proj_id: '1', proj_short_name: 'LEAK_pshort', proj_long_name: 'LEAK_plong', last_recalc_date: '2026-01-01 08:00' }]),
+      PROJECT:  tbl([{ proj_id: '1', proj_short_name: 'LEAK_pshort', proj_long_name: 'LEAK_plong', proj_url: 'LEAK_url', web_site: 'LEAK_site', last_recalc_date: '2026-01-01 08:00' }]),
       PROJWBS:  tbl([{ wbs_id: '10', proj_id: '1', wbs_name: 'LEAK_wbsname', wbs_short_name: 'LEAK_wbsshort' }]),
       TASK:     tbl([{ task_id: '1000', task_code: 'A100', task_name: 'LEAK_taskname', task_memo: 'LEAK_taskmemo', status_code: 'TK_NotStart', target_drtn_hr_cnt: '40' }]),
       TASKMEMO: tbl([{ memo_id: '1', task_id: '1000', task_memo: 'LEAK_notebooktext' }]),
       MEMOTYPE: tbl([{ memo_type_id: '1', memo_type: 'LEAK_memotopic' }]),
-      UDFTYPE:  tbl([{ udf_type_id: '1', udf_type_label: 'LEAK_udflabel', table_name: 'TASK' }]),
+      UDFTYPE:  tbl([{ udf_type_id: '1', udf_type_label: 'LEAK_udflabel', udf_type_name: 'LEAK_udftypename', table_name: 'TASK' }]),
       UDFVALUE: tbl([{ udf_type_id: '1', fk_id: '1000', udf_text: 'LEAK_udftext' }]),
       ACTVTYPE: tbl([{ actv_code_type_id: '1', actv_code_type: 'LEAK_codetype' }]),
       ACTVCODE: tbl([{ actv_code_id: '1', actv_code_type_id: '1', short_name: 'ENG', actv_code_name: 'LEAK_codename' }]),
-      RSRC:     tbl([{ rsrc_id: '1', rsrc_short_name: 'LEAK_rsrcshort', rsrc_name: 'LEAK_rsrcname', rsrc_title_name: 'LEAK_rsrctitle' }]),
+      RSRC:     tbl([{ rsrc_id: '1', rsrc_short_name: 'LEAK_rsrcshort', rsrc_name: 'LEAK_rsrcname', rsrc_title_name: 'LEAK_rsrctitle', email_addr: 'LEAK_email', office_phone: 'LEAK_phone', guid: 'LEAK_guid' }]),
       CALENDAR: tbl([{ clndr_id: '1', clndr_name: 'LEAK_calname', day_hr_cnt: '8', clndr_data: '() 0||CalendarData()' }]),
-      OBS:      tbl([{ obs_id: '1', obs_name: 'LEAK_obsname' }]),
+      OBS:      tbl([{ obs_id: '1', obs_name: 'LEAK_obsname', obs_descr: 'LEAK_obsdescr' }]),
       ROLES:    tbl([{ role_id: '1', role_name: 'LEAK_rolename', role_short_name: 'LEAK_roleshort' }]),
       PCATVAL:  tbl([{ proj_catg_id: '1', proj_catg_name: 'LEAK_pcatname', proj_catg_short_name: 'LEAK_pcatshort' }]),
       RCATVAL:  tbl([{ rsrc_catg_id: '1', rsrc_catg_name: 'LEAK_rcatname', rsrc_catg_short_name: 'LEAK_rcatshort' }]),
+      ACCOUNT:  tbl([{ acct_id: '1', acct_name: 'LEAK_acctname', acct_short_name: 'LEAK_acctshort', acct_descr: 'LEAK_acctdescr' }]),
+      RISKTYPE: tbl([{ risk_type_id: '1', risk_type: 'LEAK_risktype' }]),
+      RISK:     tbl([{ risk_id: '1', risk_name: 'LEAK_riskname', risk_desc: 'LEAK_riskdesc' }]),
+      TASKPROC: tbl([{ proc_id: '1', task_id: '1000', proc_name: 'LEAK_procname', proc_descr: 'LEAK_procdescr' }]),
+      PCATTYPE: tbl([{ proj_catg_type_id: '1', proj_catg_type: 'LEAK_pcattype' }]),
+      RCATTYPE: tbl([{ rsrc_catg_type_id: '1', rsrc_catg_type: 'LEAK_rcattype' }]),
     },
   };
 }
@@ -59,6 +65,27 @@ describe('anonymizer leak detector — no identifying value reaches the wire', (
     // version + currency (non-identifying) are preserved.
     expect(header).toContain('24.12');
     expect(header).toContain('USD');
+  });
+
+  it('FX-001: 9-field ERMHDR project name does not leak via the currency slot (real parseXer path)', () => {
+    // Go through the REAL parser: parseHeader positionally labels a legacy
+    // 6-field header, so on a 9-field export ermhdr.currency becomes the PROJECT
+    // NAME. anonymize + writeXer is the exact upload path — the name must not survive.
+    const xer = [
+      'ERMHDR\t24.12\t2026-01-01\tProject\tLEAK_exportuser\tLEAK_SECRETPROJECT\tdb\tProject Management\tCAD',
+      '%T\tPROJECT',
+      '%F\tproj_id\tproj_short_name\tproj_long_name',
+      '%R\t1\tPS\tProject Sample',
+      '%E',
+    ].join('\n') + '\n';
+    const model = parseXer(xer, { filename: 'client.xer' });
+    const { model: anon } = anonymizeModel(model);
+    const wire = writeXer(anon);
+    const header = wire.split('\n')[0];
+    expect(wire).not.toContain('LEAK_SECRETPROJECT'); // project name never leaves the browser
+    expect(wire).not.toContain('LEAK_exportuser');
+    expect(header).toContain('CAD');                   // true currency (last slot) preserved
+    expect(header.startsWith('ERMHDR')).toBe(true);
   });
 
   it('strips the project name (PROJECT.proj_long_name / proj_short_name)', () => {

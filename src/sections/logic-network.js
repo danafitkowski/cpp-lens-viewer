@@ -70,9 +70,10 @@ function computeTopLinked(A, rels) {
     });
   }
 
-  // Sort descending by total; take top 10
+  // FX-022: sort descending by link count and return ALL rows — never a "top N"
+  // truncation (forensic "enumerate every item" rule). The table wrapper scrolls.
   scored.sort((a, b) => b.total - a.total);
-  return scored.slice(0, 10);
+  return scored;
 }
 
 const REL_DIST_COLUMNS = [
@@ -118,7 +119,7 @@ export function render({ A, B }) {
       dataTable({ columns: REL_DIST_COLUMNS, rows: distRows })
     ]),
     h('div', { class: 'lens-card' }, [
-      h('h3', {}, 'Top 10 most-linked activities'),
+      h('h3', {}, 'Most-linked activities'),
       topLinked.length > 0
         ? dataTable({ columns: TOP_LINKED_COLUMNS, rows: topLinked })
         : h('p', { class: 'lens-section-stub' }, 'No logic relationships found.')

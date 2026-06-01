@@ -93,7 +93,10 @@ export function render({ A, B }) {
   anonCheckbox.checked = anonymize;
   anonCheckbox.addEventListener('change', () => {
     anonymize = anonCheckbox.checked;
-    prefsStore.update({ ...prefsStore.get(), anonymizeOnMcpUpload: anonymize });
+    // FX-028: prefsStore.update(reducer) invokes its arg as a function — passing
+    // an object threw "reducer is not a function" on every toggle, so the pref
+    // never persisted. Use .set() like every other call site.
+    prefsStore.set({ ...prefsStore.get(), anonymizeOnMcpUpload: anonymize });
   });
 
   const anonLabel = h('label', {

@@ -60,10 +60,10 @@ function computeMetrics(A) {
     rsrcLookup[r.rsrc_id || ''] = r;
   }
 
-  // Sort by assignment count descending, take all (plan spec says Top 10 — show all up to 10)
+  // FX-023: sort by assignment count descending and keep ALL resources — no
+  // "top N" truncation (forensic "enumerate every item" rule). Table scrolls.
   const topRows = Object.entries(assignCountByRsrcId)
     .sort(([, a], [, b]) => b - a)
-    .slice(0, 10)
     .map(([id, count]) => {
       const rec = rsrcLookup[id] || {};
       return {
@@ -131,7 +131,7 @@ export function render({ A, B }) {
     }));
 
   const topCard = h('div', { class: 'lens-card' }, [
-    h('h3', {}, 'Top resources by assignment count'),
+    h('h3', {}, 'Resources by assignment count'),
     dataTable({ columns: TOP_COLS, rows: m.topRows, emptyMsg: 'No resource assignments.' })
   ]);
 

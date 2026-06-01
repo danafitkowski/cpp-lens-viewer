@@ -11,15 +11,29 @@ function parseDate(str) {
   return new Date(str.slice(0, 10));
 }
 
-function buildActivities(A, B, criticalOnly, showBaseline) {
+// Cross-schedule match key. P6 reassigns the internal surrogate task_id on
+// every re-export, so two separate exports of the same schedule share the
+// user-facing task_code (Activity ID) but NOT task_id. Match A<->B on task_code
+// (trimmed, non-empty); fall back to task_id only when a row has no task_code.
+// The 'code:'/'id:' prefixes keep a numeric task_code from colliding with a
+// numeric task_id.
+function matchKey(t) {
+  const code = t.task_code == null ? '' : String(t.task_code).trim();
+  if (code !== '') return 'code:' + code;
+  const id = t.task_id == null ? '' : String(t.task_id).trim();
+  return id !== '' ? 'id:' + id : null;
+}
+
+export function buildActivities(A, B, criticalOnly, showBaseline) {
   const tasks = getTable(A, 'TASK');
 
-  // Build B lookup if present
+  // Build B lookup if present, keyed on the stable task_code (see matchKey).
   const bMap = new Map();
   if (B && showBaseline) {
     for (const t of getTable(B, 'TASK')) {
       if (t.target_start_date && t.target_end_date) {
-        bMap.set(t.task_id, t);
+        const k = matchKey(t);
+        if (k != null && !bMap.has(k)) bMap.set(k, t);
       }
     }
   }
@@ -39,7 +53,7 @@ function buildActivities(A, B, criticalOnly, showBaseline) {
       end:       parseDate(t.target_end_date),
       critical
     };
-    const bRow = bMap.get(t.task_id);
+    const bRow = bMap.get(matchKey(t));
     if (bRow) {
       act.baseline_start = parseDate(bRow.target_start_date);
       act.baseline_end   = parseDate(bRow.target_end_date);

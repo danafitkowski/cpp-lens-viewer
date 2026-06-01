@@ -38,8 +38,11 @@ const TASK_FIELDS_TO_DIFF = [
 ];
 
 /**
- * Build a Map from task_id → task row for every task in the model.
- * Falls back to task_code when task_id is absent.
+ * Index tasks by the STABLE cross-schedule key: task_code (the user-facing
+ * Activity ID), which survives re-export. P6 reassigns the internal surrogate
+ * task_id on every export, so matching A↔B on task_id makes the same activity
+ * look added-in-A AND deleted-in-B (zero matched). Fall back to task_id only
+ * when a row has no task_code.
  *
  * @param {object|null} model
  * @returns {Map<string, object>}
@@ -47,8 +50,8 @@ const TASK_FIELDS_TO_DIFF = [
 function indexTasks(model) {
   const idx = new Map();
   for (const t of getTable(model, 'TASK')) {
-    const id = getFirstField(t, ['task_id', 'task_code']);
-    if (id) idx.set(String(id), t);
+    const id = getFirstField(t, ['task_code', 'task_id']);
+    if (id != null && String(id).trim() !== '') idx.set(String(id).trim(), t);
   }
   return idx;
 }

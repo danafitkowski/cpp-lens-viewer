@@ -41,21 +41,29 @@
 
 // table → [identifying free-text fields to tokenize]
 const STRIP_FIELDS = {
-  PROJECT:  ['proj_short_name', 'proj_long_name'],
+  PROJECT:  ['proj_short_name', 'proj_long_name', 'proj_url', 'web_site'],
   PROJWBS:  ['wbs_name', 'wbs_short_name'],
   TASK:     ['task_name', 'task_memo'],
   TASKMEMO: ['task_memo'],
   MEMOTYPE: ['memo_type'],
-  UDFTYPE:  ['udf_type_label'],
+  UDFTYPE:  ['udf_type_label', 'udf_type_name'],
   UDFVALUE: ['udf_text'],
   ACTVTYPE: ['actv_code_type'],
   ACTVCODE: ['actv_code_name'],
-  RSRC:     ['rsrc_name', 'rsrc_short_name', 'rsrc_title_name'],
+  RSRC:     ['rsrc_name', 'rsrc_short_name', 'rsrc_title_name', 'email_addr', 'office_phone', 'guid'],
   CALENDAR: ['clndr_name'],
-  OBS:      ['obs_name'],
+  OBS:      ['obs_name', 'obs_descr'],
   ROLES:    ['role_name', 'role_short_name'],
   PCATVAL:  ['proj_catg_name', 'proj_catg_short_name'],
   RCATVAL:  ['rsrc_catg_name', 'rsrc_catg_short_name'],
+  // FX-002: tables P6 also emits with identifying free text / PII that the
+  // original 15-table list missed (confirmed leaking verbatim into upload bytes).
+  ACCOUNT:  ['acct_name', 'acct_short_name', 'acct_descr'],
+  RISKTYPE: ['risk_type'],
+  RISK:     ['risk_name', 'risk_desc'],
+  TASKPROC: ['proc_name', 'proc_descr'],
+  PCATTYPE: ['proj_catg_type'],
+  RCATTYPE: ['rsrc_catg_type'],
 };
 
 // Short, stable token prefixes per table. Falls back to the table name.
@@ -64,6 +72,8 @@ const PREFIX = {
   MEMOTYPE: 'MTYP', UDFTYPE: 'UDFT', UDFVALUE: 'UDF', ACTVTYPE: 'ATYP',
   ACTVCODE: 'CODE', RSRC: 'RSRC', CALENDAR: 'CAL', OBS: 'OBS',
   ROLES: 'ROLE', PCATVAL: 'PCAT', RCATVAL: 'RCAT',
+  ACCOUNT: 'ACCT', RISKTYPE: 'RTYP', RISK: 'RISK', TASKPROC: 'PROC',
+  PCATTYPE: 'PCTT', RCATTYPE: 'RCTT',
 };
 
 function prefixFor(tableName) {
@@ -83,7 +93,14 @@ function scrubErmhdr(ermhdr, map) {
   const raw = Array.isArray(ermhdr.raw) ? ermhdr.raw : null;
   const version    = ermhdr.version    || (raw && raw[1]) || '';
   const exportDate = ermhdr.export_date || ermhdr.exportdate || (raw && raw[2]) || '';
-  const currency   = ermhdr.currency   || (raw && raw[raw.length - 1]) || '';
+  // FX-001: currency is the LAST ERMHDR field. parseHeader positionally labels a
+  // legacy 6-field header, so on a modern 9-field export `ermhdr.currency` is
+  // actually the PROJECT NAME. Derive currency from the true raw slot by length
+  // and never trust the named field when raw is present — otherwise the project
+  // name leaks into neutralRaw[8] and uploads to the server.
+  const currency = raw
+    ? (raw.length >= 9 ? (raw[8] || '') : (raw.length === 6 ? (raw[5] || '') : ''))
+    : (ermhdr.currency || '');
 
   // Preserve originals locally (map never leaves the browser).
   if (raw && raw[4]) map.ERMHDR_user = raw[4];

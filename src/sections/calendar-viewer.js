@@ -58,7 +58,7 @@ function calendarCard(cal) {
   ];
 
   if (cal.holidays.length > 0) {
-    const holidayRows = cal.holidays.slice(0, 50).map(d => ({ date: d }));
+    const holidayRows = cal.holidays.map(d => ({ date: d })); // FX-021: list every holiday (no silent slice)
     children.push(
       h('div', { style: { marginTop: '12px' } }, [
         h('h4', { style: { marginBottom: '4px', fontWeight: '700' } }, 'Holidays'),
@@ -68,7 +68,7 @@ function calendarCard(cal) {
   }
 
   if (cal.special_workdays.length > 0) {
-    const spRows = cal.special_workdays.slice(0, 50).map(d => ({ date: d }));
+    const spRows = cal.special_workdays.map(d => ({ date: d })); // FX-021: list every special workday
     children.push(
       h('div', { style: { marginTop: '12px' } }, [
         h('h4', { style: { marginBottom: '4px', fontWeight: '700' } }, 'Special workdays'),

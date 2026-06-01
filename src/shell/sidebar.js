@@ -2,7 +2,7 @@ import { h, on, clear } from '../lib/dom.js';
 import { SECTIONS, GROUPS } from '../sections/_registry.js';
 import { navStore } from '../state/nav.js';
 import { modelStore } from '../state/model.js';
-import { parseXer, parseP6Xml, getTable } from '@criticalpathpartners/lens-parser';
+import { parseXer, parseP6Xml, getTable, detectBomEncoding } from '@criticalpathpartners/lens-parser';
 import { convertMpp } from '../mcp/client.js';
 import { SAMPLE_XER } from '../sample/sample-schedule.js';
 
@@ -16,15 +16,44 @@ import { SAMPLE_XER } from '../sample/sample-schedule.js';
 //                caller surface that round-trip.
 // May throw (parseP6Xml rejects malformed XML; convertMpp throws on
 // unavailable/rate-limit/failure) — callers must handle it.
-async function parseUploadedFile(file, onStatus) {
+const MAX_XER_XML_BYTES = 60 * 1024 * 1024;   // FX-032: parity with the server XER cap
+const MAX_MPP_BYTES      = 100 * 1024 * 1024; // FX-032: parity with the server MPP cap
+
+export async function parseUploadedFile(file, onStatus) {
   const name = file.name || '';
-  if (/\.mpp$/i.test(name)) {
+  const isMpp = /\.mpp$/i.test(name);
+  // FX-032: reject an oversize upload BEFORE pulling the whole file into memory —
+  // a multi-hundred-MB/GB selection OOMs/freezes the tab (and for .mpp also blows
+  // the wire payload + the server's daily budget). Clean message, no read.
+  const maxBytes = isMpp ? MAX_MPP_BYTES : MAX_XER_XML_BYTES;
+  if (typeof file.size === 'number' && file.size > maxBytes) {
+    const mb = Math.round(file.size / (1024 * 1024));
+    throw new Error(`That file is ${mb} MB — the viewer caps ${isMpp ? 'MPP' : 'XER/XML'} uploads at ${Math.round(maxBytes / (1024 * 1024))} MB. Export a smaller schedule or split it.`);
+  }
+  if (isMpp) {
     if (onStatus) onStatus(`Converting "${name}" on the CPP server (MS Project files can’t be read in the browser)…`);
     const buf = await file.arrayBuffer();
     const xml = await convertMpp(buf);
     return parseP6Xml(xml, { filename: name.replace(/\.mpp$/i, '.xml') });
   }
-  const text = await file.text();
+  // FX-031: decode bytes with the detected encoding. file.text() always decodes
+  // UTF-8, silently corrupting the very common cp1252 (and UTF-16-BOM) P6 XER
+  // exports — accents, en/em dashes, smart quotes, degree signs. Detect the BOM;
+  // with no BOM try strict UTF-8 then fall back to windows-1252 (the canonical
+  // Python cp1252 fallback).
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const bom = detectBomEncoding(bytes);
+  let text;
+  if (bom) {
+    const tdLabel = { 'utf-8-sig': 'utf-8', 'utf-16-le': 'utf-16le', 'utf-16-be': 'utf-16be' }[bom] || 'utf-8';
+    text = new TextDecoder(tdLabel).decode(bytes);
+  } else {
+    try {
+      text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    } catch {
+      text = new TextDecoder('windows-1252').decode(bytes);
+    }
+  }
   const isXml = /\.xml$/i.test(name) || /^\s*<\?xml/i.test(text.slice(0, 64));
   return isXml
     ? parseP6Xml(text, { filename: name })
