@@ -79,7 +79,7 @@ export function render({ A, B }) {
     h('p', {},
       'Submit your XER to the CPP Engine for a forensic analysis.  ' +
       'Anonymized by default — your activity names never leave the browser.  ' +
-      'Rate-limited to 5 runs per day per IP.'
+      'Rate-limited to 25 runs per day per IP.'
     )
   ]);
 
@@ -209,7 +209,7 @@ export function render({ A, B }) {
           xerBase64,
           anonymized:    anonymize,
           anonMapSha256,
-          lensVersion:   '1.2.0'
+          lensVersion:   '1.5.0'
         });
 
         if (result.status === 'rate_limited') {
