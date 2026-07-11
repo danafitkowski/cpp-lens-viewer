@@ -36,4 +36,21 @@ describe('Risk Register', () => {
     const badges = el.querySelectorAll('.lens-badge');
     expect(badges.length).toBeGreaterThan(0);
   });
+
+  it('does not truncate the risk register — every flag is enumerated and the Total KPI matches the table', () => {
+    // large-10k.xer generates well over 100 heuristic flags. The register must
+    // enumerate every one (Dana's no-truncation rule) and the "Total Risks" KPI
+    // must equal the rendered row count (no silent cap, no understated total).
+    const A = parseXer(readFileSync(join(FIX, 'large-10k.xer'), 'utf-8'));
+    const el = render({ A, B: null });
+    const rows = el.querySelectorAll('tbody tr');
+    expect(rows.length).toBeGreaterThan(100); // proves the old slice(0,100) cap is gone
+
+    // "Total Risks" KPI big number must equal the number of rendered rows.
+    const kpis = Array.from(el.querySelectorAll('.kpi'));
+    const totalCard = kpis.find(k => /Total Risks/.test(k.textContent || ''));
+    expect(totalCard).toBeTruthy();
+    const totalNum = parseInt((totalCard.textContent || '').replace(/[^0-9]/g, ''), 10);
+    expect(totalNum).toBe(rows.length);
+  });
 });

@@ -164,7 +164,9 @@ function computeRisks(A) {
     return a.activity_code.localeCompare(b.activity_code);
   });
 
-  return risks.slice(0, 100);
+  // No truncation — return every heuristic flag so the Total/High/Med/Low
+  // KPIs and the table enumerate the full set (Dana's no-truncation rule).
+  return risks;
 }
 
 const RISK_COLS = [
