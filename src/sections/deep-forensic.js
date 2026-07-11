@@ -212,7 +212,7 @@ export function render({ A, B }) {
           xerBase64,
           anonymized:    anonymize,
           anonMapSha256,
-          lensVersion:   '1.5.0'
+          lensVersion:   '1.5.3'
         });
 
         if (result.status === 'rate_limited') {
