@@ -17,7 +17,7 @@ const FEATURES = [
   ['Claim workbench', 'no', 'no', 'yes'],
   ['Monte Carlo SRA', 'no', 'no', 'yes'],
   ['Claims-grade packaging', 'no', 'no', 'yes'],
-  ['Daubert-defensible footers', 'no', 'no', 'yes']
+  ['Court-disclosure footers', 'no', 'no', 'yes']
 ];
 
 function cell(state) {

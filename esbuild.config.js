@@ -58,7 +58,7 @@ async function buildViewer() {
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>CPP Lens — Free P6 Viewer</title>
+<title>CPP Lens — Free P6 Viewer</title><link rel="canonical" href="https://criticalpathpartners.ca/viewer/"><meta property="og:type" content="website"><meta property="og:title" content="CPP Lens — Free P6 Viewer"><meta property="og:description" content="Free P6 viewer: drop a Primavera XER, XML, or MPP schedule and see 29 diagnostic sections rendered entirely in your browser. Nothing is uploaded unless you run a deep forensic analysis."><meta property="og:url" content="https://criticalpathpartners.ca/viewer/"><meta property="og:image" content="https://criticalpathpartners.ca/og-image.png"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="CPP Lens — Free P6 Viewer"><meta name="twitter:description" content="Free P6 viewer: drop a Primavera XER, XML, or MPP schedule and see 29 diagnostic sections rendered in your browser."><meta name="twitter:image" content="https://criticalpathpartners.ca/og-image.png">
 <meta name="description" content="Free P6 viewer: drop a Primavera XER, XML, or MPP schedule and see 29 diagnostic sections rendered entirely in your browser. Nothing is uploaded unless you choose to run a deep forensic analysis, and that submission is anonymized by default."/>
 <style>${css}</style>
 </head>
