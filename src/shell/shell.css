@@ -156,6 +156,15 @@ main.lens-content h2 { color: var(--ink); margin: 0 0 12px; font-size: 22px; }
 .lens-wbs-row .meta { color: var(--muted); font-size: 12px; margin-left: 12px; }
 .lens-wbs-row .pct { display: inline-block; padding: 2px 8px; border-radius: 99px; background: var(--pill-bg); color: var(--pill-text); font-size: 11px; font-weight: 700; margin-left: 8px; }
 
+/* WBS-grouped outline table (Schedule Viewer) — band rows interleaved with activity rows */
+.lens-wbs-outline-table tr.wbs-band-row { background: var(--bg); cursor: pointer; }
+.lens-wbs-outline-table tr.wbs-band-row:hover { background: var(--pill-bg); }
+.lens-wbs-outline-table tr.wbs-band-row td { padding: 7px 10px; border-bottom: 1px solid var(--line); }
+.lens-wbs-outline-table tr.wbs-band-row .chev { display: inline-block; width: 14px; color: var(--muted); font-size: 10px; margin-right: 4px; }
+.lens-wbs-outline-table tr.wbs-band-row .wbs-band-name { font-weight: 700; color: var(--ink); }
+.lens-wbs-outline-table tr.wbs-band-row .wbs-band-meta { color: var(--muted); font-size: 12px; margin-left: 10px; }
+.lens-wbs-outline-table tr.lens-activity-row td { background: var(--panel); }
+
 .lens-dash-grid { display: grid; grid-template-columns: 320px 1fr; gap: 16px; margin-top: 12px; }
 .lens-dash-catalog { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 8px 0; max-height: 600px; overflow: auto; }
 .lens-dash-catalog .row { display: flex; align-items: center; padding: 8px 12px; border-bottom: 1px solid #F1F5F9; font-size: 13px; }

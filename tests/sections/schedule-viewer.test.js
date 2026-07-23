@@ -4,7 +4,7 @@ import { render } from '../../src/sections/schedule-viewer.js';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { parseXer } from '@criticalpathpartners/lens-parser';
+import { parseXer, getTable } from '@criticalpathpartners/lens-parser';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const FIX = join(__dirname, '..', 'fixtures');
@@ -27,18 +27,48 @@ describe('Schedule Viewer', () => {
     expect(el.querySelector('.lens-count').textContent).toMatch(/\d+ activities/);
   });
 
-  it('shows a WBS column and orders activities by WBS path, not raw XER row order', () => {
+  it('groups activities under WBS band rows, nested under the correct branch — not a flat list', () => {
     // Task Z1 (Area B) is listed BEFORE task A1 (Area A) in the raw XER, but the
-    // viewer must group/sort by WBS so activities in the same branch sit together —
-    // a flat XER-insertion-order list is not useful for reading a real schedule.
+    // viewer must render actual WBS band rows with activities nested underneath the
+    // branch they belong to — a flat list (even one with a WBS text column) is not
+    // "WBS format".
     const A = parseXer(readFileSync(join(FIX, 'wbs-sort-order.xer'), 'utf-8'));
     const el = render({ A, B: null });
-    const headerLabels = [...el.querySelectorAll('thead th')].map(th => th.textContent);
-    expect(headerLabels).toContain('WBS');
-    const codeCol = headerLabels.indexOf('Code');
-    const rows = [...el.querySelectorAll('tbody tr')];
-    const codes = rows.map(r => r.children[codeCol].textContent);
-    expect(codes.indexOf('A1')).toBeLessThan(codes.indexOf('Z1'));
+    const bandNames = [...el.querySelectorAll('.wbs-band-row .wbs-band-name')].map(n => n.textContent);
+    expect(bandNames).toEqual(expect.arrayContaining(['Project', 'Area A', 'Area B']));
+
+    const allRows = [...el.querySelectorAll('tbody tr')];
+    const indexOf = (pred) => allRows.findIndex(pred);
+    const areaABand = indexOf(r => r.classList.contains('wbs-band-row') && r.textContent.includes('Area A'));
+    const areaBBand = indexOf(r => r.classList.contains('wbs-band-row') && r.textContent.includes('Area B'));
+    const a1Row = indexOf(r => r.textContent.includes('A1') && !r.classList.contains('wbs-band-row'));
+    const z1Row = indexOf(r => r.textContent.includes('Z1') && !r.classList.contains('wbs-band-row'));
+    expect(areaABand).toBeGreaterThanOrEqual(0);
+    expect(areaABand).toBeLessThan(a1Row);
+    expect(a1Row).toBeLessThan(areaBBand);
+    expect(areaBBand).toBeLessThan(z1Row);
+  });
+
+  it('collapsing a WBS band hides its activities without losing them from the underlying data', () => {
+    const A = parseXer(readFileSync(join(FIX, 'wbs-sort-order.xer'), 'utf-8'));
+    const el = render({ A, B: null });
+    document.body.appendChild(el);
+    const areaABand = [...el.querySelectorAll('.wbs-band-row')].find(r => r.textContent.includes('Area A'));
+    areaABand.click();
+    // Check activity rows specifically, not band rows — "Area A" + "1 act" concatenates
+    // to "...A1 act", which would false-positive-match a loose textContent.includes('A1').
+    const stillHasA1Row = [...el.querySelectorAll('tr.lens-activity-row')].some(r => r.textContent.includes('A1'));
+    expect(stillHasA1Row).toBe(false);
+    // Total activity count in the toolbar must be unaffected by collapse state.
+    expect(el.querySelector('.lens-count').textContent).toMatch(/2 activities/);
+    document.body.removeChild(el);
+  });
+
+  it('never drops an activity: total rendered activity rows equal the parsed task count, across every WBS branch', () => {
+    const A = parseXer(readFileSync(join(FIX, 'deep-wbs.xer'), 'utf-8'));
+    const el = render({ A, B: null });
+    const activityRows = [...el.querySelectorAll('tbody tr')].filter(r => !r.classList.contains('wbs-band-row'));
+    expect(activityRows.length).toBe(getTable(A, 'TASK').length);
   });
 
   it('search input filters rows in real time', () => {
