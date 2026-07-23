@@ -22,31 +22,22 @@ describe('DCMA Lite', () => {
     expect(rows.length).toBe(14);
   });
 
-  it('computes and shows an overall grade, blurred, behind a CTA — without hiding any of the 14 raw metric rows', () => {
+  it('does not fabricate a grade — points to the real Schedule Health Report tool instead, without hiding any of the 14 raw metric rows', () => {
+    // "Lite" means lite: no synthesized A-F score here at all, real or blurred.
+    // The real CPP Quality Overlay grade is a published feature of the standalone
+    // Schedule Health Report tool. Computing a second one here would risk two
+    // different grades for the same schedule on two different pages.
     const A = parseXer(readFileSync(join(FIX, 'minimal-3-task.xer'), 'utf-8'));
     const el = render({ A, B: null });
 
-    const gradeEl = el.querySelector('.quality-grade-blur');
-    expect(gradeEl).toBeTruthy();
-    expect(gradeEl.textContent).toMatch(/^[A-F]$/);
+    expect(el.querySelector('.quality-grade-blur')).toBeFalsy();
 
     const cta = el.querySelector('.quality-overlay a');
     expect(cta).toBeTruthy();
-    expect(cta.getAttribute('href')).toMatch(/criticalpathpartners\.ca/);
+    expect(cta.getAttribute('href')).toBe('https://criticalpathpartners.ca/schedule-health-report.html');
+    expect(cta.textContent).toMatch(/schedule health report/i);
 
-    // The full 14-row metric table must still render in full underneath — only the
-    // synthesized grade is gated, not the underlying data.
+    // The full 14-row metric table must still render in full underneath.
     expect(el.querySelectorAll('tbody tr').length).toBe(14);
-  });
-
-  it('grade tracks the underlying PASS/FAIL mix rather than being a constant', () => {
-    // minimal-3-task.xer is a thin fixture (2 tasks, 0 resource assignments, only 1
-    // relationship) — it should NOT score a clean A. If the grade were hardcoded or
-    // miscomputed (e.g. always counting the CPLI/BEI placeholder rows as REVIEW =
-    // free credit), this is the kind of case that would wrongly inflate it.
-    const A = parseXer(readFileSync(join(FIX, 'minimal-3-task.xer'), 'utf-8'));
-    const el = render({ A, B: null });
-    const grade = el.querySelector('.quality-grade-blur').textContent;
-    expect(grade).not.toBe('A');
   });
 });

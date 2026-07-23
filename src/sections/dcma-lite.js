@@ -173,30 +173,23 @@ function computeMetrics(A) {
 }
 
 /**
- * CPP Quality Overlay — a single A-F grade synthesized from the 14 metrics above.
- * CPLI/BEI (13, 14) are unimplemented placeholders ('—') and are excluded so they
- * don't dilute the score with free credit. PASS=1pt, REVIEW=0.5pt, FAIL=0pt.
+ * "Lite" means lite — this view intentionally does not synthesize a CPP Quality
+ * Overlay A-F grade. That grade is a real, published feature of the standalone
+ * Schedule Health Report tool (also free, also no-login), which uses its own
+ * scoring engine plus an AI executive summary and baseline-vs-current diffing
+ * this view doesn't have. Computing a second, differently-derived grade here
+ * would risk two different "CPP Quality Overlay" scores for the same schedule
+ * on two different pages — a real problem for a brand built on reproducibility.
+ * Point to the real thing instead of faking a lite version of it.
  */
-function computeQualityGrade(metrics) {
-  const real = metrics.filter(m => m.result !== '—');
-  const points = real.reduce((sum, m) => sum + (m.status === 'PASS' ? 1 : m.status === 'REVIEW' ? 0.5 : 0), 0);
-  const pct = real.length ? Math.round((points / real.length) * 100) : 0;
-  const grade = pct >= 90 ? 'A' : pct >= 80 ? 'B' : pct >= 70 ? 'C' : pct >= 60 ? 'D' : 'F';
-  return { pct, grade };
-}
-
-function qualityOverlayCard(metrics) {
-  const { grade } = computeQualityGrade(metrics);
+function qualityOverlayCard() {
   return h('div', { class: 'lens-card quality-overlay' }, [
     h('h3', {}, 'CPP Quality Overlay'),
-    h('p', { class: 'quality-overlay-sub' }, 'A single A–F grade rolling up all 14 metrics above.'),
-    h('div', { class: 'quality-grade-wrap' }, [
-      h('div', { class: 'quality-grade-blur' }, grade),
-      h('div', { class: 'quality-grade-cta' }, [
-        h('p', {}, 'See your full Schedule Quality Grade'),
-        h('a', { href: 'https://criticalpathpartners.ca/claim-check.html', class: 'quality-cta-btn' }, 'Unlock via Free Claim Check →')
-      ])
-    ])
+    h('p', { class: 'quality-overlay-sub' }, 'This Lite view shows the 14 raw metrics only — no synthesized grade.'),
+    h('a', {
+      href: 'https://criticalpathpartners.ca/schedule-health-report.html',
+      class: 'quality-cta-btn'
+    }, 'Run the free Schedule Health Report for the full A–F grade →')
   ]);
 }
 
@@ -243,7 +236,7 @@ export function render({ A, B }) {
     h('div', { class: 'lens-card' }, [
       h('p', {}, `14-point screening · ${passCount} PASS · ${reviewCount} REVIEW · ${failCount} FAIL`)
     ]),
-    qualityOverlayCard(metrics),
+    qualityOverlayCard(),
     h('div', { class: 'lens-card' }, [table])
   ]);
 }
