@@ -35,7 +35,7 @@ export function render({ A, B }) {
       kpiCard({ title: 'Percent complete', big: `${m.percentComplete}%`, sub: `${m.completeCount} complete` }),
       kpiCard({ title: 'Critical activities', big: m.criticalCount.toLocaleString(), sub: `${m.criticalPercent}% of total`, tone: m.criticalPercent > 25 ? 'red' : m.criticalPercent > 15 ? 'amber' : 'green' }),
       kpiCard({ title: 'Data date', big: m.dataDate || '—', sub: 'last_recalc_date' }),
-      kpiCard({ title: 'Project finish', big: m.projectFinish || '—', sub: 'plan_end_date' })
+      kpiCard({ title: 'Project finish', big: m.projectFinish || '—', sub: 'scd_end_date' })
     ]),
     h('div', { class: 'kpi-grid' }, [
       kpiCard({ title: 'Relationships', big: m.relCount.toLocaleString() }),
@@ -77,7 +77,10 @@ function computeMetrics(A) {
 
   const primary = projects[0] || {};
   const dataDate = (primary.last_recalc_date || '').slice(0, 10);
-  const projectFinish = (primary.plan_end_date || '').slice(0, 10);
+  // scd_end_date = CPM-calculated scheduled finish; plan_end_date = optional contractual
+  // must-finish constraint, frequently blank. "Project finish" means the former — most
+  // real XERs (bid-stage schedules especially) never have the latter set at all.
+  const projectFinish = (primary.scd_end_date || primary.plan_end_date || '').slice(0, 10);
 
   return {
     totalActivities: realTasks.length,

@@ -56,4 +56,33 @@ describe('svgLineChart', () => {
     expect(el.tagName.toLowerCase()).toBe('div');
     expect(el.textContent).toMatch(/no data/i);
   });
+
+  it('spreads real calendar-date x-values across the plot width instead of crushing them against the right edge', () => {
+    // Regression for a real bug: minX was computed as Math.min(...allX, 0), and since
+    // allX are epoch-millisecond dates (huge positive numbers), splicing a literal 0
+    // into the min() call always won the min, forcing the domain to [1970, maxX] no
+    // matter what the real date range was. A 2026 project's whole multi-month span
+    // then collapsed into a sliver of a pixel at the far right of the chart — this is
+    // exactly what a user reported as "no S-curve showing" on a real schedule.
+    const day = 24 * 60 * 60 * 1000;
+    const start = new Date('2026-07-23T00:00:00Z').getTime();
+    const end = new Date('2026-12-04T00:00:00Z').getTime(); // ~4.5 months later
+    const series = [{
+      label: 'Planned',
+      color: '#0F5F99',
+      points: [
+        { x: start, y: 1 },
+        { x: start + 30 * day, y: 5 },
+        { x: end, y: 16 }
+      ]
+    }];
+    const el = svgLineChart({ series, width: 740, height: 300 });
+    const d = el.querySelector('path').getAttribute('d');
+    const xCoords = [...d.matchAll(/[ML]\s*([\d.]+)/g)].map(m => parseFloat(m[1]));
+    const plotWidth = xCoords[xCoords.length - 1] - xCoords[0];
+    // Plot area is width(740) - padL(50) - padR(110) = 580px. The first and last
+    // points must span a meaningful fraction of that — not be within a few px of
+    // each other at the right edge.
+    expect(plotWidth).toBeGreaterThan(400);
+  });
 });

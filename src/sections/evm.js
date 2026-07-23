@@ -61,7 +61,10 @@ export function render({ A, B }) {
   const project  = projRows[0] || {};
 
   const dataDate    = project.last_recalc_date || null;
-  const planEndDate = project.plan_end_date || null;
+  // scd_end_date = CPM-calculated finish; plan_end_date = optional must-finish
+  // constraint, frequently blank. Without this fallback the forecast series (and
+  // the "Planned Finish" KPI) silently disappear on most real schedules.
+  const planEndDate = project.scd_end_date || project.plan_end_date || null;
 
   const totalActivities = tasks.length;
 
@@ -128,9 +131,9 @@ export function render({ A, B }) {
     series.push({ label: 'Forecast', color: '#B45309', points: forecastCurve });
   }
 
-  const kpiRow = h('div', { class: 'lens-kpi-grid' }, [
+  const kpiRow = h('div', { class: 'kpi-grid' }, [
     kpiCard({ title: 'Total Activities',       big: totalActivities,          sub: 'excl. LOE / WBS' }),
-    kpiCard({ title: 'Planned Finish',         big: planEndDate ? planEndDate.slice(0, 10) : '—', sub: 'plan_end_date' }),
+    kpiCard({ title: 'Planned Finish',         big: planEndDate ? planEndDate.slice(0, 10) : '—', sub: 'scd_end_date' }),
     kpiCard({ title: 'Actual Finishes to Date', big: actualFinishCount,       sub: 'activities with act_end_date' }),
     kpiCard({ title: 'Data Date',              big: dataDate ? dataDate.slice(0, 10) : '—', sub: 'last_recalc_date' }),
     kpiCard({ title: 'SPI Proxy',              big: spiText,                  sub: 'actual / planned at data date', tone: spiTone })

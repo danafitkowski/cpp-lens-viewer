@@ -104,7 +104,7 @@ export function render({ A, B }) {
   const lagBuckets = computeLagBuckets(rels);
   const topLinked  = computeTopLinked(A, rels);
 
-  const kpiRow = h('div', { class: 'lens-kpi-grid' }, [
+  const kpiRow = h('div', { class: 'kpi-grid' }, [
     kpiCard({ title: 'Total Relationships', big: relTotal.toLocaleString(),          sub: 'all types'           }),
     kpiCard({ title: 'FS%',                 big: fsPct.toFixed(1) + '%',             sub: 'finish-to-start'     }),
     kpiCard({ title: 'Leads',               big: lagBuckets.negative.toLocaleString(), sub: 'negative lag',     tone: lagBuckets.negative > 0 ? 'red' : 'green' }),

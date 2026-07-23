@@ -137,8 +137,8 @@ export function render({ A, B }) {
 
   return h('div', { class: 'lens-section-content' }, [
     h('h2', {}, 'Resources / Cost'),
-    h('div', { class: 'lens-kpi-grid' }, kpis1),
-    h('div', { class: 'lens-kpi-grid' }, kpis2),
+    h('div', { class: 'kpi-grid' }, kpis1),
+    h('div', { class: 'kpi-grid' }, kpis2),
     topCard
   ]);
 }

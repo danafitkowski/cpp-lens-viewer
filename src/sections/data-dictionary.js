@@ -116,7 +116,7 @@ export function render({ A, B }) {
 
   const children = [
     h('h2', {}, 'Data Dictionary'),
-    h('div', { class: 'lens-kpi-grid' }, kpis),
+    h('div', { class: 'kpi-grid' }, kpis),
     presentCard
   ];
 

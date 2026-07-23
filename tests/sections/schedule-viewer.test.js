@@ -27,6 +27,20 @@ describe('Schedule Viewer', () => {
     expect(el.querySelector('.lens-count').textContent).toMatch(/\d+ activities/);
   });
 
+  it('shows a WBS column and orders activities by WBS path, not raw XER row order', () => {
+    // Task Z1 (Area B) is listed BEFORE task A1 (Area A) in the raw XER, but the
+    // viewer must group/sort by WBS so activities in the same branch sit together —
+    // a flat XER-insertion-order list is not useful for reading a real schedule.
+    const A = parseXer(readFileSync(join(FIX, 'wbs-sort-order.xer'), 'utf-8'));
+    const el = render({ A, B: null });
+    const headerLabels = [...el.querySelectorAll('thead th')].map(th => th.textContent);
+    expect(headerLabels).toContain('WBS');
+    const codeCol = headerLabels.indexOf('Code');
+    const rows = [...el.querySelectorAll('tbody tr')];
+    const codes = rows.map(r => r.children[codeCol].textContent);
+    expect(codes.indexOf('A1')).toBeLessThan(codes.indexOf('Z1'));
+  });
+
   it('search input filters rows in real time', () => {
     const A = parseXer(readFileSync(join(FIX, 'minimal-3-task.xer'), 'utf-8'));
     const el = render({ A, B: null });

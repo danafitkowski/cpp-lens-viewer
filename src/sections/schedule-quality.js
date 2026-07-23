@@ -98,6 +98,6 @@ export function render({ A, B }) {
     h('div', { class: 'lens-card' }, [
       h('p', {}, `${tasks.length.toLocaleString()} activities · ${rels.length.toLocaleString()} relationships`)
     ]),
-    h('div', { class: 'lens-kpi-grid' }, cards)
+    h('div', { class: 'kpi-grid' }, cards)
   ]);
 }

@@ -169,7 +169,7 @@ export function render({ A, B }) {
 
   return h('div', { class: 'lens-section-content' }, [
     h('h2', {}, 'Constraints / Float'),
-    h('div', { class: 'lens-kpi-grid' }, kpis),
+    h('div', { class: 'kpi-grid' }, kpis),
     sideBySide,
     hardCard
   ]);

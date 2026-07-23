@@ -13,7 +13,12 @@ export function svgLineChart({ series, width = 700, height = 280 }) {
   if (!series || series.length === 0) return h('div', { class: 'lens-empty' }, 'No data.');
   const allY = series.flatMap(s => s.points.map(p => Number(p.y) || 0));
   const allX = series.flatMap(s => s.points.map(p => Number(p.x) || 0));
-  const minX = Math.min(...allX, 0), maxX = Math.max(...allX, 1);
+  // allX are epoch-millisecond dates for real series — splicing a literal 0 into
+  // Math.min(...allX, 0) always wins the min (0 < any post-1970 timestamp), which
+  // forced the domain to [1970, maxX] and crushed real multi-month spans into a
+  // sliver of a pixel at the right edge. Only fall back to 0/1 when there's no data.
+  const minX = allX.length ? Math.min(...allX) : 0;
+  const maxX = allX.length ? Math.max(...allX) : 1;
   const maxY = Math.max(...allY, 1);
   const padL = 50, padB = 30, padT = 10, padR = 110;
   const w = width - padL - padR;

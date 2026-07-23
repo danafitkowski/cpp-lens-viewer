@@ -172,6 +172,34 @@ function computeMetrics(A) {
           metric8, metric9, metric10, metric11, metric12, metric13, metric14];
 }
 
+/**
+ * CPP Quality Overlay — a single A-F grade synthesized from the 14 metrics above.
+ * CPLI/BEI (13, 14) are unimplemented placeholders ('—') and are excluded so they
+ * don't dilute the score with free credit. PASS=1pt, REVIEW=0.5pt, FAIL=0pt.
+ */
+function computeQualityGrade(metrics) {
+  const real = metrics.filter(m => m.result !== '—');
+  const points = real.reduce((sum, m) => sum + (m.status === 'PASS' ? 1 : m.status === 'REVIEW' ? 0.5 : 0), 0);
+  const pct = real.length ? Math.round((points / real.length) * 100) : 0;
+  const grade = pct >= 90 ? 'A' : pct >= 80 ? 'B' : pct >= 70 ? 'C' : pct >= 60 ? 'D' : 'F';
+  return { pct, grade };
+}
+
+function qualityOverlayCard(metrics) {
+  const { grade } = computeQualityGrade(metrics);
+  return h('div', { class: 'lens-card quality-overlay' }, [
+    h('h3', {}, 'CPP Quality Overlay'),
+    h('p', { class: 'quality-overlay-sub' }, 'A single A–F grade rolling up all 14 metrics above.'),
+    h('div', { class: 'quality-grade-wrap' }, [
+      h('div', { class: 'quality-grade-blur' }, grade),
+      h('div', { class: 'quality-grade-cta' }, [
+        h('p', {}, 'See your full Schedule Quality Grade'),
+        h('a', { href: 'https://criticalpathpartners.ca/claim-check.html', class: 'quality-cta-btn' }, 'Unlock via Free Claim Check →')
+      ])
+    ])
+  ]);
+}
+
 function statusBadge(status) {
   const c = BADGE_COLORS[status] || BADGE_COLORS.REVIEW;
   return h('span', {
@@ -215,6 +243,7 @@ export function render({ A, B }) {
     h('div', { class: 'lens-card' }, [
       h('p', {}, `14-point screening · ${passCount} PASS · ${reviewCount} REVIEW · ${failCount} FAIL`)
     ]),
+    qualityOverlayCard(metrics),
     h('div', { class: 'lens-card' }, [table])
   ]);
 }

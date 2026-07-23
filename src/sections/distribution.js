@@ -156,7 +156,7 @@ export function render({ A, B }) {
   const totalFiltered = tasks.filter(t => !LOE_WBS.has(t.task_type)).length;
   const loeCount      = tasks.filter(t => LOE_WBS.has(t.task_type)).length;
 
-  const kpiRow = h('div', { class: 'lens-kpi-grid' }, [
+  const kpiRow = h('div', { class: 'kpi-grid' }, [
     kpiCard({ title: 'Activities (excl. LOE/WBS)', big: totalFiltered, sub: 'included in histograms' }),
     kpiCard({ title: 'LOE / WBS excluded',         big: loeCount,      sub: 'TT_LOE + TT_WBS' }),
     kpiCard({ title: 'Data Date',                  big: dataDate ? dataDate.slice(0, 10) : '—', sub: 'from PROJECT' })

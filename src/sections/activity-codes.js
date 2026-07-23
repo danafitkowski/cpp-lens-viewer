@@ -106,7 +106,7 @@ export function render({ A, B }) {
 
   return h('div', { class: 'lens-section-content' }, [
     h('h2', {}, 'Activity Codes'),
-    h('div', { class: 'lens-kpi-grid' }, kpis),
+    h('div', { class: 'kpi-grid' }, kpis),
     coverageCard,
     assignCard
   ]);

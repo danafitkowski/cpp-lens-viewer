@@ -20,4 +20,12 @@ describe('WBS Roll-up', () => {
     const el = render({ A, B: null });
     expect(el.querySelectorAll('tbody tr').length).toBeGreaterThan(0);
   });
+
+  it('lays the KPI cards out in the styled multi-column grid, not a single-column list', () => {
+    // Same "lens-kpi-grid has no CSS rule" bug as Schedule Quality — see that test file.
+    const A = parseXer(readFileSync(join(FIX, 'deep-wbs.xer'), 'utf-8'));
+    const el = render({ A, B: null });
+    const grid = el.querySelector('.kpi')?.closest('.kpi-grid, .lens-kpi-grid');
+    expect(grid?.className.trim()).toBe('kpi-grid');
+  });
 });

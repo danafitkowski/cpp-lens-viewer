@@ -128,7 +128,7 @@ export function render({ A, B }) {
 
   renderTree();
 
-  const kpiRow = h('div', { class: 'lens-kpi-grid' }, [
+  const kpiRow = h('div', { class: 'kpi-grid' }, [
     kpiCard({ title: 'WBS Nodes',   big: map.size,   sub: 'total nodes in hierarchy' }),
     kpiCard({ title: 'Max Depth',   big: depth,      sub: 'levels deep' }),
     kpiCard({ title: 'Activities',  big: actTotal,   sub: 'across all WBS nodes' })

@@ -202,7 +202,7 @@ export function render({ A, B }) {
   const { dataDate, windows, weekRows, totalInLookahead } = computeLookahead(A);
 
   // KPI row
-  const kpiRow = h('div', { class: 'lens-kpi-grid' }, [
+  const kpiRow = h('div', { class: 'kpi-grid' }, [
     kpiCard({ title: 'Data Date',          big: fmtShort(dataDate),                    sub: 'from PROJECT.last_recalc_date' }),
     kpiCard({ title: 'Total in Lookahead', big: totalInLookahead,                      sub: 'activities across all 3 weeks' }),
     kpiCard({ title: 'Week 1',             big: weekRows[0].length,                    sub: `${fmtShort(windows[0].start)} → ${fmtShort(windows[0].end)}` }),

@@ -124,7 +124,7 @@ export function render({ A, B }) {
     h('label', {}, [chkBaseline, document.createTextNode(' Show baseline overlay' + (!B ? ' (load B to enable)' : ''))])
   ]);
 
-  const kpiRow = h('div', { class: 'lens-kpi-grid' });
+  const kpiRow = h('div', { class: 'kpi-grid' });
 
   rerender();
 

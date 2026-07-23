@@ -165,7 +165,7 @@ export function render({ A, B }) {
   ]);
 
   // KPI row
-  const kpiRow = h('div', { class: 'lens-kpi-grid' }, [
+  const kpiRow = h('div', { class: 'kpi-grid' }, [
     kpiCard({ title: 'Matched activities',       big: meta.matched,              sub: 'task_id found in both B and A' }),
     kpiCard({ title: 'Unmatched in updated',     big: meta.unmatchedInUpdated,   sub: 'A-only — dropped (not added to output)' }),
     kpiCard({ title: 'Unmatched in base',        big: meta.unmatchedInBase,      sub: 'B-only — preserved verbatim' }),

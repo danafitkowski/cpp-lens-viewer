@@ -282,7 +282,7 @@ export function render({ A, B }) {
     const backward = traceChain(A, taskId, 'backward');
     const forward  = traceChain(A, taskId, 'forward');
 
-    const kpiRow = h('div', { class: 'lens-kpi-grid' }, [
+    const kpiRow = h('div', { class: 'kpi-grid' }, [
       kpiCard({ title: 'Backward chain', big: backward.length, sub: 'driving predecessors' }),
       kpiCard({ title: 'Forward chain',  big: forward.length,  sub: 'driving successors'  })
     ]);

@@ -54,7 +54,7 @@ function calendarCard(cal) {
 
   const children = [
     h('h3', {}, cal.clndr_name || cal.clndr_id),
-    h('div', { class: 'lens-kpi-grid' }, innerKpis)
+    h('div', { class: 'kpi-grid' }, innerKpis)
   ];
 
   if (cal.holidays.length > 0) {
@@ -107,7 +107,7 @@ export function render({ A, B }) {
 
   return h('div', { class: 'lens-section-content' }, [
     h('h2', {}, 'Calendar Viewer'),
-    h('div', { class: 'lens-kpi-grid' }, kpis),
+    h('div', { class: 'kpi-grid' }, kpis),
     ...calCards
   ]);
 }

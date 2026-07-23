@@ -163,7 +163,7 @@ export function render({ A, B }) {
 
   const m = computeRollup(A);
 
-  const kpiRow = h('div', { class: 'lens-kpi-grid' }, [
+  const kpiRow = h('div', { class: 'kpi-grid' }, [
     kpiCard({ title: 'WBS Nodes',        big: m.totalWbs,                                   sub: 'total hierarchy nodes' }),
     kpiCard({ title: 'Activities',        big: m.totalActCount,                              sub: 'total activities' }),
     kpiCard({ title: 'Total Target Hrs',  big: fmtHrs(m.totalTargetHrs),                    sub: 'sum of target durations' }),

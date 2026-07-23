@@ -1,5 +1,5 @@
 import { h, on } from '../lib/dom.js';
-import { getTable } from '@criticalpathpartners/lens-parser';
+import { getTable, buildWbsMap } from '@criticalpathpartners/lens-parser';
 import { dataTable } from './_shared/data-table.js';
 
 const STATUS_LABELS = {
@@ -11,6 +11,7 @@ const STATUS_LABELS = {
 const COLUMNS = [
   { key: 'task_id',   label: 'ID' },
   { key: 'task_code', label: 'Code' },
+  { key: '_wbsPath',  label: 'WBS' },
   { key: 'task_name', label: 'Name' },
   { key: 'status_code', label: 'Status', render: v => STATUS_LABELS[v] || v },
   { key: 'task_type', label: 'Type' },
@@ -27,7 +28,13 @@ export function render({ A, B }) {
       h('div', { class: 'lens-card' }, [h('p', {}, 'No XER loaded.')])
     ]);
   }
-  const allTasks = getTable(A, 'TASK');
+  const wbsMap = buildWbsMap(A); // wbs_id -> { _full_path, ... }
+  // Default read order should follow the schedule's WBS structure (like P6's own
+  // WBS-grouped view), not raw XER row order — a flat activity dump is hard to scan
+  // on anything but a trivial schedule. Same path-sort convention as WBS Roll-up.
+  const allTasks = getTable(A, 'TASK')
+    .map(t => ({ ...t, _wbsPath: wbsMap[t.wbs_id]?._full_path || '' }))
+    .sort((a, b) => a._wbsPath.localeCompare(b._wbsPath) || String(a.task_code || '').localeCompare(String(b.task_code || '')));
   let query = '';
   const tableSlot = h('div');
 

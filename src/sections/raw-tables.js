@@ -59,7 +59,7 @@ function renderTableContent(container, A, tableName) {
 
   // KPI: row count
   container.appendChild(
-    h('div', { class: 'lens-kpi-grid' }, [
+    h('div', { class: 'kpi-grid' }, [
       kpiCard({ title: 'Rows', big: records.length, sub: tableName, tone: 'ink' })
     ])
   );
