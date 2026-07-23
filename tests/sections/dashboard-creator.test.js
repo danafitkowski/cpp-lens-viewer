@@ -62,4 +62,35 @@ describe('Dashboard Creator', () => {
     expect(finishCard.querySelector('.kpi-big').textContent).not.toBe('—');
     document.body.removeChild(el);
   });
+
+  it('skips a saved tile id that no longer exists in the catalog, still renders the valid tile, and shows an unavailable-tile notice', () => {
+    const A = parseXer(readFileSync(join(FIX, 'minimal-3-task.xer'), 'utf-8'));
+    prefsStore.set({ ...prefsStore.get(), dashboardLayout: ['total-activities', 'no-such-tile-xyz'] });
+    const el = render({ A, B: null });
+    document.body.appendChild(el);
+
+    const cards = [...el.querySelectorAll('.lens-dash-canvas .kpi')];
+    expect(cards.length).toBe(1);
+    const totalActivitiesCard = cards.find(c => c.querySelector('.kpi-title')?.textContent === 'Total Activities');
+    expect(totalActivitiesCard).toBeTruthy();
+    expect(totalActivitiesCard.querySelector('.kpi-big').textContent).toBe('2');
+
+    const notice = el.querySelector('.lens-dash-canvas .lens-table-foot');
+    expect(notice).toBeTruthy();
+    expect(notice.textContent).toMatch(/1 saved tile.*no longer available/i);
+
+    document.body.removeChild(el);
+  });
+
+  it('does not show an unavailable-tile notice when every saved tile id resolves to a real tile', () => {
+    const A = parseXer(readFileSync(join(FIX, 'minimal-3-task.xer'), 'utf-8'));
+    prefsStore.set({ ...prefsStore.get(), dashboardLayout: ['total-activities', 'pct-complete'] });
+    const el = render({ A, B: null });
+    document.body.appendChild(el);
+
+    const notice = el.querySelector('.lens-dash-canvas .lens-table-foot');
+    expect(notice).toBeFalsy();
+
+    document.body.removeChild(el);
+  });
 });

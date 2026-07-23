@@ -41,19 +41,28 @@ function dateMs(raw) {
  * "driving" one — the predecessor whose linked task's target_end_date is
  * closest (but not after) current task's effective start minus lag.
  *
- * Returns the pred_task_id of the driving predecessor, or null if none.
+ * Returns { id, blockedByUnresolvedRefs }. `id` is the pred_task_id of the
+ * driving predecessor, or null if none. `blockedByUnresolvedRefs` is true
+ * only when predRels was non-empty but NOT A SINGLE entry resolved to a
+ * real task in taskById — i.e. every relationship is a dangling reference
+ * (e.g. a TASKPRED row pointing at a task from another project not
+ * included in this XER export). When at least one relationship resolves,
+ * blockedByUnresolvedRefs is always false, regardless of which rel ends up
+ * chosen as "best".
  */
 function pickDrivingPredecessor(task, predRels, taskById) {
-  if (!predRels || predRels.length === 0) return null;
+  if (!predRels || predRels.length === 0) return { id: null, blockedByUnresolvedRefs: false };
 
   const taskStartMs = dateMs(task.target_start_date);
 
   let best = null;
   let bestDiff = Infinity;
+  let anyResolved = false;
 
   for (const rel of predRels) {
     const predTask = taskById[rel.pred_task_id];
     if (!predTask) continue;
+    anyResolved = true;
 
     const lagHrs  = parseFloat(rel.lag_hr_cnt) || 0;
     const lagDays = lagHrs / 8;
@@ -86,31 +95,46 @@ function pickDrivingPredecessor(task, predRels, taskById) {
     }
   }
 
-  // If we never found one within threshold, pick first PR_FS or first
   if (best === null) {
+    if (!anyResolved) {
+      // Every relationship was dangling — do not fall back into the
+      // unfiltered predRels array, that would silently return a task_id
+      // that doesn't resolve in taskById.
+      return { id: null, blockedByUnresolvedRefs: true };
+    }
+    // If we never found one within threshold, pick first PR_FS or first
     best = predRels.find(r => r.pred_type === 'PR_FS') || predRels[0];
   }
 
-  return best ? best.pred_task_id : null;
+  return { id: best ? best.pred_task_id : null, blockedByUnresolvedRefs: false };
 }
 
 /**
  * Pick the driving successor: the successor task whose target_start_date is
  * closest (but not before) current task's target_end_date + lag.
  *
- * Returns the task_id of the driving successor, or null if none.
+ * Returns { id, blockedByUnresolvedRefs }. `id` is the task_id of the
+ * driving successor, or null if none. `blockedByUnresolvedRefs` is true
+ * only when succRels was non-empty but NOT A SINGLE entry resolved to a
+ * real task in taskById — i.e. every relationship is a dangling reference
+ * (e.g. a TASKPRED row pointing at a task from another project not
+ * included in this XER export). When at least one relationship resolves,
+ * blockedByUnresolvedRefs is always false, regardless of which rel ends up
+ * chosen as "best".
  */
 function pickDrivingSuccessor(task, succRels, taskById) {
-  if (!succRels || succRels.length === 0) return null;
+  if (!succRels || succRels.length === 0) return { id: null, blockedByUnresolvedRefs: false };
 
   const taskEndMs = dateMs(task.target_end_date);
 
   let best = null;
   let bestDiff = Infinity;
+  let anyResolved = false;
 
   for (const rel of succRels) {
     const succTask = taskById[rel.task_id];
     if (!succTask) continue;
+    anyResolved = true;
 
     const lagHrs  = parseFloat(rel.lag_hr_cnt) || 0;
     const lagDays = lagHrs / 8;
@@ -141,10 +165,16 @@ function pickDrivingSuccessor(task, succRels, taskById) {
   }
 
   if (best === null) {
+    if (!anyResolved) {
+      // Every relationship was dangling — do not fall back into the
+      // unfiltered succRels array, that would silently return a task_id
+      // that doesn't resolve in taskById.
+      return { id: null, blockedByUnresolvedRefs: true };
+    }
     best = succRels.find(r => r.pred_type === 'PR_FS') || succRels[0];
   }
 
-  return best ? best.task_id : null;
+  return { id: best ? best.task_id : null, blockedByUnresolvedRefs: false };
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -185,7 +215,11 @@ function buildRelMaps(A) {
  * @returns {Array} Array of TASK records along the driving chain (excluding
  *   start). Carries a `.truncated` boolean property — true when the trace
  *   was cut off by MAX_DEPTH rather than legitimately running out of
- *   driving predecessors/successors.
+ *   driving predecessors/successors. Also carries a
+ *   `.blockedByUnresolvedRefs` boolean property — true when the trace
+ *   stopped because every remaining driving relationship at that hop was a
+ *   dangling reference (pred/succ task_id not present in this XER's TASK
+ *   table), as opposed to legitimately running out of relationships.
  */
 export function traceChain(A, startId, direction) {
   const tasks   = getTable(A, 'TASK');
@@ -201,18 +235,24 @@ export function traceChain(A, startId, direction) {
   let currentId = startId;
 
   while (chain.length < MAX_DEPTH) {
-    let nextId;
     const currentTask = taskById[currentId];
     if (!currentTask) break;
 
+    let picked;
     if (direction === 'backward') {
       const rels = predRelsOf[currentId] || [];
-      nextId = pickDrivingPredecessor(currentTask, rels, taskById);
+      picked = pickDrivingPredecessor(currentTask, rels, taskById);
     } else {
       const rels = succRelsOf[currentId] || [];
-      nextId = pickDrivingSuccessor(currentTask, rels, taskById);
+      picked = pickDrivingSuccessor(currentTask, rels, taskById);
     }
 
+    if (picked.blockedByUnresolvedRefs) {
+      chain.blockedByUnresolvedRefs = true;
+      break;
+    }
+
+    const nextId = picked.id;
     if (!nextId) break;
     if (visited.has(nextId)) break; // cycle guard
 
@@ -247,6 +287,11 @@ function renderChainCard(label, chain) {
   if (chain.truncated) {
     children.push(h('div', { class: 'lens-table-foot' },
       `Chain truncated at ${MAX_DEPTH} activities. The true driving path may continue further.`
+    ));
+  }
+  if (chain.blockedByUnresolvedRefs) {
+    children.push(h('div', { class: 'lens-table-foot' },
+      'Chain ends here — a driving relationship references a task not included in this XER export (possible cross-project link).'
     ));
   }
 

@@ -65,11 +65,12 @@ function renderCanvas(A, layoutIds, onRemove, onDrop) {
   }
 
   const grid = h('div', { class: 'grid' });
+  let missingCount = 0;
 
   for (let i = 0; i < layoutIds.length; i++) {
     const id   = layoutIds[i];
     const tile = TILE_MAP.get(id);
-    if (!tile) continue;
+    if (!tile) { missingCount++; continue; }
 
     const value = A ? tile.compute(A) : '—';
 
@@ -113,6 +114,14 @@ function renderCanvas(A, layoutIds, onRemove, onDrop) {
   }
 
   canvas.appendChild(grid);
+
+  if (missingCount > 0) {
+    const plural = missingCount === 1 ? '' : 's';
+    canvas.appendChild(h('div', { class: 'lens-table-foot' },
+      `${missingCount} saved tile${plural} ${missingCount === 1 ? 'is' : 'are'} no longer available and ${missingCount === 1 ? 'was' : 'were'} skipped.`
+    ));
+  }
+
   return canvas;
 }
 

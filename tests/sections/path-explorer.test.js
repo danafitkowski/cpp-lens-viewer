@@ -127,4 +127,67 @@ describe('Path Explorer', () => {
     expect(note).toBeTruthy();
     document.body.removeChild(el);
   });
+
+  // ── Unresolved predecessor reference disclosure (dangling TASKPRED) ──
+  //
+  // dangling-predecessor.xer is a purpose-built 4-task fixture (ROOT,
+  // DANGLE, EMPTY, MIXED). Its TASKPRED table includes rows whose
+  // pred_task_id (999) does not exist anywhere in the TASK table — the
+  // real-world pattern of a TASKPRED row pointing into a different
+  // project not included in this XER export. Three scenarios:
+  //   - DANGLE (task_id 2): its ONLY predecessor relationship is dangling.
+  //   - EMPTY  (task_id 3): no TASKPRED rows reference it at all.
+  //   - MIXED  (task_id 4): one dangling relationship + one that resolves
+  //     to ROOT (task_id 1) — proves the fix doesn't break the normal
+  //     multi-relationship case.
+
+  it('traceChain flags blockedByUnresolvedRefs=true when the only predecessor relationship is dangling', () => {
+    const A = parseXer(readFileSync(join(FIX, 'dangling-predecessor.xer'), 'utf-8'));
+    const result = traceChain(A, '2', 'backward');
+    expect(result.length).toBe(0);
+    expect(result.blockedByUnresolvedRefs).toBe(true);
+  });
+
+  it('traceChain leaves blockedByUnresolvedRefs falsy when a task genuinely has no predecessor relationships', () => {
+    const A = parseXer(readFileSync(join(FIX, 'dangling-predecessor.xer'), 'utf-8'));
+    const result = traceChain(A, '3', 'backward');
+    expect(result.length).toBe(0);
+    expect(result.blockedByUnresolvedRefs).toBeFalsy();
+  });
+
+  it('traceChain still follows the resolving relationship when one of two predecessors is dangling', () => {
+    const A = parseXer(readFileSync(join(FIX, 'dangling-predecessor.xer'), 'utf-8'));
+    const result = traceChain(A, '4', 'backward');
+    expect(result.length).toBe(1);
+    expect(result[0].task_code).toBe('ROOT');
+    expect(result.blockedByUnresolvedRefs).toBeFalsy();
+  });
+
+  it('renders the distinct unresolved-reference note (not the empty-state or truncation note) when a chain is blocked by a dangling predecessor', () => {
+    const A = parseXer(readFileSync(join(FIX, 'dangling-predecessor.xer'), 'utf-8'));
+    const el = render({ A, B: null });
+    document.body.appendChild(el);
+    const select = el.querySelector('select.lens-activity-picker');
+    select.value = '2';
+    select.dispatchEvent(new Event('change'));
+
+    const notes = [...el.querySelectorAll('.lens-table-foot')].map(n => n.textContent);
+    expect(notes.some(t => /not included in this XER export/i.test(t))).toBe(true);
+    expect(notes.some(t => /truncated/i.test(t))).toBe(false);
+    document.body.removeChild(el);
+  });
+
+  it('renders the normal "No driving predecessors found." message, not the unresolved-reference note, when a task genuinely has no predecessors', () => {
+    const A = parseXer(readFileSync(join(FIX, 'dangling-predecessor.xer'), 'utf-8'));
+    const el = render({ A, B: null });
+    document.body.appendChild(el);
+    const select = el.querySelector('select.lens-activity-picker');
+    select.value = '3';
+    select.dispatchEvent(new Event('change'));
+
+    expect(el.textContent).toContain('No driving predecessors found.');
+    const notes = [...el.querySelectorAll('.lens-table-foot')].map(n => n.textContent);
+    expect(notes.some(t => /not included in this XER export/i.test(t))).toBe(false);
+    document.body.removeChild(el);
+  });
 });
