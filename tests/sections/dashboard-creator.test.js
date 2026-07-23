@@ -46,4 +46,20 @@ describe('Dashboard Creator', () => {
     expect(prefsStore.get().dashboardLayout.length).toBe(1);
     document.body.removeChild(el);
   });
+
+  it('Project Finish tile falls back to scd_end_date (CPM-calculated finish) when plan_end_date (must-finish constraint) is blank', () => {
+    // Most real XERs never have an explicit must-finish constraint set — plan_end_date
+    // is optional and frequently empty. The calculated project finish always lives in
+    // scd_end_date. Reading plan_end_date only (the old bug) showed '—' for these files.
+    const A = parseXer(readFileSync(join(FIX, 'blank-plan-end-date.xer'), 'utf-8'), { filename: 'blank-plan-end-date.xer' });
+    prefsStore.set({ ...prefsStore.get(), dashboardLayout: ['project-finish'] });
+    const el = render({ A, B: null });
+    document.body.appendChild(el);
+    const cards = [...el.querySelectorAll('.lens-dash-canvas .kpi')];
+    const finishCard = cards.find(c => c.querySelector('.kpi-title')?.textContent === 'Project Finish');
+    expect(finishCard).toBeTruthy();
+    expect(finishCard.querySelector('.kpi-big').textContent).toBe('2026-08-15');
+    expect(finishCard.querySelector('.kpi-big').textContent).not.toBe('—');
+    document.body.removeChild(el);
+  });
 });

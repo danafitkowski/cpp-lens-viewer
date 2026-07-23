@@ -28,4 +28,12 @@ describe('Distribution', () => {
     expect(el.textContent).toMatch(/float/i);
     expect(el.textContent).toMatch(/month/i);
   });
+
+  it('scopes the month histogram title to the next 12 months, since the chart silently excludes activities finishing before the data date or beyond 12 months out', () => {
+    const A = parseXer(readFileSync(join(FIX, 'minimal-3-task.xer'), 'utf-8'));
+    const el = render({ A, B: null });
+    const headings = Array.from(el.querySelectorAll('h3')).map(h3 => h3.textContent);
+    const monthHeading = headings.find(t => /month/i.test(t));
+    expect(monthHeading).toMatch(/next 12 months/i);
+  });
 });

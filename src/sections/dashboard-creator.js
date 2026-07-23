@@ -16,7 +16,10 @@ const TILES = [
   { id: 'calendar-count',     title: 'Calendars',            compute: (A) => getTable(A, 'CALENDAR').length.toString() },
   { id: 'milestone-count',    title: 'Milestones',           compute: (A) => getTable(A, 'TASK').filter(x => ['TT_Mile','TT_FinMile'].includes(x.task_type||'')).length.toString() },
   { id: 'data-date',          title: 'Data Date',            compute: (A) => (getTable(A,'PROJECT')[0]?.last_recalc_date || '').slice(0,10) || '—' },
-  { id: 'project-finish',     title: 'Project Finish',       compute: (A) => (getTable(A,'PROJECT')[0]?.plan_end_date || '').slice(0,10) || '—' },
+  // scd_end_date = CPM-calculated finish; plan_end_date = optional must-finish
+  // constraint, frequently blank. Without this fallback the tile shows '—' on
+  // most real schedules.
+  { id: 'project-finish',     title: 'Project Finish',       compute: (A) => { const p = getTable(A,'PROJECT')[0]; return ((p?.scd_end_date || p?.plan_end_date || '') || '').slice(0,10) || '—'; } },
   { id: 'wbs-count',          title: 'WBS Nodes',            compute: (A) => getTable(A, 'PROJWBS').length.toString() },
   { id: 'project-name',       title: 'Project',              compute: (A) => getTable(A,'PROJECT')[0]?.proj_short_name || '—' }
 ];

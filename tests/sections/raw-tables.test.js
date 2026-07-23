@@ -43,4 +43,24 @@ describe('Raw Tables', () => {
     expect(select.value).toBeTruthy();
     document.body.removeChild(el);
   });
+
+  it('shows a truncation footer when a table has more than MAX_ROWS records', () => {
+    // large-10k.xer's TASK table has 10,000 records — well over the 5,000-row
+    // cap. The footer must report the real total (10000), not the pre-sliced
+    // 5000, so the analyst knows rows were silently dropped.
+    const A = parseXer(readFileSync(join(FIX, 'large-10k.xer'), 'utf-8'));
+    const el = render({ A, B: null });
+    document.body.appendChild(el);
+    const select = el.querySelector('select');
+    select.value = 'TASK';
+    select.dispatchEvent(new Event('change'));
+
+    const rows = el.querySelectorAll('tbody tr');
+    expect(rows.length).toBe(5000);
+
+    const foot = el.querySelector('.lens-table-foot');
+    expect(foot).toBeTruthy();
+    expect(foot.textContent).toBe('Showing 5000 of 10000 rows.');
+    document.body.removeChild(el);
+  });
 });

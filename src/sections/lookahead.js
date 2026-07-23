@@ -34,13 +34,13 @@ function parseP6Date(raw) {
 
 function fmtShort(d) {
   if (!d) return '';
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
 }
 
 /** "Mon Jan 15" format for week heading */
 function fmtWeekHeading(d) {
   if (!d) return '';
-  return `${_DAY_ABBR[d.getDay()]} ${_MONTH_ABBR[d.getMonth()]} ${d.getDate()}`;
+  return `${_DAY_ABBR[d.getUTCDay()]} ${_MONTH_ABBR[d.getUTCMonth()]} ${d.getUTCDate()}`;
 }
 
 function addDays(d, n) {

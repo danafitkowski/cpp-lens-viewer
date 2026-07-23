@@ -173,7 +173,7 @@ export function render({ A, B }) {
   ]);
 
   const card3 = h('div', { class: 'lens-card' }, [
-    h('h3', {}, 'Activities finishing per month'),
+    h('h3', {}, 'Activities finishing per month (next 12 months)'),
     monthData.every(m => m.value === 0)
       ? h('div', { class: 'lens-empty' }, 'No activities finish in the next 12 months from data date.')
       : svgBarChart({ data: monthData, tone: '#1a6b3c', width: 700 })

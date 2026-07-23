@@ -55,7 +55,6 @@ function renderTableContent(container, A, tableName) {
   }
 
   const { fields, records } = tableData;
-  const shown = records.slice(0, MAX_ROWS);
 
   // KPI: row count
   container.appendChild(
@@ -79,7 +78,7 @@ function renderTableContent(container, A, tableName) {
   const columns = fields.map(f => ({ key: f, label: f }));
   container.appendChild(
     h('div', { class: 'lens-card' }, [
-      dataTable({ columns, rows: shown, limit: 0, emptyMsg: 'No records.' })
+      dataTable({ columns, rows: records, limit: MAX_ROWS, emptyMsg: 'No records.' })
     ])
   );
 }

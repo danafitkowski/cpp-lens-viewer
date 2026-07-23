@@ -27,4 +27,23 @@ describe('Data Dictionary', () => {
     expect(el.textContent).toContain('TASK');
     expect(el.textContent).toContain('PROJECT');
   });
+
+  it('applies a real color-coded background to Lens-reads badges (not unstyled text)', () => {
+    const cssPath = join(__dirname, '..', '..', 'src', 'shell', 'shell.css');
+    const style = document.createElement('style');
+    style.textContent = readFileSync(cssPath, 'utf-8');
+    document.head.appendChild(style);
+
+    const A = parseXer(readFileSync(join(FIX, 'minimal-3-task.xer'), 'utf-8'));
+    const el = render({ A, B: null });
+    document.body.appendChild(el);
+
+    const badge = el.querySelector('.lens-badge-full');
+    expect(badge).not.toBeNull();
+
+    const bg = getComputedStyle(badge).backgroundColor;
+    expect(bg).not.toBe('');
+    expect(bg).not.toBe('rgba(0, 0, 0, 0)');
+    expect(bg).not.toBe('transparent');
+  });
 });

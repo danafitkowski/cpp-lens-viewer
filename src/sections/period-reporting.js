@@ -121,7 +121,11 @@ export function render({ A, B }) {
       slipped.push(row);
     } else if (dateDelta < 0) {
       accelerated.push(row);
-    } else if (pctDelta === 0 && dateDelta === 0 && aStatus === bStatus) {
+    } else {
+      // Catch-all: status unchanged, target_end_date unchanged, but something else
+      // moved (typically phys_complete_pct). This activity already contributed to
+      // earnedWeightedSum/earnedWeightTotal above, so it must still land in exactly
+      // one visible bucket table rather than being silently dropped.
       unchanged.push(row);
     }
   }

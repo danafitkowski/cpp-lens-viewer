@@ -1,0 +1,25 @@
+ERMHDR	24.12	2026-01-01	Project	admin	Test User	dbxDB	Project Management	USD
+%T	PROJECT
+%F	proj_id	proj_short_name	last_recalc_date
+%R	1	UDF-EDGE	2026-01-01 00:00
+%T	UDFTYPE
+%F	udf_type_id	table_name	udf_type_label	udf_type_name	logical_data_type
+%R	U1	TASK	Task Note	task_note	FT_TEXT
+%R	U2	RSRC	Cost Code	cost_code	FT_TEXT
+%T	UDFVALUE
+%F	udf_type_id	fk_id	udf_text	udf_number	udf_date
+%R	U1	1	note-1
+%R	U1	2	note-2
+%R	U1	3	note-3
+%R	U1	4	note-4
+%R	U1	5	note-5
+%R	U1	6	note-6
+%R	U1	7	note-7
+%R	U1	8	note-8
+%R	U1	9	note-9
+%R	U1	10	note-10
+%R	U1	11	note-11
+%R	U2	20	code-a
+%R	U2	21	code-b
+%R	U99	200	orphan-value
+%E

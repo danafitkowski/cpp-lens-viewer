@@ -1,0 +1,8 @@
+ERMHDR	24.12	2026-01-01	Project	admin	Test User	dbxDB	Project Management	USD
+%T	PROJECT
+%F	proj_id	proj_short_name	last_recalc_date
+%R	1	TZ-TEST	2026-02-01 06:00
+%T	TASK
+%F	task_id	task_code	task_name	proj_id	task_type	status_code	phys_complete_pct	target_drtn_hr_cnt	remain_drtn_hr_cnt	total_float_hr_cnt	early_start_date	early_end_date	cstr_type
+%R	1	A1	Activity One	1	TT_Task	TK_NotStart	0	8	8	0	2026-02-01 08:00	2026-02-01 16:00	CS_MSO
+%E

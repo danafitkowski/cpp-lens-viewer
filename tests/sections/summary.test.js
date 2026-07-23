@@ -40,4 +40,32 @@ describe('Executive Summary', () => {
     // Minimal fixture will trigger no-resources / no-codes concerns
     expect(concerns.length).toBeGreaterThanOrEqual(1);
   });
+
+  it('narrative reports scd_end_date when plan_end_date is blank', () => {
+    // blank-plan-end-date.xer: plan_end_date is blank, scd_end_date = 2026-08-15
+    const text = readFileSync(join(FIX, 'blank-plan-end-date.xer'), 'utf-8');
+    const A = parseXer(text);
+    const el = render({ A, B: null });
+    const para = el.querySelector('.lens-narrative p');
+    expect(para.textContent).toContain('2026-08-15');
+    expect(para.textContent).not.toContain('not set');
+  });
+
+  it('shows a truncation note when more than 5 incomplete milestones exist', () => {
+    const text = readFileSync(join(FIX, 'many-milestones.xer'), 'utf-8');
+    const A = parseXer(text);
+    const el = render({ A, B: null });
+    const rows = el.querySelectorAll('.lens-table tbody tr');
+    expect(rows.length).toBe(5);
+    expect(el.textContent).toContain('Showing 5 of 7 upcoming milestones');
+  });
+
+  it('does not show a truncation note when 5 or fewer incomplete milestones exist', () => {
+    const text = readFileSync(join(FIX, 'five-milestones.xer'), 'utf-8');
+    const A = parseXer(text);
+    const el = render({ A, B: null });
+    const rows = el.querySelectorAll('.lens-table tbody tr');
+    expect(rows.length).toBe(5);
+    expect(el.textContent).not.toContain('Showing');
+  });
 });

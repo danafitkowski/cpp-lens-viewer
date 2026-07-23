@@ -1,0 +1,19 @@
+ERMHDR	24.12	2026-01-01	Project	admin	Test User	dbxDB	Project Management	USD
+%T	PROJECT
+%F	proj_id	proj_short_name	proj_long_name	last_recalc_date	plan_start_date	plan_end_date	scd_end_date
+%R	1	FIVEMILE	Five Milestones Test Project	2026-01-01 00:00	2026-01-01 00:00	2026-06-01 00:00	2026-06-01 00:00
+%T	PROJWBS
+%F	wbs_id	parent_wbs_id	wbs_name	wbs_short_name	proj_id
+%R	W1		Root	W1	1
+%R	W2	W1	Child	W2	1
+%T	CALENDAR
+%F	clndr_id	clndr_name	day_hr_cnt	week_hr_cnt	clndr_data
+%R	C1	5-Day	8	40
+%T	TASK
+%F	task_id	task_code	task_name	proj_id	wbs_id	clndr_id	status_code	task_type	phys_complete_pct	target_drtn_hr_cnt	remain_drtn_hr_cnt	total_float_hr_cnt	target_start_date	target_end_date	driving_path_flag	cstr_type
+%R	1	M1	Milestone One	1	W2	C1	TK_NotStart	TT_FinMile	0	0	0	0	2026-02-01 08:00	2026-02-01 08:00	N
+%R	2	M2	Milestone Two	1	W2	C1	TK_NotStart	TT_FinMile	0	0	0	0	2026-02-08 08:00	2026-02-08 08:00	N
+%R	3	M3	Milestone Three	1	W2	C1	TK_NotStart	TT_FinMile	0	0	0	0	2026-02-15 08:00	2026-02-15 08:00	N
+%R	4	M4	Milestone Four	1	W2	C1	TK_NotStart	TT_FinMile	0	0	0	0	2026-02-22 08:00	2026-02-22 08:00	N
+%R	5	M5	Milestone Five	1	W2	C1	TK_NotStart	TT_FinMile	0	0	0	0	2026-03-01 08:00	2026-03-01 08:00	N
+%E

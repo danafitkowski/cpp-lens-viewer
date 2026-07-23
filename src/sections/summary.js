@@ -25,10 +25,15 @@ export function render({ A, B }) {
     return !isNaN(tf) && tf <= 0;
   }).length;
 
+  // scd_end_date = CPM-calculated scheduled finish; plan_end_date = optional must-finish
+  // constraint, frequently blank. "Project finish" means the former — most real XERs
+  // (bid-stage schedules especially) never have the latter set at all.
+  const projectFinish = (proj.scd_end_date || proj.plan_end_date || '').slice(0, 10);
+
   const narrative = `Project ${proj.proj_short_name || '(unnamed)'} as of data date ${(proj.last_recalc_date || '').slice(0, 10) || 'unknown'}. ` +
     `${realTasks.length.toLocaleString()} activities (${completeCount} complete, ${activeCount} in progress) — ${pctComplete}% physical complete. ` +
     `${criticalCount.toLocaleString()} activities sit on the critical path (total float ≤ 0). ` +
-    `Plan end date: ${(proj.plan_end_date || '').slice(0, 10) || 'not set'}.`;
+    `Project finish: ${projectFinish || 'not set'}.`;
 
   const concerns = buildConcerns(A, { realTasks });
   const upcomingMilestones = pickUpcomingMilestones(realTasks);
@@ -47,7 +52,7 @@ export function render({ A, B }) {
     ]),
     h('div', { class: 'lens-card' }, [
       h('h3', {}, 'Next milestones'),
-      renderMilestoneTable(upcomingMilestones)
+      renderMilestoneTable(upcomingMilestones.rows, upcomingMilestones.total)
     ])
   ]);
 }
@@ -81,7 +86,7 @@ function buildConcerns(A, { realTasks }) {
 }
 
 function pickUpcomingMilestones(realTasks) {
-  return realTasks
+  const all = realTasks
     .filter(t => MILESTONE_TYPES.has(t.task_type || ''))
     .filter(t => t.status_code !== 'TK_Complete')
     .map(t => ({
@@ -90,15 +95,15 @@ function pickUpcomingMilestones(realTasks) {
       date: (t.target_end_date || t.target_start_date || '').slice(0, 10)
     }))
     .filter(m => m.date)
-    .sort((a, b) => a.date.localeCompare(b.date))
-    .slice(0, 5);
+    .sort((a, b) => a.date.localeCompare(b.date));
+  return { rows: all.slice(0, 5), total: all.length };
 }
 
-function renderMilestoneTable(rows) {
+function renderMilestoneTable(rows, total) {
   if (rows.length === 0) {
     return h('p', { class: 'lens-section-stub' }, 'No incomplete milestones found.');
   }
-  return h('table', { class: 'lens-table' }, [
+  const table = h('table', { class: 'lens-table' }, [
     h('thead', {}, h('tr', {}, [
       h('th', {}, 'Code'),
       h('th', {}, 'Milestone'),
@@ -110,4 +115,11 @@ function renderMilestoneTable(rows) {
       h('td', {}, r.date)
     ])))
   ]);
+  if (total > rows.length) {
+    return h('div', {}, [
+      table,
+      h('div', { class: 'lens-table-foot' }, `Showing ${rows.length} of ${total} upcoming milestones.`)
+    ]);
+  }
+  return table;
 }

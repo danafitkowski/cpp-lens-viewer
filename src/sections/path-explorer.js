@@ -5,7 +5,7 @@ import { dataTable } from './_shared/data-table.js';
 
 const MAX_DEPTH = 200;
 const SKIP_TYPES = new Set(['TT_LOE', 'TT_WBS']);
-const DROPDOWN_LIMIT = 5000;
+export const DROPDOWN_LIMIT = 5000;
 
 const CHAIN_COLS = [
   { key: 'task_code',          label: 'Code' },
@@ -182,7 +182,10 @@ function buildRelMaps(A) {
  * @param {object}  A         - parsed XER model
  * @param {string}  startId   - task_id to start from (NOT included in result)
  * @param {string}  direction - 'backward' | 'forward'
- * @returns {Array} Array of TASK records along the driving chain (excluding start)
+ * @returns {Array} Array of TASK records along the driving chain (excluding
+ *   start). Carries a `.truncated` boolean property — true when the trace
+ *   was cut off by MAX_DEPTH rather than legitimately running out of
+ *   driving predecessors/successors.
  */
 export function traceChain(A, startId, direction) {
   const tasks   = getTable(A, 'TASK');
@@ -221,6 +224,12 @@ export function traceChain(A, startId, direction) {
     currentId = nextId;
   }
 
+  // The while loop only exits with chain.length === MAX_DEPTH when the
+  // condition itself ended it (i.e. a hop was still found on the last
+  // iteration) — every other exit (no driving link, cycle, missing task)
+  // breaks before reaching the cap, leaving chain.length < MAX_DEPTH.
+  chain.truncated = chain.length >= MAX_DEPTH;
+
   return chain;
 }
 
@@ -234,7 +243,34 @@ function renderChainCard(label, chain) {
     ? h('p', { class: 'lens-section-stub' }, 'No driving predecessors found.')
     : dataTable({ columns: CHAIN_COLS, rows: chain });
 
-  return h('div', { class: 'lens-card' }, [title, content]);
+  const children = [title, content];
+  if (chain.truncated) {
+    children.push(h('div', { class: 'lens-table-foot' },
+      `Chain truncated at ${MAX_DEPTH} activities. The true driving path may continue further.`
+    ));
+  }
+
+  return h('div', { class: 'lens-card' }, children);
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// ACTIVITY PICKER LIST (exported for testing — see path-explorer.test.js)
+// ─────────────────────────────────────────────────────────────────────
+
+/**
+ * Filter tasks down to the pickable (non-WBS/LOE) set and cap it at
+ * DROPDOWN_LIMIT for the activity picker.
+ *
+ * @param {Array} allTasks - all TASK records
+ * @returns {{ pickable: Array, eligibleCount: number, truncated: boolean }}
+ */
+export function pickEligibleTasks(allTasks) {
+  const eligibleTasks = allTasks.filter(t => !SKIP_TYPES.has(t.task_type));
+  return {
+    pickable: eligibleTasks.slice(0, DROPDOWN_LIMIT),
+    eligibleCount: eligibleTasks.length,
+    truncated: eligibleTasks.length > DROPDOWN_LIMIT
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -250,9 +286,7 @@ export function render({ A, B }) {
   }
 
   const allTasks = getTable(A, 'TASK');
-  const pickable = allTasks
-    .filter(t => !SKIP_TYPES.has(t.task_type))
-    .slice(0, DROPDOWN_LIMIT);
+  const { pickable, eligibleCount, truncated: dropdownTruncated } = pickEligibleTasks(allTasks);
 
   // Build dropdown options
   const placeholder = h('option', { value: '' }, '— pick an activity to trace —');
@@ -300,12 +334,19 @@ export function render({ A, B }) {
     resultSlot.appendChild(chains);
   });
 
+  const cardChildren = [
+    h('p', {}, 'Select an activity to trace its driving predecessor chain back to project start and driving successor chain forward to project finish.'),
+    select,
+  ];
+  if (dropdownTruncated) {
+    cardChildren.push(h('div', { class: 'lens-table-foot' },
+      `Showing first ${DROPDOWN_LIMIT} of ${eligibleCount} activities. Use search/filter elsewhere to narrow down the list.`
+    ));
+  }
+
   return h('div', { class: 'lens-section-content' }, [
     h('h2', {}, 'Path Explorer'),
-    h('div', { class: 'lens-card' }, [
-      h('p', {}, 'Select an activity to trace its driving predecessor chain back to project start and driving successor chain forward to project finish.'),
-      select,
-    ]),
+    h('div', { class: 'lens-card' }, cardChildren),
     resultSlot
   ]);
 }
