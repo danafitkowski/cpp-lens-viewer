@@ -26,7 +26,9 @@ describe('How Lens Compares', () => {
     expect(text).toContain('Path Explorer');
     expect(text).toContain('Half-Step XER');
     expect(text).toContain('Monte Carlo');
-    expect(text).toContain('Daubert');
+    // "Daubert-grade" was deliberately softened sitewide in the 2026-07 audit pass
+    // (Dana's call) — "Court-disclosure footers" is the replacement row, not a typo.
+    expect(text).toContain('Court-disclosure footers');
   });
 
   it('does not name any specific competitor', () => {
