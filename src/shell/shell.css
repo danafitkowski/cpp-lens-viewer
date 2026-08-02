@@ -36,6 +36,40 @@ header.lens-header .status { color: #B7C9DA; font-size: 12px; }
   min-height: calc(100vh - 60px);
 }
 
+/* ── Phone and small tablet, added 2026-08-02 ─────────────────────────────────
+   The two-column grid had no breakpoint at all, so on a 390px phone the fixed
+   280px sidebar left roughly 110px for the report. Every KPI card was wider
+   than its pane and the whole dashboard became a tiny nested scroller beside a
+   sidebar over a thousand pixels tall. Stack instead: the loader and section
+   list sit on top, capped and independently scrollable, and the report gets the
+   full viewport width. */
+@media (max-width: 860px) {
+  .lens-app {
+    grid-template-columns: 1fr;
+  }
+  aside.lens-sidebar {
+    max-height: 45vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    border-bottom: 3px solid var(--red);
+  }
+  main.lens-content {
+    min-width: 0;      /* let grid children shrink instead of forcing overflow */
+    padding: 12px;
+  }
+  /* Wide content must scroll inside its own box, never the page body. */
+  .lens-table-wrap,
+  .lens-card,
+  .lens-section-content { max-width: 100%; }
+  .lens-table-wrap { overflow-x: auto; }
+  .lens-kpi-grid { grid-template-columns: 1fr 1fr; }
+}
+
+@media (max-width: 520px) {
+  .lens-kpi-grid { grid-template-columns: 1fr; }
+  aside.lens-sidebar { max-height: 40vh; }
+}
+
 aside.lens-sidebar {
   background: var(--ink);
   color: #D7E7F5;
