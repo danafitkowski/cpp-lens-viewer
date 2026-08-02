@@ -31,7 +31,10 @@ export async function parseUploadedFile(file, onStatus) {
     throw new Error(`That file is ${mb} MB — the viewer caps ${isMpp ? 'MPP' : 'XER/XML'} uploads at ${Math.round(maxBytes / (1024 * 1024))} MB. Export a smaller schedule or split it.`);
   }
   if (isMpp) {
-    if (onStatus) onStatus(`Converting "${name}" on the CPP server (MS Project files can’t be read in the browser)…`);
+    // Say "uploading", not just "converting". A browser cannot parse .mpp, so this
+    // path sends the file to the CPP server, and the user is entitled to know that
+    // in the same words the Privacy Policy uses. XER and XML never take this path.
+    if (onStatus) onStatus(`Uploading "${name}" to the CPP server to convert it to XER (MS Project files can’t be read in the browser). XER and XML files are never uploaded.`);
     const buf = await file.arrayBuffer();
     const xml = await convertMpp(buf);
     return parseP6Xml(xml, { filename: name.replace(/\.mpp$/i, '.xml') });
