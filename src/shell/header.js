@@ -4,7 +4,11 @@ import { modelStore } from '../state/model.js';
 export function renderHeader() {
   const statusSpan = h('div', { class: 'status', id: 'lens-status' }, 'No XER loaded');
   const el = h('header', { class: 'lens-header' }, [
-    h('div', { class: 'brand' }, 'CPP Lens'),
+    // A11Y/SEO: this is the page's one real heading, so it is an h1 rather than a
+    // div. The only other h1 in the bundle lives inside <noscript>, which renders
+    // only when JS is off — and in that case this one is never created, so the
+    // document always has exactly one h1. Styling is class-based and unchanged.
+    h('h1', { class: 'brand' }, 'CPP Lens'),
     h('div', { class: 'tagline' }, 'Primavera P6 viewer + forensic engine'),
     h('div', { class: 'spacer' }),
     statusSpan

@@ -23,7 +23,9 @@ header.lens-header {
   padding: 18px 28px;
   display: flex; align-items: center; gap: 16px;
 }
-header.lens-header .brand { font-weight: 700; font-size: 18px; }
+/* .brand is an <h1>; reset the UA default margin so promoting it from a div
+   does not shift the header layout. */
+header.lens-header .brand { font-weight: 700; font-size: 18px; margin: 0; }
 header.lens-header .tagline { color: #B7C9DA; font-size: 12px; }
 header.lens-header .spacer { flex: 1; }
 header.lens-header .status { color: #B7C9DA; font-size: 12px; }
