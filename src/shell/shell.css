@@ -1,3 +1,20 @@
+
+/* Skip link. The sidebar carries 29 section buttons, so a keyboard or screen-reader
+   user previously had to tab through all of them to reach the report. Added 2026-08-02. */
+.lens-skip {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 9999;
+  background: var(--ink);
+  color: #ffffff;
+  padding: 12px 20px;
+  text-decoration: none;
+  font-weight: 700;
+  font-family: var(--font-sans);
+}
+.lens-skip:focus { left: 8px; top: 8px; }
+main.lens-content:focus { outline: none; }
 :root {
   --ink: #0F2540;
   --ink-light: #1f3a5f;

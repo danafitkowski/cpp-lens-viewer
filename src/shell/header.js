@@ -2,7 +2,7 @@ import { h } from '../lib/dom.js';
 import { modelStore } from '../state/model.js';
 
 export function renderHeader() {
-  const statusSpan = h('div', { class: 'status', id: 'lens-status' }, 'No XER loaded');
+  const statusSpan = h('div', { class: 'status', id: 'lens-status', role: 'status', 'aria-live': 'polite' }, 'No XER loaded');
   const el = h('header', { class: 'lens-header' }, [
     // A11Y/SEO: this is the page's one real heading, so it is an h1 rather than a
     // div. The only other h1 in the bundle lives inside <noscript>, which renders

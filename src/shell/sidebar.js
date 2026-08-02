@@ -165,7 +165,7 @@ function renderFileBox() {
 function renderNav() {
   const buttons = [];
   const buttonsById = {};
-  const root = h('nav', {});
+  const root = h('nav', { 'aria-label': 'Report sections' });
 
   for (const group of GROUPS) {
     root.appendChild(h('div', { class: 'group' }, group));
@@ -178,13 +178,17 @@ function renderNav() {
     }
   }
 
-  navStore.subscribe(({ active }) => {
-    for (const b of buttons) b.classList.remove('active');
-    if (buttonsById[active]) buttonsById[active].classList.add('active');
-  });
+  // aria-current alongside the .active class: the class is purely visual, so a
+  // screen-reader user previously had no way to tell which of the 29 sections
+  // was showing.
+  function mark(active) {
+    for (const b of buttons) { b.classList.remove('active'); b.removeAttribute('aria-current'); }
+    const b = buttonsById[active];
+    if (b) { b.classList.add('active'); b.setAttribute('aria-current', 'true'); }
+  }
 
-  const initial = navStore.get().active;
-  if (buttonsById[initial]) buttonsById[initial].classList.add('active');
+  navStore.subscribe(({ active }) => mark(active));
+  mark(navStore.get().active);
 
   return root;
 }

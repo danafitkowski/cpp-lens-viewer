@@ -63,6 +63,7 @@ async function buildViewer() {
 <style>${css}</style>
 </head>
 <body>
+<a href="#lens-main" class="lens-skip">Skip to report</a>
 <div id="lens-root"></div>
 <noscript>
 <div style="max-width:640px;margin:60px auto;padding:28px 32px;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#161a1f;border:1px solid #d9dee4;border-left:4px solid #C8392F;border-radius:8px;line-height:1.6;">

@@ -4,7 +4,7 @@ import { navStore } from '../state/nav.js';
 import { modelStore } from '../state/model.js';
 
 export function renderContent() {
-  const root = h('main', { class: 'lens-content' });
+  const root = h('main', { class: 'lens-content', id: 'lens-main', tabindex: '-1' });
 
   function rerender() {
     const { active } = navStore.get();
