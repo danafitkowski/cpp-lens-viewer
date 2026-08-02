@@ -49,7 +49,7 @@ export function render() {
       ]),
       h('p', { class: 'compare-footer' }, [
         'For engagement-grade forensic work or enterprise rates, ',
-        h('a', { href: 'https://criticalpathpartners.ca/connect/' }, 'get in touch'),
+        h('a', { href: 'https://criticalpathpartners.ca/connect.html' }, 'get in touch'),
         '.'
       ])
     ])

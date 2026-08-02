@@ -153,8 +153,8 @@ function renderFileBox() {
   });
 
   return h('div', { class: 'file-box' }, [
-    h('label', {}, 'Current / update XER'), fileA,
-    h('label', {}, 'Previous / baseline XER (optional)'), fileB,
+    h('label', { for: 'lens-file-a' }, 'Current / update XER'), fileA,
+    h('label', { for: 'lens-file-b' }, 'Previous / baseline XER (optional)'), fileB,
     analyze, reset, sample, statusSlot
   ]);
 }
