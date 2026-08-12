@@ -2,6 +2,7 @@ import { renderPlaceholder } from './_placeholder.js';
 import { render as renderDashboard } from './dashboard.js';
 import { render as renderSummary } from './summary.js';
 import { render as renderComparePage } from './compare-page.js';
+import { render as renderEngineParity } from './engine-parity.js';
 import { render as renderScheduleViewer } from './schedule-viewer.js';
 import { render as renderQuality } from './schedule-quality.js';
 import { render as renderDcma } from './dcma-lite.js';
@@ -38,6 +39,7 @@ export const SECTIONS = [
   { id: 'dashboard',       title: 'Executive Dashboard',  group: 'Overview',  render: renderDashboard },
   { id: 'summary',         title: 'Executive Summary',    group: 'Overview',  render: renderSummary },
   { id: 'compare-page',    title: 'How Lens compares',    group: 'Overview',  render: renderComparePage },
+  { id: 'engine-parity',   title: 'Engine Parity',        group: 'Overview',  render: renderEngineParity },
 
   // Schedule
   { id: 'viewer',          title: 'Schedule Viewer',      group: 'Schedule',  render: renderScheduleViewer },

@@ -1,0 +1,52 @@
+// @vitest-environment happy-dom
+import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { render } from '../../src/sections/engine-parity.js';
+
+/**
+ * Render-side checks for the Engine Parity section. The figure-vs-SSOT checks
+ * live in tests/unit/engine-parity.test.js, which runs in the node environment;
+ * this file needs a DOM, so it sits in tests/sections/ per this repo's
+ * environmentMatchGlobs.
+ */
+
+describe('engine parity section', () => {
+  it('lists every one of the thirteen cases, never a subset', () => {
+    const el = render({ A: null, B: null });
+    const rows = el.querySelectorAll('tbody tr');
+    // 13 case rows + 4 limitation rows across the two tables.
+    expect(rows.length).toBe(17);
+    const text = el.textContent;
+    for (const n of ['01', '02', '03', '04', '05', '06', '07', '08', '09',
+                     '10', '11', '12', '13']) {
+      expect(text).toContain(n);
+    }
+  });
+
+  it('states the limits and the boundary on the same page as the results', () => {
+    const text = render({ A: null, B: null }).textContent;
+    expect(text).toContain('Day granular');
+    expect(text).toContain('No resource levelling');
+    expect(text).toContain('free-float asymmetry');
+    // The boundary sentence is the point of the section.
+    expect(text).toMatch(/covers the CPM engine/);
+    expect(text).toMatch(/not a delay analysis/);
+  });
+
+  it('renders using only classes the shell stylesheet defines', () => {
+    // A first draft invented lens-kpi-row / lens-kpi-label / lens-kpi-value /
+    // lens-kpi-sub / lens-note, which would have rendered unstyled while looking
+    // right in source. Pin the ones that exist.
+    const css = readFileSync(join(process.cwd(), 'src', 'shell', 'shell.css'),
+                             'utf8');
+    const el = render({ A: null, B: null });
+    const used = new Set();
+    el.querySelectorAll('*').forEach(node => {
+      for (const c of node.classList) used.add(c);
+    });
+    const missing = [...used].filter(c => !css.includes('.' + c));
+    expect(missing, `classes not in shell.css: ${missing.join(', ')}`)
+      .toHaveLength(0);
+  });
+});

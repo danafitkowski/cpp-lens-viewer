@@ -27,9 +27,9 @@ describe('shell', () => {
     document.body.removeChild(el);
   });
 
-  it('sidebar renders 29 section buttons + 6 group headers', () => {
+  it('sidebar renders 30 section buttons + 6 group headers', () => {
     const el = renderSidebar();
-    expect(el.querySelectorAll('nav button')).toHaveLength(29);
+    expect(el.querySelectorAll('nav button')).toHaveLength(30);
     expect(el.querySelectorAll('nav .group')).toHaveLength(6);
   });
 

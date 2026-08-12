@@ -3,8 +3,8 @@ import { describe, it, expect } from 'vitest';
 import { SECTIONS, GROUPS, findSection } from '../../src/sections/_registry.js';
 
 describe('section registry', () => {
-  it('has exactly 29 sections', () => {
-    expect(SECTIONS).toHaveLength(29);
+  it('has exactly 30 sections', () => {
+    expect(SECTIONS).toHaveLength(30);
   });
 
   it('has 6 sidebar groups', () => {
