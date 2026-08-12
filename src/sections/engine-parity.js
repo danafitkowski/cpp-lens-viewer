@@ -5,10 +5,21 @@ import { dataTable } from './_shared/data-table.js';
 /**
  * Engine parity — what has been validated, and what has not.
  *
- * Every figure here comes from the engine repository rather than from memory,
- * and `tests/engine-parity.test.js` asserts these constants still match the
- * engine's own single source of truth. A viewer quoting a validation number the
- * engine has moved past is worse than one quoting none.
+ * REWRITTEN 2026-08-12 after an adversarial audit of this section's own claims.
+ * The first version published two headline figures that were each technically
+ * true and both misleading, which is precisely the failure this section exists
+ * to guard against:
+ *
+ *   "13 of 13" against P6, without saying the engine was CHANGED to match P6 on
+ *   those same thirteen cases after the only blind run scored 6 of 13. It is a
+ *   fitted result reported on its own training set.
+ *
+ *   "925 / 925" port agreement, without saying 61 further comparisons are
+ *   SKIPPED rather than failed. Remove one guard in the harness, change nothing
+ *   else, and the same suite reports 925 / 986 with 34 of 45 fixtures failing.
+ *
+ * Both are stated properly below. Figures are guarded by
+ * tests/unit/engine-parity.test.js against the engine's own sources.
  *
  * Built from the shell's existing kpiCard and dataTable helpers on purpose. A
  * first draft invented five class names (lens-kpi-row, lens-kpi-label,
@@ -17,29 +28,39 @@ import { dataTable } from './_shared/data-table.js';
  */
 const ENGINE_VERSION = '2.9.39';
 
-// Layer 1 — two independent implementations of the same algorithm.
+// Layer 1 — two ports of the same algorithm, by the same author.
 const CROSSVAL_FIXTURES = 45;
-const CROSSVAL_CHECKS = '925 / 925';
+const CROSSVAL_EXECUTED = 925;
+const CROSSVAL_POSSIBLE = 986;
+const CROSSVAL_SKIPPED = 61;
+const CROSSVAL_CLEAN_FIXTURES = 11;
 const JS_UNIT_TESTS = 1134;
+const ENGINE_STATEMENT_COVERAGE = '38%';
 
 // Layer 2 — the engine against Primavera P6 itself.
 const P6_VERSION = 'Primavera P6 23.12';
 const P6_CASES_PASSED = 13;
 const P6_CASES_TOTAL = 13;
-const P6_FIELD_CHECKS = 27;
+const P6_BLIND_FIRST_PASS = 6;
+const P6_FIELD_CELLS = 162;
+const P6_REAL_COMPARISONS = 152;
 
 export const PARITY_FACTS = {
   ENGINE_VERSION,
   CROSSVAL_FIXTURES,
-  CROSSVAL_CHECKS,
+  CROSSVAL_EXECUTED,
+  CROSSVAL_POSSIBLE,
+  CROSSVAL_SKIPPED,
+  CROSSVAL_CLEAN_FIXTURES,
   JS_UNIT_TESTS,
   P6_CASES_PASSED,
   P6_CASES_TOTAL,
-  P6_FIELD_CHECKS
+  P6_BLIND_FIRST_PASS,
+  P6_FIELD_CELLS,
+  P6_REAL_COMPARISONS
 };
 
-/** All thirteen P6-comparable cases. Never a subset: the point of publishing a
- *  matrix is that a reader sees the awkward cases as well as the easy ones. */
+/** All thirteen P6-comparable cases. Never a subset. */
 const P6_CASES = [
   ['01', 'FS chain', 'A to B to C, zero lag'],
   ['02', 'SS with lag', 'SS+5, successor start anchored 5 wd into the predecessor'],
@@ -56,20 +77,24 @@ const P6_CASES = [
   ['13', 'ALAP', 'secondary as-late-as-possible constraint slides to late start']
 ];
 
-/** The published limits. These are the reason the rest is worth anything. */
+/** The limits. These decide whether anything above is worth reading. */
 const LIMITS = [
+  ['Fitted, not blind',
+   `The thirteen cases were captured from P6 once. That first blind run passed ${P6_BLIND_FIRST_PASS} of ${P6_CASES_TOTAL}. The seven gaps sorted into five families, and the engine was then changed to match the answers P6 had already given, across three commits. The current ${P6_CASES_PASSED} of ${P6_CASES_TOTAL} is therefore measured on the cases the engine was fitted to. No held-out case has been captured since, so the honest reading is that these thirteen behaviours are now correct, not that the next thirteen would pass first time.`],
+  ['The port total skips comparisons',
+   `The cross-validation harness runs ${CROSSVAL_EXECUTED} comparisons and all of them pass. A further ${CROSSVAL_SKIPPED} are skipped rather than failed, because the Python port does not emit one free-float field that the JavaScript engine does. Counting those, agreement is ${CROSSVAL_EXECUTED} of ${CROSSVAL_POSSIBLE}, and only ${CROSSVAL_CLEAN_FIXTURES} of ${CROSSVAL_FIXTURES} fixtures are free of any divergence. The headline is a count of comparisons run, not a pass rate.`],
+  ['Same author, both ports',
+   'The JavaScript engine and the Python reference are written and maintained by the same person. That catches transcription and refactor drift. It cannot catch a shared misreading of how P6 behaves, which is why the P6 comparison exists and why it carries more weight.'],
+  ['Most of the engine has no second implementation',
+   `The cross-validation exercises about ${ENGINE_STATEMENT_COVERAGE} of the engine's statements. The Monte Carlo path, the DCMA-14 health computation, fragnet insertion for time impact analysis, the Bayesian update, float burndown and the statutory-holiday calendars have no Python counterpart and are not cross-validated at all.`],
+  ['Small synthetic networks',
+   'All forty-five fixtures are hand-built, averaging under three activities and topping out at six. No real schedule and no XER file is cross-validated. The thirteen P6 cases are the same shape, twenty-seven activities in total.'],
   ['Day granular',
-   'The engine works in whole days. A sub-day lag rounds and raises an alert that is fatal in strict mode. P6 stores lags in hours, so on that case the two cannot be compared field for field at all, and it is excluded from the matrix rather than counted as a pass.'],
+   'The engine works in whole days. A sub-day lag rounds and raises an alert that is fatal in strict mode. P6 stores lags in hours, so that case cannot be compared field for field and is excluded from the matrix rather than counted as a pass.'],
   ['No resource levelling',
-   'Levelling is not modelled. Dates are driven by logic and calendars only.'],
-  ['One free-float asymmetry',
-   'Free float carries a single documented asymmetry against P6, published in the engine repository rather than left for someone to discover.'],
-  ['Two cases P6 cannot construct',
-   'A sub-day lag, and a relationship pointing at an activity that does not exist. Both are documented as engine limitations instead of being quietly dropped from the denominator.']
+   'Levelling is not modelled. Dates are driven by logic and calendars only.']
 ];
 
-// dataTable keys each cell by column.key off a row OBJECT. Passing arrays with
-// label-only columns renders a table of empty cells that looks fine in source.
 const CASE_COLS = [
   { key: 'n', label: '#' },
   { key: 'name', label: 'Behaviour isolated' },
@@ -88,21 +113,21 @@ export function render() {
 
     h('div', { class: 'kpi-grid' }, [
       kpiCard({
-        title: 'Against P6',
+        title: 'Against P6, fitted',
         big: `${P6_CASES_PASSED} of ${P6_CASES_TOTAL}`,
-        sub: `${P6_FIELD_CHECKS} field checks, ${P6_VERSION}`,
-        tone: 'green'
+        sub: `first blind run: ${P6_BLIND_FIRST_PASS} of ${P6_CASES_TOTAL}`,
+        tone: 'ink'
       }),
       kpiCard({
-        title: 'Implementation parity',
-        big: CROSSVAL_CHECKS,
-        sub: `${CROSSVAL_FIXTURES} fixtures, JavaScript against Python`,
-        tone: 'green'
+        title: 'Port agreement, counted',
+        big: `${CROSSVAL_EXECUTED} of ${CROSSVAL_POSSIBLE}`,
+        sub: `${CROSSVAL_SKIPPED} comparisons skipped, not failed`,
+        tone: 'ink'
       }),
       kpiCard({
-        title: 'Engine unit tests',
-        big: JS_UNIT_TESTS,
-        sub: 'run on every release',
+        title: 'Fixtures with no divergence',
+        big: `${CROSSVAL_CLEAN_FIXTURES} of ${CROSSVAL_FIXTURES}`,
+        sub: 'the rest differ on one free-float field',
         tone: 'ink'
       }),
       kpiCard({
@@ -114,11 +139,11 @@ export function render() {
     ]),
 
     h('div', { class: 'lens-card' }, [
-      h('h3', {}, 'Two separate questions'),
-      h('p', {}, 'Whether two independent implementations of the same algorithm agree with each other, and whether the engine agrees with Primavera P6. They are answered separately because they are not the same claim, and the second is both the one that matters and the harder one to make.'),
-      h('p', {}, `Thirteen small schedules were built to isolate one scheduling behaviour each, imported into ${P6_VERSION}, and scheduled there by a human operator pressing F9. P6's answers were recorded field by field and pinned as data. The engine was then run on the same thirteen inputs and compared against those pinned answers.`),
-      h('p', {}, 'The first comparison passed six of thirteen. The seven gaps sorted into five families, each was fixed in both implementations against the answers P6 had already given, and the fix history is public. The matrix now stands at thirteen of thirteen, and it is regenerated from the case data rather than kept by hand, so it cannot drift away from the results it summarises.'),
-      h('p', {}, 'No parity claim is made beyond the ground these thirteen cases cover.')
+      h('h3', {}, 'Read the two numbers differently'),
+      h('p', {}, 'The P6 figure and the port-agreement figure answer different questions, and neither is a simple pass rate. This section was rewritten after its own first version published both of them in a way that flattered the engine.'),
+      h('p', {}, `On P6: thirteen small schedules were built to isolate one scheduling behaviour each, imported into ${P6_VERSION}, and scheduled there by a human operator pressing F9. P6's answers were recorded field by field and pinned as data, ${P6_FIELD_CELLS} cells across twenty-seven activities, of which ${P6_REAL_COMPARISONS} are genuine engine-computed against P6-computed comparisons; the rest are actual dates carried through, or blanks. The first run against those pinned answers passed ${P6_BLIND_FIRST_PASS} of ${P6_CASES_TOTAL}. The engine was then corrected and now passes all thirteen. That is a real cross-tool test and it is also a fitted one.`),
+      h('p', {}, `On the two ports: the harness compares a JavaScript and a Python implementation field by field and reports ${CROSSVAL_EXECUTED} of ${CROSSVAL_EXECUTED}. That is the count of comparisons it actually ran. ${CROSSVAL_SKIPPED} more were skipped because one side emits a field the other does not, and a skipped comparison is not a passing one. Counted properly it is ${CROSSVAL_EXECUTED} of ${CROSSVAL_POSSIBLE}.`),
+      h('p', {}, 'No parity claim is made beyond the ground these cases cover.')
     ]),
 
     h('div', { class: 'lens-card' }, [
@@ -127,7 +152,8 @@ export function render() {
         columns: CASE_COLS,
         rows: P6_CASES.map(([n, name, what]) =>
           ({ n, name, what, verdict: 'match' }))
-      })
+      }),
+      h('p', {}, 'Every case matches P6 on every field checked, after the corrections described above.')
     ]),
 
     h('div', { class: 'lens-card' }, [

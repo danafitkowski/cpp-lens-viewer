@@ -16,7 +16,7 @@ describe('engine parity section', () => {
     const el = render({ A: null, B: null });
     const rows = el.querySelectorAll('tbody tr');
     // 13 case rows + 4 limitation rows across the two tables.
-    expect(rows.length).toBe(17);
+    expect(rows.length).toBe(20); // 13 cases + 7 limits
     const text = el.textContent;
     for (const n of ['01', '02', '03', '04', '05', '06', '07', '08', '09',
                      '10', '11', '12', '13']) {
@@ -24,14 +24,41 @@ describe('engine parity section', () => {
     }
   });
 
+  it('discloses that the P6 result is fitted, not blind', () => {
+    // The single most important disclosure on the page. The first version of
+    // this section omitted it and published 13 of 13 as if it were blind.
+    const text = render({ A: null, B: null }).textContent;
+    expect(text).toContain('Fitted, not blind');
+    expect(text).toMatch(/first blind run/i);
+    expect(text).toMatch(/6 of 13/);
+    expect(text).toMatch(/fitted to/);
+  });
+
+  it('discloses that the port total skips comparisons', () => {
+    const text = render({ A: null, B: null }).textContent;
+    expect(text).toMatch(/skipped rather than failed/);
+    expect(text).toMatch(/925 of 986/);
+    expect(text).toMatch(/11 of 45/);
+    expect(text).toMatch(/not a pass rate/);
+  });
+
   it('states the limits and the boundary on the same page as the results', () => {
     const text = render({ A: null, B: null }).textContent;
     expect(text).toContain('Day granular');
     expect(text).toContain('No resource levelling');
-    expect(text).toContain('free-float asymmetry');
+    expect(text).toContain('Same author, both ports');
+    expect(text).toMatch(/no second implementation/);
     // The boundary sentence is the point of the section.
     expect(text).toMatch(/covers the CPM engine/);
     expect(text).toMatch(/not a delay analysis/);
+  });
+
+  it('does not present either headline as a clean pass rate', () => {
+    const text = render({ A: null, B: null }).textContent;
+    // "925 / 925" on its own was the misleading form. It may appear inside the
+    // explanation, but the KPI must carry the counted total.
+    expect(text).toMatch(/Port agreement, counted/);
+    expect(text).toMatch(/Against P6, fitted/);
   });
 
   it('renders using only classes the shell stylesheet defines', () => {
