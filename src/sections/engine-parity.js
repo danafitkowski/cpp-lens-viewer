@@ -31,8 +31,8 @@ const ENGINE_VERSION = '2.9.39';
 // Layer 1 — two ports of the same algorithm, by the same author.
 const CROSSVAL_FIXTURES = 45;
 const CROSSVAL_EXECUTED = 925;
-const CROSSVAL_POSSIBLE = 986;
-const CROSSVAL_SKIPPED = 61;
+const CROSSVAL_POSSIBLE = 989;
+const CROSSVAL_SKIPPED = 64;
 const CROSSVAL_CLEAN_FIXTURES = 11;
 const JS_UNIT_TESTS = 1134;
 const ENGINE_STATEMENT_COVERAGE = '38%';
@@ -82,7 +82,7 @@ const LIMITS = [
   ['Fitted, not blind',
    `The thirteen cases were captured from P6 once. That first blind run passed ${P6_BLIND_FIRST_PASS} of ${P6_CASES_TOTAL}. The seven gaps sorted into five families, and the engine was then changed to match the answers P6 had already given, across three commits. The current ${P6_CASES_PASSED} of ${P6_CASES_TOTAL} is therefore measured on the cases the engine was fitted to. No held-out case has been captured since, so the honest reading is that these thirteen behaviours are now correct, not that the next thirteen would pass first time.`],
   ['The port total skips comparisons',
-   `The cross-validation harness runs ${CROSSVAL_EXECUTED} comparisons and all of them pass. A further ${CROSSVAL_SKIPPED} are skipped rather than failed, because the Python port does not emit one free-float field that the JavaScript engine does. Counting those, agreement is ${CROSSVAL_EXECUTED} of ${CROSSVAL_POSSIBLE}, and only ${CROSSVAL_CLEAN_FIXTURES} of ${CROSSVAL_FIXTURES} fixtures are free of any divergence. The headline is a count of comparisons run, not a pass rate.`],
+   `The cross-validation harness runs ${CROSSVAL_EXECUTED} comparisons and all of them pass. A further ${CROSSVAL_SKIPPED} are skipped rather than failed, because the Python port does not emit two free-float fields that the JavaScript engine does, ff_signed_working_days on 61 and ff_signed on 3. Counting those, agreement is ${CROSSVAL_EXECUTED} of ${CROSSVAL_POSSIBLE}, and only ${CROSSVAL_CLEAN_FIXTURES} of ${CROSSVAL_FIXTURES} fixtures are free of any divergence. The headline is a count of comparisons run, not a pass rate.`],
   ['Same author, both ports',
    'The JavaScript engine and the Python reference are written and maintained by the same person. That catches transcription and refactor drift. It cannot catch a shared misreading of how P6 behaves, which is why the P6 comparison exists and why it carries more weight.'],
   ['Most of the engine has no second implementation',
@@ -127,7 +127,7 @@ export function render() {
       kpiCard({
         title: 'Fixtures with no divergence',
         big: `${CROSSVAL_CLEAN_FIXTURES} of ${CROSSVAL_FIXTURES}`,
-        sub: 'the rest differ on one free-float field',
+        sub: 'the rest differ on a free-float field',
         tone: 'ink'
       }),
       kpiCard({

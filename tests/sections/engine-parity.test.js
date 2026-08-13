@@ -37,7 +37,11 @@ describe('engine parity section', () => {
   it('discloses that the port total skips comparisons', () => {
     const text = render({ A: null, B: null }).textContent;
     expect(text).toMatch(/skipped rather than failed/);
-    expect(text).toMatch(/925 of 986/);
+    // 989 not 986: the harness guards TWO fields, ff_signed_working_days (61)
+    // and ff_signed (3). The first measurement removed only the first guard and
+    // published 986, understating the surface by 3. Verified by neutralising both
+    // guards and re-running: 925 / 989, 11 fixtures passed, 34 failed.
+    expect(text).toMatch(/925 of 989/);
     expect(text).toMatch(/11 of 45/);
     expect(text).toMatch(/not a pass rate/);
   });
