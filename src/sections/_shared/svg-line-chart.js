@@ -32,7 +32,7 @@ export function svgLineChart({ series, width = 700, height = 280 }) {
   for (let i = 0; i <= 4; i++) {
     const y = padT + (hh * (1 - i / 4));
     root.appendChild(svg('line', { x1: padL, x2: width - padR, y1: y, y2: y, stroke: '#E2E8F0' }));
-    const t = svg('text', { x: padL - 6, y: y + 3, 'text-anchor': 'end', 'font-size': '10', fill: '#6B7A8F' });
+    const t = svg('text', { x: padL - 6, y: y + 3, 'text-anchor': 'end', 'font-size': '10', fill: '#5A6675' });
     t.appendChild(document.createTextNode(String(Math.round(maxY * i / 4))));
     root.appendChild(t);
   }

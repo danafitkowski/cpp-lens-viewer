@@ -22,7 +22,7 @@ export function svgBarChart({ data, width = 600, height = 240, tone = '#0F2540' 
   for (let i = 0; i <= 4; i++) {
     const y = padT + (hh * (1 - i / 4));
     root.appendChild(svg('line', { x1: padL, x2: width - padR, y1: y, y2: y, stroke: '#E2E8F0' }));
-    const t = svg('text', { x: padL - 6, y: y + 3, 'text-anchor': 'end', 'font-size': '10', fill: '#6B7A8F' });
+    const t = svg('text', { x: padL - 6, y: y + 3, 'text-anchor': 'end', 'font-size': '10', fill: '#5A6675' });
     t.appendChild(document.createTextNode(String(Math.round(max * i / 4))));
     root.appendChild(t);
   }
@@ -34,7 +34,7 @@ export function svgBarChart({ data, width = 600, height = 240, tone = '#0F2540' 
     const x = padL + i * bw + 4;
     const y = padT + (hh - bh);
     root.appendChild(svg('rect', { x, y, width: Math.max(bw - 8, 1), height: bh, fill: tone, rx: 3 }));
-    const t = svg('text', { x: x + (bw - 8) / 2, y: height - padB + 14, 'text-anchor': 'middle', 'font-size': '10', fill: '#6B7A8F' });
+    const t = svg('text', { x: x + (bw - 8) / 2, y: height - padB + 14, 'text-anchor': 'middle', 'font-size': '10', fill: '#5A6675' });
     t.appendChild(document.createTextNode(String(d.label)));
     root.appendChild(t);
   });

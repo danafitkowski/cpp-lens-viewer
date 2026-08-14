@@ -21,7 +21,11 @@ main.lens-content:focus { outline: none; }
   --bg: #F4F7FB;
   --panel: #FFFFFF;
   --line: #D8E0EA;
-  --muted: #6B7A8F;
+  /* Was #6B7A8F: 4.37:1 on --panel (#FFFFFF) and 4.07:1 on --bg (#F4F7FB), both
+     under the 4.5:1 WCAG AA floor at the 11-13px sizes it is used at.
+     #5A6675 is 5.85:1 / 5.44:1. Ratios computed per WCAG 2.1 relative luminance,
+     not estimated. */
+  --muted: #5A6675;
   --red: #C8392F;
   --green: #15803D;
   --amber: #B45309;
@@ -110,7 +114,10 @@ aside.lens-sidebar .file-box button {
 }
 aside.lens-sidebar .file-box button.secondary { background: #475569; }
 
-aside.lens-sidebar .group { margin: 14px 0 4px; font-size: 10px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: #6B7A8F; }
+/* Sits on the NAVY sidebar, not a light panel - so it needs a LIGHTER value, not a
+   darker one. #6B7A8F was 3.54:1 on --ink and failed AA at 10px uppercase. #B7C9DA
+   is 9.11:1 and is already this sidebar's label colour (.file-box label above). */
+aside.lens-sidebar .group { margin: 14px 0 4px; font-size: 10px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: #B7C9DA; }
 aside.lens-sidebar nav button {
   display: block; width: 100%; text-align: left;
   background: transparent; color: #D7E7F5; border: 0;
@@ -242,3 +249,21 @@ main.lens-content h2 { color: var(--ink); margin: 0 0 12px; font-size: 22px; }
 .lens-utilities-grid .util-card button:hover { filter: brightness(1.05); }
 .lens-utilities-grid .util-card .status { margin-top: 10px; color: var(--muted); font-size: 12px; font-style: italic; min-height: 16px; }
 .lens-utilities-grid .util-card .sha { font-family: var(--font-mono); font-size: 11px; color: var(--muted); margin-top: 6px; word-break: break-all; }
+
+/* ── Phone overrides that must follow their base rules ────────────────────────
+   A media query adds no specificity, so a rule inside the @media block up at
+   line 65 loses to an equal-specificity base rule declared later in this file.
+   Everything overridden below is declared after that block, so it has to be
+   re-stated here at the end to actually win the cascade. */
+@media (max-width: 860px) {
+  /* Dashboard Creator. The fixed 320px catalog track plus the 16px gap leaves
+     roughly 15px for the canvas at 375px, so collapse it the way .lens-app
+     collapses in the block above. */
+  .lens-dash-grid { grid-template-columns: 1fr; }
+  .lens-dash-catalog { max-height: 280px; }
+  /* iOS Safari force-zooms the viewport when a focused form control computes
+     under 16px, and does not zoom back out afterwards. */
+  .lens-search,
+  .lens-activity-picker,
+  .lens-select { font-size: 16px; }
+}

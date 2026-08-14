@@ -129,7 +129,7 @@ function buildCalendarReportCard(A) {
     }).join('\n');
 
     const html = `<!doctype html><html><head><title>Calendar Report</title>
-<style>body{font-family:system-ui,Arial,sans-serif;max-width:900px;margin:24px auto;padding:16px;color:#0F2540}h1{color:#0F2540}.cal{border:1px solid #D8E0EA;border-radius:10px;padding:14px;margin:14px 0;background:#fff}.cal h2{margin:0 0 8px;font-size:18px}.cal .meta{color:#6B7A8F;font-size:13px;margin-bottom:8px}.cal ul{margin:8px 0 0;padding-left:18px;font-size:13px}</style>
+<style>body{font-family:system-ui,Arial,sans-serif;max-width:900px;margin:24px auto;padding:16px;color:#0F2540}h1{color:#0F2540}.cal{border:1px solid #D8E0EA;border-radius:10px;padding:14px;margin:14px 0;background:#fff}.cal h2{margin:0 0 8px;font-size:18px}.cal .meta{color:#5A6675;font-size:13px;margin-bottom:8px}.cal ul{margin:8px 0 0;padding-left:18px;font-size:13px}</style>
 </head><body>
 <h1>Calendar Report — ${escHtml(stem + '.xer')}</h1>
 ${cards}
