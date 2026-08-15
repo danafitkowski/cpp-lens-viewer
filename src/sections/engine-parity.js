@@ -14,9 +14,10 @@ import { dataTable } from './_shared/data-table.js';
  *   those same thirteen cases after the only blind run scored 6 of 13. It is a
  *   fitted result reported on its own training set.
  *
- *   "925 / 925" port agreement, without saying 61 further comparisons are
- *   SKIPPED rather than failed. Remove one guard in the harness, change nothing
- *   else, and the same suite reports 925 / 986 with 34 of 45 fixtures failing.
+ *   "925 / 925" port agreement, without saying 64 further comparisons are
+ *   SKIPPED rather than failed. Remove both guards in the harness, change
+ *   nothing else, and the same suite reports 925 / 989 with 34 of 45 fixtures
+ *   failing.
  *
  * Both are stated properly below. Figures are guarded by
  * tests/unit/engine-parity.test.js against the engine's own sources.
@@ -82,7 +83,7 @@ const LIMITS = [
   ['Fitted, not blind',
    `The thirteen cases were captured from P6 once. That first blind run passed ${P6_BLIND_FIRST_PASS} of ${P6_CASES_TOTAL}. The seven gaps sorted into five families, and the engine was then changed to match the answers P6 had already given, across three commits. The current ${P6_CASES_PASSED} of ${P6_CASES_TOTAL} is therefore measured on the cases the engine was fitted to. No held-out case has been captured since, so the honest reading is that these thirteen behaviours are now correct, not that the next thirteen would pass first time.`],
   ['The port total skips comparisons',
-   `The cross-validation harness runs ${CROSSVAL_EXECUTED} comparisons and all of them pass. A further ${CROSSVAL_SKIPPED} are skipped rather than failed, because the Python port does not emit two free-float fields that the JavaScript engine does, ff_signed_working_days on 61 and ff_signed on 3. Counting those, agreement is ${CROSSVAL_EXECUTED} of ${CROSSVAL_POSSIBLE}, and only ${CROSSVAL_CLEAN_FIXTURES} of ${CROSSVAL_FIXTURES} fixtures are free of any divergence. The headline is a count of comparisons run, not a pass rate.`],
+   `The cross-validation harness runs ${CROSSVAL_EXECUTED} comparisons and all of them pass. A further ${CROSSVAL_SKIPPED} are skipped rather than failed, on two free-float fields the two ports do not both emit, ff_signed_working_days on 61 and ff_signed on 3. On 58 of those 64 the JavaScript engine emits a number and the Python reference emits null; on the other 6 neither engine assigns the field. Counting all of them, agreement is ${CROSSVAL_EXECUTED} of ${CROSSVAL_POSSIBLE}, and only ${CROSSVAL_CLEAN_FIXTURES} of ${CROSSVAL_FIXTURES} fixtures are free of any divergence. The headline is a count of comparisons run, not a pass rate.`],
   ['Same author, both ports',
    'The JavaScript engine and the Python reference are written and maintained by the same person. That catches transcription and refactor drift. It cannot catch a shared misreading of how P6 behaves, which is why the P6 comparison exists and why it carries more weight.'],
   ['Most of the engine has no second implementation',

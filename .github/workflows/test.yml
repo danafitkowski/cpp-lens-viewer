@@ -1,0 +1,126 @@
+name: test
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  test:
+    name: Node ${{ matrix.node }}
+    runs-on: ubuntu-latest
+    # The suite is ~30s wall clock locally (64 files, 517 tests). Fifteen
+    # minutes fails fast on a wedged runner instead of burning the 6-hour
+    # default, matching cpp-forensic-mcp.
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+      # Node 18 is excluded, same reason as cpp-lens-parser. It is past
+      # end-of-life, and jsdom 29.1.1 (used by tests/sections/adversarial-
+      # render.test.js, 150 of the 517 tests) declares
+      # engines.node ^20.19.0 || ^22.13.0 || >=24.0.0 — on 18 it dies on the
+      # ESM-only @exodus/bytes that html-encoding-sniffer pulls in, before any
+      # viewer code runs. Verified against the installed tree: the highest
+      # floor anywhere in it is jsdom's, and setup-node's latest-of-major
+      # satisfies it for both 20 and 22.
+      #
+      # package.json declared engines.node ">=18" when this workflow was
+      # written, which the tree cannot honour. Corrected to ">=20" in its own
+      # edit, and tests/unit/repo-metadata.test.js now pins the declared floor
+      # against jsdom's own engines.node so it cannot drift back.
+        node: ['20', '22']
+    steps:
+      # TWO checkouts, into siblings. package.json depends on the parser by
+      # RELATIVE PATH:
+      #     "@criticalpathpartners/lens-parser": "file:../cpp-lens-parser"
+      # A single-repo checkout does NOT fail loudly. `npm ci` exits 0 and
+      # writes a DANGLING symlink at node_modules/@criticalpathpartners/
+      # lens-parser; the break only surfaces at test collection. Verified
+      # 2026-08-15 by cloning this repo alone into a temp dir: npm ci exited 0,
+      # node_modules/@criticalpathpartners/lens-parser pointed at a sibling
+      # directory that did not exist, and the suite then reported
+      #   Test Files  48 failed | 15 passed (63)
+      #   Tests       84 passed (84)
+      # Only 84 tests ran at all. (That clone is of the committed tree, which
+      # is 63 files / 514 tests; the working tree adds tests/unit/repo-
+      # metadata.test.js for 64 / 517.) Hence the sibling checkout.
+      - name: Check out cpp-lens-viewer
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          path: cpp-lens-viewer
+
+      # Public repo, so the default GITHUB_TOKEN is enough. No ref is pinned:
+      # the file: dependency has no version to pin to (the lockfile records it
+      # as {"link": true}), so local development already tracks the parser's
+      # default branch and CI matches that. If the parser's master breaks the
+      # viewer, this job is where it should show up.
+      - name: Check out cpp-lens-parser (the file:../ sibling)
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          repository: danafitkowski/cpp-lens-parser
+          path: cpp-lens-parser
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      # The parser's own deps are installed SEPARATELY and this step is not
+      # optional. The viewer's package-lock.json has no "node_modules/pako"
+      # entry at all, so `npm ci` in the viewer — which installs strictly from
+      # the lock — never provides pako, and the linked parser's
+      # src/encoding/gzip.js imports it. On a dev machine it resolves only
+      # because ../cpp-lens-parser/node_modules already exists.
+      #
+      # Verified 2026-08-15 by cloning BOTH repos and skipping this step:
+      #   Test Files  44 failed | 19 passed (63)
+      #   Tests       104 passed (104)
+      #   Error: Failed to resolve import "pako" from
+      #          "../cpp-lens-parser/src/encoding/gzip.js"
+      # Both repos present and still 410 of the committed tree's 514 tests
+      # never ran. With this step the suite passes whole.
+      - name: Install parser dependencies (supplies pako)
+        working-directory: cpp-lens-parser
+        run: npm ci
+
+      - name: Install viewer dependencies
+        working-directory: cpp-lens-viewer
+        run: npm ci
+
+      # No build step is needed before the tests: nothing under tests/ imports
+      # dist/. Checked by grep over tests/, src/ and vitest.config.js — the
+      # only dist/ references in the repo are inside esbuild.config.js itself.
+      # The suite runs whole, with no exclusions: 64 files, 517 tests.
+      #
+      # KNOWN GAP, reported as a SKIP rather than papered over: four of the six
+      # checks in tests/unit/engine-parity.test.js read files OUTSIDE this
+      # repo — ~/.claude/skills/_cpp_common/scripts/engine_version.py and
+      # ~/Projects/cpp-cpm-engine — which do not exist on a runner. Those four
+      # used to open with `if (!src) return;`, so they reported PASS while
+      # asserting nothing: verified by re-running that file with HOME pointed
+      # at an empty directory, which gave "6 passed". They now call ctx.skip()
+      # with the reason on stderr, and the same run gives "2 passed | 4
+      # skipped". Expect four skips in this job's summary; four passes there
+      # would mean the guard has been removed.
+      #
+      # The two checks that guard the published figures for real (arithmetic
+      # consistency, and never claiming more agreement than is counted) do run
+      # here, as does the whole of tests/sections/engine-parity.test.js, which
+      # pins the rendered strings "925 of 989" and "11 of 45" against the DOM.
+      # The figure-vs-SSOT comparison remains a local-only check on Dana's
+      # machine; making it real on a runner needs the engine SSOT vendored or
+      # published, which is a separate decision. Do not vendor a hand-copied
+      # figure file — a drifting copy would fake the parity these tests police.
+      - name: Run tests
+        working-directory: cpp-lens-viewer
+        run: npm test
+
+      # After the tests, not before — this guards the shipped artifact, it is
+      # not a test prerequisite. dist/ is gitignored (.gitignore line 2), so
+      # this is the only thing standing between a broken esbuild config and a
+      # broken deploy of dist/lens-viewer.html to criticalpathpartners.ca.
+      # Verified green in the clean two-repo clone.
+      - name: Build dist/ (gitignored; guards the deployed artifact)
+        working-directory: cpp-lens-viewer
+        run: npm run build

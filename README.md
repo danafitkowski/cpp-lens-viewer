@@ -5,7 +5,7 @@ Browser-based Primavera P6 schedule viewer. Lives at https://criticalpathpartner
 Powered by [@criticalpathpartners/lens-parser](https://github.com/danafitkowski/cpp-lens-parser).
 
 ## Status
-v1.0.0 — all 29 sections wired. Live at https://criticalpathpartners.ca/viewer/.
+v1.5.3 — all 30 sections wired. Live at https://criticalpathpartners.ca/viewer/.
 
 ## Build
 - `npm run build` — both targets
