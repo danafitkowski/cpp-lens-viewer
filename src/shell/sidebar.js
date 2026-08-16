@@ -179,8 +179,8 @@ function renderNav() {
   }
 
   // aria-current alongside the .active class: the class is purely visual, so a
-  // screen-reader user previously had no way to tell which of the 29 sections
-  // was showing.
+  // screen-reader user previously had no way to tell which of the thirty-odd
+  // sections was showing.
   function mark(active) {
     for (const b of buttons) { b.classList.remove('active'); b.removeAttribute('aria-current'); }
     const b = buttonsById[active];

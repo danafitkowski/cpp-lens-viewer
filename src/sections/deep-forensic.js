@@ -17,6 +17,7 @@ import { runDeepForensic } from '../mcp/client.js';
 import { anonymizeModel } from '../mcp/anonymizer.js';
 import { prefsStore } from '../state/prefs.js';
 import { buildResultPanel } from './deep-forensic-result.js';
+import { LENS_VERSION } from '../version.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TOOL DEFINITIONS
@@ -212,7 +213,13 @@ export function render({ A, B }) {
           xerBase64,
           anonymized:    anonymize,
           anonMapSha256,
-          lensVersion:   '1.5.3'
+          // Read from package.json via src/version.js. This used to be the
+          // release string written out as a literal, a second source of truth
+          // that would have gone stale on the next bump and told the Engine
+          // the wrong client version. Guarded by
+          // tests/unit/lens-version.test.js, which also forbids writing the
+          // number into a comment here.
+          lensVersion:   LENS_VERSION
         });
 
         if (result.status === 'rate_limited') {

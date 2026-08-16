@@ -1,3 +1,5 @@
+import { LENS_VERSION } from '../version.js';
+
 export const MCP_BASE_URL = 'https://mcp.criticalpathpartners.ca';
 
 // Per-request wall-clock ceiling. Without it, a hung connection (engine down,
@@ -51,7 +53,7 @@ async function jsonOrThrow(resp, label) {
  * @param {boolean} [opts.anonymized=true]
  * @param {string} [opts.anonMapSha256='']
  * @param {object} [opts.options={}] - tool-specific options
- * @param {string} [opts.lensVersion='0.1.0']
+ * @param {string} [opts.lensVersion] - defaults to LENS_VERSION (package.json)
  * @param {number} [opts.pollIntervalMs=2000]
  * @param {number} [opts.maxPolls=120]
  * @returns {Promise<{ jobId, status, resultUrl, rateLimit, errors }>}
@@ -70,7 +72,11 @@ export async function runDeepForensic(opts) {
       },
       options: opts.options || {},
       client: {
-        lensVersion: opts.lensVersion || '0.1.0',
+        // The fallback was the literal '0.1.0', which was never this package's
+        // version at any point in its history — a caller that omitted
+        // lensVersion silently reported a fictitious client to the Engine.
+        // Fall back to the real one.
+        lensVersion: opts.lensVersion || LENS_VERSION,
         userAgent: (typeof navigator !== 'undefined') ? navigator.userAgent : 'cpp-lens-viewer'
       }
     })

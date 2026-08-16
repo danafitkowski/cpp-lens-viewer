@@ -1,5 +1,6 @@
 
-/* Skip link. The sidebar carries 29 section buttons, so a keyboard or screen-reader
+/* Skip link. The sidebar carries a button per wired section (thirty at the time
+   of writing; src/sections/_registry.js is the count), so a keyboard or screen-reader
    user previously had to tab through all of them to reach the report. Added 2026-08-02. */
 .lens-skip {
   position: absolute;

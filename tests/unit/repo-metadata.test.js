@@ -61,6 +61,27 @@ describe('repo metadata', () => {
       .toBe(SECTIONS.length);
   });
 
+  it('the built page\'s meta descriptions quote the number of wired sections', () => {
+    // Same drift as the README Status line, in a worse place: esbuild.config.js
+    // writes the <meta name="description">, og:description and
+    // twitter:description of dist/lens-viewer.html, which is what search
+    // results and link previews for criticalpathpartners.ca/viewer show. All
+    // three said 29 while the registry wired 30, and nothing was watching.
+    const config = readFileSync(join(REPO, 'esbuild.config.js'), 'utf8');
+    const counts = [...config.matchAll(/(\d+) diagnostic sections/g)];
+    expect(counts.length,
+      'esbuild.config.js no longer states a section count in its meta ' +
+      'descriptions. Re-point this test at the current wording rather than ' +
+      'dropping the assertion.').toBeGreaterThan(0);
+    for (const m of counts) {
+      expect(Number(m[1]),
+        'A meta description in esbuild.config.js claims a different number of ' +
+        'sections than src/sections/_registry.js wires. This copy ships in ' +
+        'dist/lens-viewer.html and is what link previews quote.')
+        .toBe(SECTIONS.length);
+    }
+  });
+
   it('engines.node is not below what the installed tree requires', () => {
     // jsdom carries the highest floor in the tree. Read it rather than
     // restating it, so a jsdom bump that raises the floor shows up here.
