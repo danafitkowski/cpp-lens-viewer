@@ -37,11 +37,12 @@ describe('engine parity section', () => {
   it('discloses that the port total skips comparisons', () => {
     const text = render({ A: null, B: null }).textContent;
     expect(text).toMatch(/skipped rather than failed/);
-    // 989 not 986: the harness guards TWO fields, ff_signed_working_days (61)
+    // 995 not 992: the harness guards TWO fields, ff_signed_working_days (61)
     // and ff_signed (3). The first measurement removed only the first guard and
-    // published 986, understating the surface by 3. Verified by neutralising both
-    // guards and re-running: 925 / 989, 11 fixtures passed, 34 failed.
-    expect(text).toMatch(/925 of 989/);
+    // understated the surface by 3. Surface grew 989 -> 995 at engine v2.9.41,
+    // which retired the three alert-parity carve-outs (+6 executed comparisons);
+    // the 64 free-float skips are unchanged.
+    expect(text).toMatch(/931 of 995/);
     expect(text).toMatch(/11 of 45/);
     expect(text).toMatch(/not a pass rate/);
   });
