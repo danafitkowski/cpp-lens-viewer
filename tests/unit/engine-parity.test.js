@@ -27,6 +27,8 @@ const ENGINE_DIR = join(homedir(), 'Projects', 'cpp-cpm-engine');
 const MATRIX = join(ENGINE_DIR, 'validation', 'p6-comparison',
                     'comparison-matrix.md');
 const CROSSVAL = join(ENGINE_DIR, 'cpm-engine.crossval.js');
+const CROSSVAL_EXTENDED = join(homedir(), '.claude', 'skills', '_cpp_common',
+                               'cpm-engine-js', 'cpm-engine.crossval-extended.js');
 
 function readIf(path) {
   return existsSync(path) ? readFileSync(path, 'utf8') : null;
@@ -121,6 +123,21 @@ describe('engine parity figures', () => {
       `${PARITY_FACTS.CROSSVAL_SKIPPED} comparisons are skipped rather than failed. ` +
       'Re-derive the counts by removing the guard and re-running the harness, ' +
       'then update the section and these figures.').toBeTruthy();
+  });
+
+  it('the internal extended harness still covers float burndown and the topology hash', (ctx) => {
+    // The limits table says these two routines are compared JS-vs-Python on an
+    // internal extended harness (added 2026-08-19 after the 2026-08-16 audit
+    // found them uncompared). If those fixtures are ever removed, the wording
+    // overstates coverage again, and this failing test is the prompt to fix it.
+    const src = readSsotOrSkip(ctx, CROSSVAL_EXTENDED,
+                               'cpm-engine.crossval-extended.js (skills tree)');
+    expect(src, 'extended harness lost its topology-hash fixtures')
+      .toMatch(/fn: 'topology'/);
+    expect(src, 'extended harness lost its float-burndown fixtures')
+      .toMatch(/fn: 'burndown'/);
+    expect(src).toContain('computeTopologyHash');
+    expect(src).toContain('computeFloatBurndown');
   });
 
   it('never claims more agreement than it counts', () => {
