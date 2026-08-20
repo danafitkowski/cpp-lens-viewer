@@ -59,7 +59,7 @@ async function buildViewer() {
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>CPP Lens — Free P6 Viewer</title><link rel="canonical" href="https://criticalpathpartners.ca/viewer/"><meta property="og:type" content="website"><meta property="og:title" content="CPP Lens — Free P6 Viewer"><meta property="og:description" content="Free P6 viewer: drop a Primavera XER, XML, or MPP schedule and see 30 diagnostic sections rendered in your browser. XER and XML are never uploaded; MPP is converted on the CPP server first."><meta property="og:url" content="https://criticalpathpartners.ca/viewer/"><meta property="og:image" content="https://criticalpathpartners.ca/og-image.png"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="CPP Lens — Free P6 Viewer"><meta name="twitter:description" content="Free P6 viewer: drop a Primavera XER, XML, or MPP schedule and see 30 diagnostic sections rendered in your browser."><meta name="twitter:image" content="https://criticalpathpartners.ca/og-image.png">
-<meta name="description" content="Free P6 viewer: drop a Primavera XER, XML, or MPP schedule and see 30 diagnostic sections rendered in your browser. XER and XML are never uploaded. MPP must be converted on the CPP server, and an optional deep forensic analysis is anonymized by default."/>
+<meta name="description" content="Free P6 viewer: drop a Primavera XER, XML, or MPP schedule and see 30 diagnostic sections rendered in your browser. XER and XML are never uploaded; MPP is converted on the CPP server first."/>
 <style>${css}</style>
 </head>
 <body>
