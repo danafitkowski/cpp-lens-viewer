@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, dirname } from 'node:path';
+import { execFileSync } from 'node:child_process';
 import { homedir } from 'node:os';
 import { PARITY_FACTS } from '../../src/sections/engine-parity.js';
 
@@ -113,16 +114,39 @@ describe('engine parity figures', () => {
   it('the harness still SKIPS comparisons rather than failing them', (ctx) => {
     // This is the finding the honest wording rests on. If the guards are ever
     // removed and the Python port made to emit the field, the section must be
-    // rewritten, and this failing test is the prompt to do it.
-    const src = readSsotOrSkip(ctx, CROSSVAL,
-                               'cpm-engine.crossval.js (engine repo)');
-    const guarded = src.match(
-      /if \(a\.ff_signed_working_days !== undefined && b\.ff_signed_working_days !== undefined &&\s*\n\s*a\.ff_signed_working_days !== null && b\.ff_signed_working_days !== null\)/);
-    expect(guarded,
-      'The ff_signed_working_days guard has changed. The published wording says ' +
-      `${PARITY_FACTS.CROSSVAL_SKIPPED} comparisons are skipped rather than failed. ` +
-      'Re-derive the counts by removing the guard and re-running the harness, ' +
-      'then update the section and these figures.').toBeTruthy();
+    // rewritten, and a failure here is the prompt to do it.
+    //
+    // This used to match a literal `if (a.ff_signed_working_days !== undefined
+    // && ...)` against the source. The 2026-08-21 refactor replaced those
+    // inline guards with a helper that COUNTS what it skips instead of letting
+    // skips vanish - a strict improvement - and the regex stopped matching, so
+    // the test failed while the published wording was perfectly accurate. A
+    // test that breaks when the code gets better is testing the spelling, not
+    // the property.
+    //
+    // Ask the harness instead. It prints the counts it derived, so the figures
+    // on the site are checked against a real run rather than against source
+    // that anyone may reformat. ~5s.
+    readSsotOrSkip(ctx, CROSSVAL, 'cpm-engine.crossval.js (engine repo)');
+    const out = execFileSync('node', [CROSSVAL], {
+      cwd: dirname(CROSSVAL), encoding: 'utf8', timeout: 120000,
+    });
+
+    const skipped = out.match(/Skipped:\s+(\d+) guarded comparisons not executed\s*\(([^)]*)\)/);
+    expect(skipped, `harness did not report a Skipped line:\n${out.slice(-600)}`).toBeTruthy();
+    expect(Number(skipped[1]),
+      'the harness skip count no longer matches the published figure').toBe(PARITY_FACTS.CROSSVAL_SKIPPED);
+
+    // Skipped, not failed: a skip that became a failure would show up here.
+    expect(out, 'fixtures are failing, so these are not skips').toMatch(/Fixtures:\s+\d+ passed, 0 failed/);
+
+    const surface = out.match(/Surface:\s+(\d+) of (\d+)/);
+    expect(surface, 'harness no longer prints the full comparison surface').toBeTruthy();
+    expect(Number(surface[1])).toBe(PARITY_FACTS.CROSSVAL_EXECUTED);
+    expect(Number(surface[2])).toBe(PARITY_FACTS.CROSSVAL_POSSIBLE);
+
+    // The per-field breakdown is what makes the disclosure specific.
+    expect(skipped[2]).toMatch(/ff_signed_working_days/);
   });
 
   it('the internal extended harness still covers float burndown and the topology hash', (ctx) => {

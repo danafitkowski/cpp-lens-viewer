@@ -29,6 +29,7 @@
  *   ROLES         role_name, role_short_name                   (role names)
  *   PCATVAL       proj_catg_name, proj_catg_short_name         (project categories)
  *   RCATVAL       rsrc_catg_name, rsrc_catg_short_name         (resource categories)
+ *   EVERY TABLE   create_user, update_user                     (P6 edit stamps)
  *
  * What is PRESERVED (opaque structural keys the forensic analysis joins on,
  * and non-identifying numerics): all *_id, activity/relationship codes used as
@@ -65,6 +66,16 @@ const STRIP_FIELDS = {
   PCATTYPE: ['proj_catg_type'],
   RCATTYPE: ['rsrc_catg_type'],
 };
+
+// Fields stripped from EVERY table, whether or not the table is listed above.
+// P6 stamps create_user/update_user on almost every row it writes, and the
+// value is the P6 login or full display name — "Matheson Constructors - Dana
+// Fitkowski" on every activity in a TASK table. The per-table map above could
+// never cover this: the columns are not a property of any one table, so each
+// new table added to STRIP_FIELDS would have had to remember them again, and
+// tables NOT in the map (there are many P6 emits) would leak regardless.
+// A global sweep cannot miss a table.
+const GLOBAL_STRIP_FIELDS = ['create_user', 'update_user'];
 
 // Short, stable token prefixes per table. Falls back to the table name.
 const PREFIX = {
@@ -157,6 +168,28 @@ export function anonymizeModel(model) {
     }
   }
 
+  // 3. User stamps, every table. Tokenised by DISTINCT VALUE rather than by
+  //    row: a schedule has a handful of editors and tens of thousands of rows,
+  //    so a per-row token would bloat the map without hiding anything more.
+  //    Same value in, same token out, so "who touched what" survives the scrub
+  //    as a structural fact while the person stays anonymous.
+  const userTokens = {};
+  for (const table of Object.values(out.tables || {})) {
+    if (!table?.records) continue;
+    for (const rec of table.records) {
+      for (const f of GLOBAL_STRIP_FIELDS) {
+        const v = rec[f];
+        if (v === undefined || v === null || v === '') continue;
+        if (!userTokens[v]) {
+          const token = `USER_${String(Object.keys(userTokens).length + 1).padStart(3, '0')}`;
+          userTokens[v] = token;
+          map[token] = v;
+        }
+        rec[f] = userTokens[v];
+      }
+    }
+  }
+
   return { model: out, map };
 }
 
@@ -175,3 +208,4 @@ export function deanonymizeRecords(records, map) {
 // Exported for the leak-detector test and any caller that wants to assert the
 // privacy contract at runtime.
 export const ANON_STRIP_FIELDS = STRIP_FIELDS;
+export const ANON_GLOBAL_STRIP_FIELDS = GLOBAL_STRIP_FIELDS;
