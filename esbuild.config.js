@@ -1,9 +1,16 @@
 import * as esbuild from 'esbuild';
-import { writeFileSync, mkdirSync, existsSync } from 'node:fs';
+import { writeFileSync, mkdirSync, existsSync, rmSync } from 'node:fs';
 
 const target = process.argv.find(a => a.startsWith('--target='))?.slice(9) || 'all';
 const watch = process.argv.includes('--watch');
 
+// Wipe dist/ before every build. A stale artifact under an old output name
+// sat there for three months carrying the exact deploy-target filename
+// (index.html, May 2026 layout) — one wrong copy step away from deploying a
+// build that predates the anonymizer privacy fixes. A build's output dir
+// holds ONLY that build's outputs. (Skipped in watch mode: the watcher
+// rebuilds into the same names repeatedly and a wipe would race it.)
+if (!watch && existsSync('dist')) rmSync('dist', { recursive: true, force: true });
 if (!existsSync('dist')) mkdirSync('dist');
 
 const sharedOpts = {
