@@ -19,7 +19,15 @@ function fullModel() {
     tables: {
       PROJECT:  tbl([{ proj_id: '1', proj_short_name: 'LEAK_pshort', proj_long_name: 'LEAK_plong', proj_url: 'LEAK_url', web_site: 'LEAK_site', last_recalc_date: '2026-01-01 08:00' }]),
       PROJWBS:  tbl([{ wbs_id: '10', proj_id: '1', wbs_name: 'LEAK_wbsname', wbs_short_name: 'LEAK_wbsshort' }]),
-      TASK:     tbl([{ task_id: '1000', task_code: 'A100', task_name: 'LEAK_taskname', task_memo: 'LEAK_taskmemo', status_code: 'TK_NotStart', target_drtn_hr_cnt: '40' }]),
+      // create_user/update_user are the P6 edit stamps. Real exports carry the
+      // scheduler's login or full display name here on EVERY row. The original
+      // fixture omitted the columns entirely, which is why the leak detector
+      // reported clean while the field shipped verbatim to the server.
+      TASK:     tbl([{ task_id: '1000', task_code: 'A100', task_name: 'LEAK_taskname', task_memo: 'LEAK_taskmemo', status_code: 'TK_NotStart', target_drtn_hr_cnt: '40', create_user: 'LEAK_createuser', update_user: 'LEAK_updateuser' }]),
+      // TASKPRED is deliberately NOT in STRIP_FIELDS: it holds no free text of
+      // its own, only join keys. It still carries the edit stamps, so it proves
+      // the sweep reaches tables the per-table map never lists.
+      TASKPRED: tbl([{ task_pred_id: '1', task_id: '1000', pred_task_id: '1001', pred_type: 'PR_FS', lag_hr_cnt: '0', create_user: 'LEAK_predcreateuser', update_user: 'LEAK_predupdateuser' }]),
       TASKMEMO: tbl([{ memo_id: '1', task_id: '1000', task_memo: 'LEAK_notebooktext' }]),
       MEMOTYPE: tbl([{ memo_type_id: '1', memo_type: 'LEAK_memotopic' }]),
       UDFTYPE:  tbl([{ udf_type_id: '1', udf_type_label: 'LEAK_udflabel', udf_type_name: 'LEAK_udftypename', table_name: 'TASK' }]),
@@ -96,6 +104,39 @@ describe('anonymizer leak detector — no identifying value reaches the wire', (
     expect(p.proj_id).toBe('1'); // join key preserved
     // original recoverable locally
     expect(Object.values(map)).toContain('LEAK_plong');
+  });
+
+  it('strips P6 edit stamps (create_user / update_user) on every table', () => {
+    const { model, map } = anonymizeModel(fullModel());
+    const task = model.tables.TASK.records[0];
+    const pred = model.tables.TASKPRED.records[0];
+
+    expect(task.create_user).not.toContain(SENTINEL);
+    expect(task.update_user).not.toContain(SENTINEL);
+    // TASKPRED is not in STRIP_FIELDS; the global sweep must still reach it.
+    expect(pred.create_user).not.toContain(SENTINEL);
+    expect(pred.update_user).not.toContain(SENTINEL);
+
+    // Join keys on that same row survive untouched.
+    expect(pred.task_id).toBe('1000');
+    expect(pred.pred_type).toBe('PR_FS');
+
+    // Recoverable locally, like every other scrubbed value.
+    expect(Object.values(map)).toContain('LEAK_createuser');
+    expect(Object.values(map)).toContain('LEAK_predupdateuser');
+  });
+
+  it('gives one token per distinct editor, not one per row', () => {
+    const model = fullModel();
+    const rows = model.tables.TASK.records;
+    for (let i = 0; i < 5; i++) {
+      rows.push({ ...rows[0], task_id: String(2000 + i), task_code: `B${i}`,
+                  create_user: 'LEAK_sameperson', update_user: 'LEAK_sameperson' });
+    }
+    const { model: anon } = anonymizeModel(model);
+    const tokens = new Set(anon.tables.TASK.records.slice(1).map(r => r.create_user));
+    expect(tokens.size).toBe(1);
+    expect([...tokens][0]).not.toContain(SENTINEL);
   });
 
   it('strips resource names (people / company) in RSRC', () => {
