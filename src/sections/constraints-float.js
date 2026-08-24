@@ -1,7 +1,8 @@
 import { h } from '../lib/dom.js';
-import { getTable, getCalendarMap, durationHoursToDays } from '@criticalpathpartners/lens-parser';
+import { getTable } from '@criticalpathpartners/lens-parser';
 import { kpiCard } from './_shared/kpi-card.js';
 import { dataTable } from './_shared/data-table.js';
+import { workingDayContext, disclosureCards, HOUR_FIELDS } from './_shared/working-days.js';
 
 const LOE_WBS = new Set(['TT_LOE', 'TT_WBS']);
 
@@ -46,7 +47,8 @@ function floatBucket(floatDays) {
 
 function computeMetrics(A) {
   const tasks  = getTable(A, 'TASK');
-  const calMap = getCalendarMap(A);
+  // Hours become working days in exactly one module — see _shared/working-days.js.
+  const cal    = workingDayContext(A);
 
   // Constraint type counts (all tasks including LOE/WBS)
   const cstrCounts = {};
@@ -76,13 +78,7 @@ function computeMetrics(A) {
   let nullFloatCount = 0;
 
   for (const t of workTasks) {
-    const rawFloat = t.total_float_hr_cnt;
-    const cal = calMap[t.clndr_id] || null;
-
-    let floatDays = null;
-    if (rawFloat != null && rawFloat !== '' && !isNaN(parseFloat(rawFloat))) {
-      floatDays = durationHoursToDays(rawFloat, cal);
-    }
+    const floatDays = cal.workingDays(t, HOUR_FIELDS.TOTAL_FLOAT);
 
     const bucket = floatBucket(floatDays);
     bucketCounts[bucket] = (bucketCounts[bucket] || 0) + 1;
@@ -111,7 +107,8 @@ function computeMetrics(A) {
     nullFloatCount,
     cstrRows,
     floatRows,
-    hardRows
+    hardRows,
+    disclosure: cal.disclose(workTasks, [HOUR_FIELDS.TOTAL_FLOAT])
   };
 }
 
@@ -171,6 +168,7 @@ export function render({ A, B }) {
     h('h2', {}, 'Constraints / Float'),
     h('div', { class: 'kpi-grid' }, kpis),
     sideBySide,
-    hardCard
+    hardCard,
+    ...disclosureCards(m.disclosure)
   ]);
 }

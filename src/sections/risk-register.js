@@ -2,9 +2,13 @@ import { h } from '../lib/dom.js';
 import { getTable, buildPredecessorMap } from '@criticalpathpartners/lens-parser';
 import { kpiCard } from './_shared/kpi-card.js';
 import { dataTable } from './_shared/data-table.js';
+import { workingDayContext, disclosureCards, HOUR_FIELDS } from './_shared/working-days.js';
 
 const LOE_WBS = new Set(['TT_LOE', 'TT_WBS']);
 const MANDATORY_CSTR = new Set(['CS_MANDSTART', 'CS_MANDFIN']);
+
+/** Long-duration risk threshold, in WORKING DAYS. */
+const LONG_DURATION_WD = 40;
 
 const SEVERITY_ORDER = { high: 0, med: 1, low: 2 };
 
@@ -50,6 +54,8 @@ function computeRisks(A) {
   const taskrsrc = getTable(A, 'TASKRSRC');
   const projects = getTable(A, 'PROJECT');
   const proj     = projects[0] || {};
+  // Hours become working days in exactly one module — see _shared/working-days.js.
+  const cal      = workingDayContext(A);
 
   const { successors } = buildPredecessorMap(A);
 
@@ -83,15 +89,19 @@ function computeRisks(A) {
       continue; // priority order — first match wins
     }
 
-    // Rule 2: Long duration (med)
-    const durationHr = parseFloat(t.target_drtn_hr_cnt);
-    if (!isNaN(durationHr) && durationHr > 40 * 8) {
+    // Rule 2: Long duration (med) — > 40 WORKING DAYS on this activity's own
+    // calendar. The detail line says "working days", so the divisor has to be
+    // the calendar's, not a baked-in 8: on a 10 hr/day calendar 40 * 8 = 320 hr
+    // is 32 days, and this rule was firing on 32-day activities while telling
+    // the reader they were over 40.
+    const durationWd = cal.workingDays(t, HOUR_FIELDS.ORIGINAL_DURATION);
+    if (durationWd != null && durationWd > LONG_DURATION_WD) {
       risks.push({
         severity: 'med',
         rule: 'Long duration',
         activity_code: taskCode,
         activity_name: taskName,
-        detail: 'Duration > 40 working days — review for hammock-style summary task.'
+        detail: `Duration > ${LONG_DURATION_WD} working days — review for hammock-style summary task.`
       });
       continue;
     }
@@ -166,7 +176,12 @@ function computeRisks(A) {
 
   // No truncation — return every heuristic flag so the Total/High/Med/Low
   // KPIs and the table enumerate the full set (Dana's no-truncation rule).
-  return risks;
+  // The disclosure rides along: the Long duration rule is a working-day
+  // threshold, so the divisor it used belongs on the page with it.
+  // Scoped to the rows the rules actually ran on — LOE/WBS activities are
+  // skipped above, so a fallback on one of them is not a caveat on this table.
+  const scored = tasks.filter(t => !LOE_WBS.has(t.task_type));
+  return { risks, disclosure: cal.disclose(scored, [HOUR_FIELDS.ORIGINAL_DURATION]) };
 }
 
 const RISK_COLS = [
@@ -190,7 +205,7 @@ export function render({ A, B }) {
     ]);
   }
 
-  const risks = computeRisks(A);
+  const { risks, disclosure } = computeRisks(A);
 
   const highCount = risks.filter(r => r.severity === 'high').length;
   const medCount  = risks.filter(r => r.severity === 'med').length;
@@ -211,6 +226,7 @@ export function render({ A, B }) {
   return h('div', { class: 'lens-section-content' }, [
     h('h2', {}, 'Risk Register'),
     h('div', { class: 'kpi-grid' }, kpis),
-    riskCard
+    riskCard,
+    ...disclosureCards(disclosure)
   ]);
 }

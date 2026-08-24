@@ -39,6 +39,55 @@ async function jsonOrThrow(resp, label) {
 }
 
 /**
+ * The Engine's tool contract, machine-readable and in ONE place.
+ *
+ * `requiresBaseline` is the load-bearing field. The Engine's
+ * forensic-delay-analysis adapter needs two snapshots; handed one, it duplicates
+ * the single XER as both entries and returns a windows analysis of the schedule
+ * against ITSELF — an analysis period of one day, 0wd of slip, no slipped
+ * activities, no float movement. Nothing about that output says it is
+ * degenerate, which makes it the worst kind of wrong. So the submission is
+ * refused here, at the transport, and not only in the section's UI: any future
+ * caller that forgets the baseline gets an error instead of a confident, empty
+ * report.
+ *
+ * `baselineUse` records what the Engine actually does with a baseline it is
+ * given, so this list can be checked against the server rather than believed.
+ * (Source: cpp-forensic-mcp/lens/dispatcher.py per-tool adapters.)
+ *
+ * Every tool the UI offers must appear here — tests/sections/deep-forensic-
+ * baseline.test.js fails if the two lists drift, so a new tool cannot be added
+ * to the picker without stating whether it needs two files.
+ */
+export const ENGINE_TOOLS = {
+  'forensic-delay-analysis': {
+    requiresBaseline: true,
+    baselineUse: 'the earlier snapshot every window is measured from — required'
+  },
+  'time-impact-analysis': {
+    requiresBaseline: false,
+    baselineUse: 'used as the pre-impact schedule when supplied; the current XER is used when it is not'
+  },
+  'collapsed-as-built': {
+    requiresBaseline: false,
+    baselineUse: 'not read — the method subtracts delays from the single as-built schedule'
+  },
+  'claim-workbench': {
+    requiresBaseline: false,
+    baselineUse: 'ingested as a second evidence schedule when supplied; without it there is no chain-diff'
+  },
+  'schedule-risk-analysis': {
+    requiresBaseline: false,
+    baselineUse: 'not read — Monte Carlo runs on the single schedule'
+  }
+};
+
+/** True when this tool is a two-schedule method and must not be run with one file. */
+export function toolRequiresBaseline(tool) {
+  return ENGINE_TOOLS[tool]?.requiresBaseline === true;
+}
+
+/**
  * Submit a deep-forensic job to the CPP MCP and poll until done or rate-limited.
  *
  * Robust against: engine down / non-2xx, non-JSON bodies, network failure, and
@@ -49,7 +98,12 @@ async function jsonOrThrow(resp, label) {
  * @param {string} opts.tool - 'forensic-delay-analysis' | 'time-impact-analysis' |
  *   'collapsed-as-built' | 'claim-workbench' | 'schedule-risk-analysis'
  * @param {string} opts.xerBase64 - gzipped + base64 XER (anonymized or raw)
- * @param {string} [opts.xerBaselineBase64] - optional baseline XER
+ * @param {string} [opts.xerBaselineBase64] - gzipped + base64 baseline XER.
+ *   Required for tools where ENGINE_TOOLS[tool].requiresBaseline is true; the
+ *   submission throws without it rather than comparing a schedule to itself.
+ *   When anonymization is on, this must have been produced under the SAME anon
+ *   map as xerBase64 (see anonymizeModelPair), or the two files tokenize the
+ *   same activity differently.
  * @param {boolean} [opts.anonymized=true]
  * @param {string} [opts.anonMapSha256='']
  * @param {object} [opts.options={}] - tool-specific options
@@ -59,6 +113,13 @@ async function jsonOrThrow(resp, label) {
  * @returns {Promise<{ jobId, status, resultUrl, rateLimit, errors }>}
  */
 export async function runDeepForensic(opts) {
+  if (toolRequiresBaseline(opts.tool) && !opts.xerBaselineBase64) {
+    throw new Error(
+      `${opts.tool} compares a baseline schedule against the current one — ` +
+      'load a baseline XER (file B) before running it. Submitting a single ' +
+      'file would compare the schedule against itself and report zero slip.'
+    );
+  }
   const submit = await fetchWithTimeout(`${MCP_BASE_URL}/lens/run`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

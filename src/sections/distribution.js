@@ -1,7 +1,8 @@
 import { h } from '../lib/dom.js';
-import { getTable, getCalendarMap, durationHoursToDays } from '@criticalpathpartners/lens-parser';
+import { getTable } from '@criticalpathpartners/lens-parser';
 import { kpiCard } from './_shared/kpi-card.js';
 import { svgBarChart } from './_shared/svg-bar-chart.js';
+import { workingDayContext, disclosureCards, HOUR_FIELDS } from './_shared/working-days.js';
 
 const LOE_WBS = new Set(['TT_LOE', 'TT_WBS']);
 
@@ -42,15 +43,14 @@ function durationBucket(days) {
   return '40+d';
 }
 
-function buildDurationHistogram(tasks, calMap) {
+function buildDurationHistogram(tasks, cal) {
   const counts = {};
   for (const b of DUR_BUCKETS) counts[b.label] = 0;
 
   for (const t of tasks) {
     if (LOE_WBS.has(t.task_type)) continue;
-    const hrCnt = parseFloat(t.target_drtn_hr_cnt) || 0;
-    const cal   = calMap[t.clndr_id] || null;
-    const days  = durationHoursToDays(hrCnt, cal);
+    // null (absent / unparsable duration) buckets as 0 days, as it always has.
+    const days  = cal.workingDays(t, HOUR_FIELDS.ORIGINAL_DURATION) ?? 0;
     const label = durationBucket(days);
     counts[label]++;
   }
@@ -80,19 +80,13 @@ function floatBucketLabel(days) {
   return 'Null';
 }
 
-function buildFloatHistogram(tasks, calMap) {
+function buildFloatHistogram(tasks, cal) {
   const counts = {};
   for (const b of FLOAT_BUCKETS) counts[b.label] = 0;
 
   for (const t of tasks) {
     if (LOE_WBS.has(t.task_type)) continue;
-    const raw = t.total_float_hr_cnt;
-    let days = null;
-    if (raw != null && raw !== '' && !isNaN(parseFloat(raw))) {
-      const hrCnt = parseFloat(raw);
-      const cal   = calMap[t.clndr_id] || null;
-      days = durationHoursToDays(hrCnt, cal);
-    }
+    const days  = cal.workingDays(t, HOUR_FIELDS.TOTAL_FLOAT);
     const label = floatBucketLabel(days);
     counts[label]++;
   }
@@ -142,15 +136,17 @@ export function render({ A, B }) {
   }
 
   const tasks  = getTable(A, 'TASK');
-  const calMap = getCalendarMap(A);
+  // Hours become working days in exactly one module — see _shared/working-days.js.
+  const cal    = workingDayContext(A);
 
   // Data date from PROJECT
   const projRows = getTable(A, 'PROJECT');
   const dataDate = (projRows[0] && projRows[0].last_recalc_date) || null;
 
-  const durData   = buildDurationHistogram(tasks, calMap);
-  const floatData = buildFloatHistogram(tasks, calMap);
+  const durData   = buildDurationHistogram(tasks, cal);
+  const floatData = buildFloatHistogram(tasks, cal);
   const monthData = buildMonthHistogram(tasks, dataDate);
+  const disclosure = cal.disclose(tasks.filter(t => !LOE_WBS.has(t.task_type)));
 
   // KPI summary counts
   const totalFiltered = tasks.filter(t => !LOE_WBS.has(t.task_type)).length;
@@ -184,6 +180,7 @@ export function render({ A, B }) {
     kpiRow,
     card1,
     card2,
-    card3
+    card3,
+    ...disclosureCards(disclosure)
   ]);
 }

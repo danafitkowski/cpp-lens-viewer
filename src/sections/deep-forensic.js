@@ -2,19 +2,29 @@
  * Deep Forensic — MCP handoff modal, wired to lens-facade-v0.1.0.
  *
  * Flow:
- *   1. (Optional) anonymize the in-memory model client-side.
- *   2. writeXer(model) → re-emit canonical XER text → base64 the bytes.
+ *   1. (Optional) anonymize the in-memory models client-side — the current
+ *      schedule (A) and, when one is loaded, its baseline (B), under ONE map.
+ *   2. writeXer(model) → re-emit canonical XER text → gzip + base64 each file.
  *   3. POST /lens/run, poll /lens/job/:id, embed /lens/r/:id in an in-viewer
  *      result panel (see deep-forensic-result.js).
  *
  * Anonymization is on by default. The anon map never leaves the browser;
  * only SHA-256(map) is sent so the result can be receipt-validated locally.
+ * The hash is taken after BOTH models are tokenized, so it covers everything
+ * that was actually uploaded.
+ *
+ * The baseline used to be dropped here: render took { A, B }, the submit
+ * handler read only A, and the call omitted xerBaselineBase64 even though the
+ * transport has always sent the field. Every run compared the current schedule
+ * against itself — one-day analysis period, 0wd slip, no slipped activities —
+ * and said nothing about it. Two files in, two files out, or the run is
+ * refused; see ENGINE_TOOLS in ../mcp/client.js.
  */
 
 import { h, clear } from '../lib/dom.js';
 import { writeXer, gzipToBase64 } from '@criticalpathpartners/lens-parser';
-import { runDeepForensic } from '../mcp/client.js';
-import { anonymizeModel } from '../mcp/anonymizer.js';
+import { runDeepForensic, toolRequiresBaseline, ENGINE_TOOLS } from '../mcp/client.js';
+import { anonymizeModelPair } from '../mcp/anonymizer.js';
 import { prefsStore } from '../state/prefs.js';
 import { buildResultPanel } from './deep-forensic-result.js';
 import { LENS_VERSION } from '../version.js';
@@ -23,7 +33,10 @@ import { LENS_VERSION } from '../version.js';
 // TOOL DEFINITIONS
 // ─────────────────────────────────────────────────────────────────────────────
 
-const TOOLS = [
+// Presentation only. Whether a tool needs two files is NOT restated here — it
+// is read from ENGINE_TOOLS in ../mcp/client.js, the one place that knows the
+// Engine's contract, so the picker and the transport can never disagree.
+export const TOOLS = [
   {
     id:          'forensic-delay-analysis',
     title:       'Windows Analysis',
@@ -74,15 +87,39 @@ export function render({ A, B }) {
   const prefs = prefsStore.get();
   let anonymize = prefs.anonymizeOnMcpUpload !== false;
 
+  const hasBaseline = !!B;
+
   // ── Explainer card ──────────────────────────────────────────────────────────
   const explainerCard = h('div', { class: 'lens-card' }, [
     h('h3', {}, 'Run Deep Forensic Analysis'),
     h('p', {},
-      'Submit your XER to the CPP Engine for a forensic analysis.  ' +
+      'Submit your schedule to the CPP Engine for a forensic analysis.  ' +
       'Anonymized by default — your activity names never leave the browser.  ' +
       'Rate-limited to 25 runs per day per IP.'
     )
   ]);
+
+  // ── Baseline status ─────────────────────────────────────────────────────────
+  // States plainly what will be uploaded. A forensic run that quietly sent one
+  // file is how this section produced a windows analysis with a one-day period
+  // and 0wd of slip.
+  const baselineCard = h('div', { class: 'lens-card' }, hasBaseline
+    ? [
+        h('h3', {}, 'Baseline: loaded'),
+        h('p', {},
+          'Both files are submitted — the current schedule (A) and the baseline (B).  ' +
+          'With anonymization on they are tokenized under one map, so the same activity ' +
+          'carries the same token in each file and the reported SHA-256 covers both.'
+        )
+      ]
+    : [
+        h('h3', {}, 'Baseline: none loaded'),
+        h('p', {},
+          'Only the current schedule (A) will be submitted.  ' +
+          'Tools that compare a baseline against the current schedule are disabled below — ' +
+          'load a second XER in the sidebar to enable them.'
+        )
+      ]);
 
   // ── Anonymize toggle ────────────────────────────────────────────────────────
   const anonCheckbox = h('input', {
@@ -111,11 +148,17 @@ export function render({ A, B }) {
   }, [anonCheckbox, anonLabel]);
 
   // ── Tool picker ─────────────────────────────────────────────────────────────
-  let selectedTool = TOOLS[0].id;
+  // A tool that needs two files cannot be selected with one. The default falls
+  // to the first tool that can actually run rather than silently substituting a
+  // different analysis behind a disabled radio.
+  const blocked = (tool) => toolRequiresBaseline(tool.id) && !hasBaseline;
+  let selectedTool = (TOOLS.find(t => !blocked(t)) || TOOLS[0]).id;
 
   const radioInputs = [];
 
   const toolCards = TOOLS.map(tool => {
+    const isBlocked = blocked(tool);
+
     const radio = h('input', {
       type:  'radio',
       name:  'deep-forensic-tool',
@@ -123,16 +166,14 @@ export function render({ A, B }) {
       id:    `deep-forensic-tool-${tool.id}`,
       style: { marginRight: '10px', marginTop: '2px', flexShrink: '0' }
     });
-    radio.checked = (tool.id === selectedTool);
+    radio.checked  = (tool.id === selectedTool);
+    radio.disabled = isBlocked;
     radio.addEventListener('change', () => {
-      if (radio.checked) selectedTool = tool.id;
+      if (radio.checked && !isBlocked) selectedTool = tool.id;
     });
     radioInputs.push(radio);
 
-    const labelEl = h('label', {
-      for:   `deep-forensic-tool-${tool.id}`,
-      style: { cursor: 'pointer', flex: '1' }
-    }, [
+    const labelChildren = [
       h('strong', {}, `${tool.title} `),
       h('span', {
         style: { fontSize: '11px', background: '#0F2540', color: '#fff',
@@ -140,12 +181,35 @@ export function render({ A, B }) {
       }, tool.label),
       h('br', {}),
       h('span', { style: { color: '#555', fontSize: '13px' } }, tool.description)
-    ]);
+    ];
+    if (isBlocked) {
+      labelChildren.push(h('br', {}));
+      labelChildren.push(h('span', {
+        style: { color: '#B45309', fontSize: '13px', fontWeight: '600' }
+      }, 'Requires a baseline XER — load a second file (B) in the sidebar.'));
+    } else if (hasBaseline) {
+      // Say what the Engine does with the baseline for THIS method. Two of the
+      // five do not read it, and a user who loaded one should not be left to
+      // assume it was used.
+      const use = (ENGINE_TOOLS[tool.id] || {}).baselineUse;
+      if (use) {
+        labelChildren.push(h('br', {}));
+        labelChildren.push(h('span', {
+          style: { color: '#555', fontSize: '12px', fontStyle: 'italic' }
+        }, `Baseline: ${use}.`));
+      }
+    }
+
+    const labelEl = h('label', {
+      for:   `deep-forensic-tool-${tool.id}`,
+      style: { cursor: isBlocked ? 'not-allowed' : 'pointer', flex: '1',
+               opacity: isBlocked ? '0.75' : '1' }
+    }, labelChildren);
 
     return h('div', {
       class: 'lens-card',
       style: { display: 'flex', alignItems: 'flex-start', gap: '8px',
-               padding: '10px 14px', cursor: 'pointer' }
+               padding: '10px 14px', cursor: isBlocked ? 'not-allowed' : 'pointer' }
     }, [radio, labelEl]);
   });
 
@@ -156,6 +220,8 @@ export function render({ A, B }) {
 
   // ── Status area ─────────────────────────────────────────────────────────────
   const statusArea = h('div', {
+    id: 'deep-forensic-status',
+    role: 'status',
     style: { minHeight: '28px', fontWeight: '600', fontSize: '14px', marginTop: '8px' }
   });
 
@@ -175,20 +241,39 @@ export function render({ A, B }) {
       fontWeight: '700', fontSize: '15px', marginTop: '12px'
     },
     onclick: async () => {
+      // Second gate, behind the disabled radio: a two-file method never gets
+      // submitted with one file, whatever the UI state got into.
+      if (toolRequiresBaseline(selectedTool) && !B) {
+        clear(resultPanelSlot);
+        setStatus(
+          'This analysis compares a baseline against the current schedule — ' +
+          'load a baseline XER (file B) in the sidebar first.',
+          '#C8392F'
+        );
+        return;
+      }
+
       runBtn.disabled = true;
       runBtn.style.opacity = '0.7';
 
       try {
-        setStatus('Anonymizing XER...');
+        setStatus(anonymize ? 'Anonymizing XER...' : 'Preparing XER...');
 
         let xerModel = A;
+        let baselineModel = B || null;
         let anonMapSha256 = '';
 
         if (anonymize) {
-          const { model, map } = anonymizeModel(A);
-          xerModel = model;
-          // SHA-256 of the anon map (map never sent to server — only its hash)
-          const mapJson   = JSON.stringify(map);
+          // ONE map across both files. Anonymizing them separately would give
+          // the same activity a different token in each, and the reported hash
+          // would cover only the current schedule.
+          const pair = anonymizeModelPair(A, baselineModel);
+          xerModel = pair.current;
+          baselineModel = pair.baseline;
+          // SHA-256 of the anon map (map never sent to server — only its hash),
+          // taken after BOTH models are tokenized so the receipt covers
+          // everything that is about to be uploaded.
+          const mapJson   = JSON.stringify(pair.map);
           const mapBytes  = new TextEncoder().encode(mapJson);
           try {
             const hashBuf  = await crypto.subtle.digest('SHA-256', mapBytes);
@@ -199,18 +284,24 @@ export function render({ A, B }) {
           }
         }
 
-        setStatus('Compressing XER...');
+        setStatus(baselineModel ? 'Compressing XERs...' : 'Compressing XER...');
         const xerText = writeXer(xerModel);
         // gzip + base64. The /lens/run facade sniffs the gzip magic 0x1f 0x8b
         // on the decoded bytes and inflates transparently (facade v0.1.2+).
         // Shrinks the wire payload ~80% on typical EPC schedules.
         const xerBase64 = await gzipToBase64(xerText);
+        const xerBaselineBase64 = baselineModel
+          ? await gzipToBase64(writeXer(baselineModel))
+          : undefined;
 
-        setStatus('Submitting to Engine...');
+        setStatus(xerBaselineBase64
+          ? 'Submitting to Engine (schedule + baseline)...'
+          : 'Submitting to Engine...');
 
         const result = await runDeepForensic({
           tool:          selectedTool,
           xerBase64,
+          xerBaselineBase64,
           anonymized:    anonymize,
           anonMapSha256,
           // Read from package.json via src/version.js. This used to be the
@@ -256,6 +347,7 @@ export function render({ A, B }) {
   return h('div', { class: 'lens-section-content' }, [
     h('h2', {}, 'Deep Forensic'),
     explainerCard,
+    baselineCard,
     anonRow,
     toolPickerCard,
     runBtn,

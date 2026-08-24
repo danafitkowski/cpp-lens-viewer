@@ -91,6 +91,12 @@ describe('adversarial render pass — no section may throw', () => {
   }
 });
 
+// FIXTURE-EXEMPT(two-model-identity): B is a header-only model with no TASK
+// table at all, so there is no surrogate to diverge and no Activity ID to share.
+// This pass asserts only that no section throws on a mismatched pair; it makes
+// no claim about matching, so the divergent-surrogate precondition does not
+// apply. Matching behaviour is pinned in identity-across-exports.test.js and
+// cross-schedule-matching.test.js.
 describe('adversarial compare pass — B is degenerate while A is real', () => {
   const A = parseXer(readFileSync(join(FIX, 'minimal-3-task.xer'), 'utf-8'));
   const B = degenerateModel();
