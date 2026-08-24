@@ -1,0 +1,22 @@
+ERMHDR	24.12	2026-03-02	Project	admin	Test User	dbxDB	Project Management	USD
+%T	PROJECT
+%F	proj_id	proj_short_name	proj_long_name	last_recalc_date	plan_start_date	plan_end_date	scd_end_date
+%R	1	TENHOUR	Ten Hour Day Project	2026-03-02 08:00	2026-01-05 07:00		2026-12-01 00:00
+%T	PROJWBS
+%F	wbs_id	parent_wbs_id	wbs_name	wbs_short_name	proj_id
+%R	W1		Root	W1	1
+%T	CALENDAR
+%F	clndr_id	clndr_name	day_hr_cnt	week_hr_cnt	clndr_data
+%R	C10	Site 10-Hour Day	10	50
+%T	TASK
+%F	task_id	task_code	task_name	proj_id	wbs_id	clndr_id	status_code	task_type	phys_complete_pct	target_drtn_hr_cnt	remain_drtn_hr_cnt	total_float_hr_cnt	target_start_date	target_end_date
+%R	1	A1000	Eighteen working days	1	W1	C10	TK_NotStart	TT_Task	0	180	180	360	2026-01-05 07:00	2026-01-28 17:00
+%R	2	A1010	Twenty-one working days	1	W1	C10	TK_NotStart	TT_Task	0	210	210	450	2026-01-29 07:00	2026-02-26 17:00
+%R	3	A1020	Fifteen working days	1	W1	C10	TK_NotStart	TT_Task	0	150	150	200	2026-02-27 07:00	2026-03-19 17:00
+%R	4	A1030	Calendar not in this file	1	W1	C99	TK_NotStart	TT_Task	0	40	40	40	2026-03-20 07:00	2026-03-25 17:00
+%T	TASKPRED
+%F	task_pred_id	task_id	pred_task_id	pred_type	lag_hr_cnt
+%R	1	2	1	PR_FS	0
+%R	2	3	2	PR_FS	0
+%R	3	4	3	PR_FS	0
+%E

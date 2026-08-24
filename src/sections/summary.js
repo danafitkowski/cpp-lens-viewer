@@ -1,8 +1,12 @@
 import { h } from '../lib/dom.js';
 import { getTable } from '@criticalpathpartners/lens-parser';
+import { workingDayContext, divisorCaption, HOUR_FIELDS } from './_shared/working-days.js';
 
 const MILESTONE_TYPES = new Set(['TT_Mile', 'TT_FinMile']);
 const EXCLUDED_TYPES = new Set(['TT_LOE', 'TT_WBS']);
+
+/** Long-duration concern threshold, in WORKING DAYS. */
+const LONG_DURATION_WD = 20;
 
 export function render({ A, B }) {
   if (!A) {
@@ -19,7 +23,10 @@ export function render({ A, B }) {
 
   const completeCount = realTasks.filter(t => t.status_code === 'TK_Complete').length;
   const activeCount   = realTasks.filter(t => t.status_code === 'TK_Active').length;
-  const pctComplete   = realTasks.length > 0 ? Math.round((completeCount / realTasks.length) * 100) : 0;
+  // Count-based, NOT weighted physical % complete: it is the share of activities
+  // whose status_code is TK_Complete, ignoring duration and phys_complete_pct.
+  // Label it for what it is — it was previously narrated as "% physical complete".
+  const pctActivitiesComplete = realTasks.length > 0 ? Math.round((completeCount / realTasks.length) * 100) : 0;
   const criticalCount = realTasks.filter(t => {
     const tf = parseFloat(t.total_float_hr_cnt);
     return !isNaN(tf) && tf <= 0;
@@ -31,7 +38,7 @@ export function render({ A, B }) {
   const projectFinish = (proj.scd_end_date || proj.plan_end_date || '').slice(0, 10);
 
   const narrative = `Project ${proj.proj_short_name || '(unnamed)'} as of data date ${(proj.last_recalc_date || '').slice(0, 10) || 'unknown'}. ` +
-    `${realTasks.length.toLocaleString()} activities (${completeCount} complete, ${activeCount} in progress) — ${pctComplete}% physical complete. ` +
+    `${realTasks.length.toLocaleString()} activities (${completeCount} complete, ${activeCount} in progress) — ${pctActivitiesComplete}% of activities complete by count, not weighted physical % complete. ` +
     `${criticalCount.toLocaleString()} activities sit on the critical path (total float ≤ 0). ` +
     `Project finish: ${projectFinish || 'not set'}.`;
 
@@ -76,11 +83,26 @@ function buildConcerns(A, { realTasks }) {
   const codes = getTable(A, 'TASKACTV');
   if (codes.length === 0) concerns.push('No activity-code assignments — rolling up by trade/area is not possible.');
 
+  // > 20 WORKING DAYS on each activity's own calendar. The old test was
+  // `d > 20 * 8` — 20 days only where a day is 8 hours — under a sentence that
+  // said "working days", and it also disagreed with the Schedule Quality
+  // section's Long Duration card on any file that is not 8 hr/day. Both now
+  // read the same number out of the same module.
+  const cal = workingDayContext(A);
   const longDuration = realTasks.filter(t => {
-    const d = parseFloat(t.target_drtn_hr_cnt);
-    return !isNaN(d) && d > 20 * 8; // > 20 days at 8 hr/day
+    const wd = cal.workingDays(t, HOUR_FIELDS.ORIGINAL_DURATION);
+    return wd != null && wd > LONG_DURATION_WD;
   }).length;
-  if (longDuration > 0) concerns.push(`${longDuration} activities have duration > 20 working days — review for hammock-style summary tasks.`);
+  const disclosure = cal.disclose(realTasks, [HOUR_FIELDS.ORIGINAL_DURATION]);
+  if (longDuration > 0) {
+    concerns.push(
+      `${longDuration} activities have duration > ${LONG_DURATION_WD} working days ` +
+      `(converted at ${divisorCaption(disclosure)}) — review for hammock-style summary tasks.`
+    );
+  }
+  // A divisor that was guessed rather than read decides which activities land in
+  // that count, so it is a concern in its own right, not a footnote.
+  if (disclosure.warning) concerns.push(disclosure.warning);
 
   return concerns;
 }
