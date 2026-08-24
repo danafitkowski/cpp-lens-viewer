@@ -1,0 +1,13 @@
+ERMHDR	24.12	2026-03-02	Project	admin	Test User	dbxDB	Project Management	USD
+%T	PROJECT
+%F	proj_id	proj_short_name	last_recalc_date
+%R	1	SPAN-TEST	2026-03-02 08:00
+%T	TASK
+%F	task_id	task_code	task_name	proj_id	task_type	status_code	phys_complete_pct	target_drtn_hr_cnt	remain_drtn_hr_cnt	total_float_hr_cnt	early_start_date	early_end_date
+%R	1	A100	Spans week one into week two	1	TT_Task	TK_NotStart	0	40	40	0	2026-03-04 08:00	2026-03-10 17:00
+%R	2	A110	Week one only	1	TT_Task	TK_NotStart	0	24	24	16	2026-03-03 08:00	2026-03-05 17:00
+%R	3	A120	Week three only	1	TT_Task	TK_NotStart	0	24	24	16	2026-03-17 08:00	2026-03-19 17:00
+%R	4	A130	Beyond the horizon one	1	TT_Task	TK_NotStart	0	40	40	80	2026-06-01 08:00	2026-06-05 17:00
+%R	5	A140	Beyond the horizon two	1	TT_Task	TK_NotStart	0	24	24	80	2026-07-01 08:00	2026-07-03 17:00
+%R	6	A150	Already complete in week one	1	TT_Task	TK_Complete	100	24	0	0	2026-03-03 08:00	2026-03-05 17:00
+%E

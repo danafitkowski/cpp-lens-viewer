@@ -32,7 +32,11 @@ export function render({ A, B }) {
   elements.push(
     h('div', { class: 'kpi-grid' }, [
       kpiCard({ title: 'Activities', big: m.totalActivities.toLocaleString(), sub: `${m.loeCount} LoE/WBS excluded` }),
-      kpiCard({ title: 'Percent complete', big: `${m.percentComplete}%`, sub: `${m.completeCount} complete` }),
+      // Labelled for the quantity actually computed: the share of activities whose
+      // status_code is TK_Complete. It ignores duration weighting and ignores
+      // phys_complete_pct, so it is NOT physical % complete and must not read as
+      // though it were. Same wording as the Executive Summary narrative.
+      kpiCard({ title: 'Activities complete', big: `${m.pctActivitiesComplete}%`, sub: `${m.completeCount} of ${m.totalActivities} by count — not physical % complete` }),
       kpiCard({ title: 'Critical activities', big: m.criticalCount.toLocaleString(), sub: `${m.criticalPercent}% of total`, tone: m.criticalPercent > 25 ? 'red' : m.criticalPercent > 15 ? 'amber' : 'green' }),
       kpiCard({ title: 'Data date', big: m.dataDate || '—', sub: 'last_recalc_date' }),
       kpiCard({ title: 'Project finish', big: m.projectFinish || '—', sub: 'scd_end_date' })
@@ -40,10 +44,23 @@ export function render({ A, B }) {
     h('div', { class: 'kpi-grid' }, [
       kpiCard({ title: 'Relationships', big: m.relCount.toLocaleString() }),
       kpiCard({ title: 'Milestones', big: `${m.msComplete} / ${m.msTotal}`, sub: 'complete / total' }),
-      kpiCard({ title: 'Zero-float activities', big: `${m.zeroFloatPercent}%`, sub: 'tot float <= 0', tone: m.zeroFloatPercent > 30 ? 'amber' : 'ink' }),
+      // Counts every activity at or below zero total float — negative float included.
+      // Negative-float activities are the most behind-schedule work in the file; an
+      // "equals zero" test drops exactly them while still claiming "≤ 0". The split
+      // is spelled out so the reader can reconcile this against Critical activities.
+      kpiCard({ title: 'Zero or negative float', big: `${m.nonPositiveFloatPercent}%`, sub: `total float ≤ 0 — ${m.negativeFloatCount} negative, ${m.zeroFloatCount} zero`, tone: m.nonPositiveFloatPercent > 30 ? 'amber' : 'ink' }),
       kpiCard({ title: 'Calendars in use', big: m.calendarsInUse.toLocaleString() })
     ])
   );
+
+  // Both float percentages above divide by ALL real activities, including any that
+  // carry no total_float_hr_cnt at all. Saying so on the face of the dashboard is
+  // the difference between a percentage a reader can reconcile and one they cannot.
+  if (m.nullFloatCount > 0) {
+    elements.push(h('div', { class: 'lens-card' }, [
+      h('p', {}, `${m.nullFloatCount.toLocaleString()} of ${m.totalActivities.toLocaleString()} activities carry no total float value. They are counted in the denominator of both float percentages above and in neither numerator.`)
+    ]));
+  }
 
   return h('div', { class: 'lens-section-content' }, elements);
 }
@@ -58,20 +75,40 @@ function computeMetrics(A) {
   const loeCount = tasks.length - realTasks.length;
   const completeCount = realTasks.filter(t => t.status_code === COMPLETE_STATUS).length;
   const activeCount = realTasks.filter(t => t.status_code === ACTIVE_STATUS).length;
-  const percentComplete = realTasks.length > 0 ? Math.round((completeCount / realTasks.length) * 100) : 0;
+  // Share of activities whose status_code is TK_Complete. Deliberately NOT named
+  // percentComplete: that name is the mislabel this card shipped with. It is a
+  // head-count ratio — unweighted by duration, and unrelated to phys_complete_pct.
+  const pctActivitiesComplete = realTasks.length > 0 ? Math.round((completeCount / realTasks.length) * 100) : 0;
 
-  const criticalCount = realTasks.filter(t => {
+  // ── Float census ───────────────────────────────────────────────────────────
+  // ONE pass, ONE population, feeding BOTH float cards. The dashboard previously
+  // ran two independent tests over the same activities — "Critical activities"
+  // used total float ≤ 0 while "Zero-float activities" used === 0 under a "≤ 0"
+  // label — so every negative-float activity (the work already behind, the most
+  // critical rows in the file) was dropped from one card and kept in the other,
+  // and the two cards contradicted each other on the same screen. Deriving both
+  // from this census is what makes that divergence impossible rather than merely
+  // fixed once: there is no second rule left to keep in step.
+  let negativeFloatCount = 0;
+  let zeroFloatCount = 0;
+  let nullFloatCount = 0;
+  for (const t of realTasks) {
     const tf = parseFloat(t.total_float_hr_cnt);
-    return !isNaN(tf) && tf <= 0;
-  }).length;
-  const criticalPercent = realTasks.length > 0 ? Math.round((criticalCount / realTasks.length) * 100) : 0;
+    if (isNaN(tf)) nullFloatCount++;
+    else if (tf < 0) negativeFloatCount++;
+    else if (tf === 0) zeroFloatCount++;
+  }
+  const nonPositiveFloatCount = negativeFloatCount + zeroFloatCount;
+  const nonPositiveFloatPercent = realTasks.length > 0 ? Math.round((nonPositiveFloatCount / realTasks.length) * 100) : 0;
+
+  // "Critical" on this dashboard means total float ≤ 0 — the same population the
+  // float card reports. Same number, by construction.
+  const criticalCount = nonPositiveFloatCount;
+  const criticalPercent = nonPositiveFloatPercent;
 
   const milestones = realTasks.filter(t => MILESTONE_TYPES.has(t.task_type || ''));
   const msTotal = milestones.length;
   const msComplete = milestones.filter(t => t.status_code === COMPLETE_STATUS).length;
-
-  const zeroFloatCount = realTasks.filter(t => parseFloat(t.total_float_hr_cnt) === 0).length;
-  const zeroFloatPercent = realTasks.length > 0 ? Math.round((zeroFloatCount / realTasks.length) * 100) : 0;
 
   const calendarsInUse = new Set(realTasks.map(t => t.clndr_id).filter(Boolean)).size;
 
@@ -87,29 +124,36 @@ function computeMetrics(A) {
     loeCount,
     completeCount,
     activeCount,
-    percentComplete,
+    pctActivitiesComplete,
     criticalCount,
     criticalPercent,
     relCount: rels.length,
     msTotal,
     msComplete,
+    negativeFloatCount,
     zeroFloatCount,
-    zeroFloatPercent,
+    nullFloatCount,
+    nonPositiveFloatCount,
+    nonPositiveFloatPercent,
     calendarsInUse: calendarsInUse || calendars.length,
     dataDate,
     projectFinish
   };
 }
 
+// The banner used to OR two thresholds together — one on criticalPercent, one on
+// zeroFloatPercent — as though they measured different things. They read the same
+// population (total float ≤ 0), so the second test only ever masked the fact that
+// the two cards disagreed. One measure, one threshold pair.
 function renderStatusBanner(m) {
   let tone = 'green';
   let label = 'Schedule status — healthy';
-  if (m.criticalPercent > 25 || m.zeroFloatPercent > 50) {
+  if (m.criticalPercent > 25) {
     tone = 'red';
-    label = 'Schedule status — high concentration of critical / zero-float activities';
-  } else if (m.criticalPercent > 15 || m.zeroFloatPercent > 30) {
+    label = 'Schedule status — high concentration of activities at or below zero total float';
+  } else if (m.criticalPercent > 15) {
     tone = 'amber';
-    label = 'Schedule status — elevated critical / zero-float concentration';
+    label = 'Schedule status — elevated concentration of activities at or below zero total float';
   }
   return h('div', { class: 'lens-status-banner', 'data-tone': tone }, label);
 }

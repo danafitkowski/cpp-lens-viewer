@@ -1,9 +1,14 @@
 import { h } from '../lib/dom.js';
 import { getTable, getTableAliased, buildPredecessorMap } from '@criticalpathpartners/lens-parser';
 import { dataTable } from './_shared/data-table.js';
+import { workingDayContext, disclosureCards, HOUR_FIELDS } from './_shared/working-days.js';
 
 const LOE_WBS = new Set(['TT_LOE', 'TT_WBS']);
 const HARD_CONSTRAINTS = new Set(['CS_MSO', 'CS_MEO', 'CS_MANDSTART', 'CS_MANDFIN']);
+
+/** DCMA-14 High Float / High Duration threshold, in WORKING DAYS. */
+const HIGH_FLOAT_WD    = 44;
+const HIGH_DURATION_WD = 44;
 
 const BADGE_COLORS = {
   PASS:   { bg: '#15803D', text: '#ffffff' },
@@ -26,6 +31,8 @@ function computeMetrics(A) {
   const rsrc     = getTable(A, 'TASKRSRC');
   const projects = getTable(A, 'PROJECT');
   const proj     = projects[0] || {};
+  // Hours become working days in exactly one module — see _shared/working-days.js.
+  const cal      = workingDayContext(A);
 
   // Exclude TT_LOE / TT_WBS from activity-percentage denominators
   const tasks = allTasks.filter(t => !LOE_WBS.has(t.task_type));
@@ -86,11 +93,17 @@ function computeMetrics(A) {
     status: hardPct <= 5 ? 'PASS' : hardPct <= 10 ? 'REVIEW' : 'FAIL'
   };
 
-  // 6. High Float — % with total_float_hr_cnt > 44 * 8 = 352 (target ≤ 5%)
-  const highFloatCount = tasks.filter(t => parseFloat(t.total_float_hr_cnt) > 352).length;
+  // 6. High Float — > 44 WORKING DAYS on the activity's own calendar (target ≤ 5%).
+  // Not "> 352 hr": 352 is 44 days only where a day is 8 hours. On the 10 hr/day
+  // calendars this viewer is handed all the time it is 35.2 days, and the card
+  // still said "44 wd".
+  const highFloatCount = tasks.filter(t => {
+    const wd = cal.workingDays(t, HOUR_FIELDS.TOTAL_FLOAT);
+    return wd != null && wd > HIGH_FLOAT_WD;
+  }).length;
   const highFloatPct   = pct(highFloatCount, n);
   const metric6 = {
-    name:   'High Float (> 44 wd)',
+    name:   `High Float (> ${HIGH_FLOAT_WD} wd)`,
     result: fmtPct(highFloatPct),
     target: '≤ 5%',
     status: highFloatPct <= 5 ? 'PASS' : highFloatPct <= 10 ? 'REVIEW' : 'FAIL'
@@ -106,11 +119,14 @@ function computeMetrics(A) {
     status: negFloatCount === 0 ? 'PASS' : negFloatPct <= 5 ? 'REVIEW' : 'FAIL'
   };
 
-  // 8. High Duration — % with target_drtn_hr_cnt > 44 * 8 = 352 (target ≤ 5%)
-  const highDurCount = tasks.filter(t => parseFloat(t.target_drtn_hr_cnt) > 352).length;
+  // 8. High Duration — > 44 WORKING DAYS on the activity's own calendar (target ≤ 5%).
+  const highDurCount = tasks.filter(t => {
+    const wd = cal.workingDays(t, HOUR_FIELDS.ORIGINAL_DURATION);
+    return wd != null && wd > HIGH_DURATION_WD;
+  }).length;
   const highDurPct   = pct(highDurCount, n);
   const metric8 = {
-    name:   'High Duration (> 44 wd)',
+    name:   `High Duration (> ${HIGH_DURATION_WD} wd)`,
     result: fmtPct(highDurPct),
     target: '≤ 5%',
     status: highDurPct <= 5 ? 'PASS' : highDurPct <= 10 ? 'REVIEW' : 'FAIL'
@@ -168,8 +184,16 @@ function computeMetrics(A) {
   const metric13 = { name: 'CPLI',  result: '—', target: '—', status: 'REVIEW' };
   const metric14 = { name: 'BEI',   result: '—', target: '—', status: 'REVIEW' };
 
-  return [metric1, metric2, metric3, metric4, metric5, metric6, metric7,
-          metric8, metric9, metric10, metric11, metric12, metric13, metric14];
+  // Metrics 6 and 8 are working-day thresholds, so the divisor they were applied
+  // at — and any activity whose divisor was a fallback rather than a number read
+  // off the file — travels with them to the page.
+  const disclosure = cal.disclose(tasks);
+
+  return {
+    metrics: [metric1, metric2, metric3, metric4, metric5, metric6, metric7,
+              metric8, metric9, metric10, metric11, metric12, metric13, metric14],
+    disclosure
+  };
 }
 
 /**
@@ -224,7 +248,7 @@ export function render({ A, B }) {
     ]);
   }
 
-  const metrics = computeMetrics(A);
+  const { metrics, disclosure } = computeMetrics(A);
   const passCount   = metrics.filter(m => m.status === 'PASS').length;
   const reviewCount = metrics.filter(m => m.status === 'REVIEW').length;
   const failCount   = metrics.filter(m => m.status === 'FAIL').length;
@@ -237,6 +261,7 @@ export function render({ A, B }) {
       h('p', {}, `14-point screening · ${passCount} PASS · ${reviewCount} REVIEW · ${failCount} FAIL`)
     ]),
     qualityOverlayCard(),
-    h('div', { class: 'lens-card' }, [table])
+    h('div', { class: 'lens-card' }, [table]),
+    ...disclosureCards(disclosure)
   ]);
 }
