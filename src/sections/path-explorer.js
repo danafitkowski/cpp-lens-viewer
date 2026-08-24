@@ -2,6 +2,7 @@ import { h, clear } from '../lib/dom.js';
 import { getTable, getTableAliased } from '@criticalpathpartners/lens-parser';
 import { kpiCard } from './_shared/kpi-card.js';
 import { dataTable } from './_shared/data-table.js';
+import { workingDayContext } from './_shared/working-days.js';
 
 const MAX_DEPTH = 200;
 const SKIP_TYPES = new Set(['TT_LOE', 'TT_WBS']);
@@ -50,7 +51,7 @@ function dateMs(raw) {
  * blockedByUnresolvedRefs is always false, regardless of which rel ends up
  * chosen as "best".
  */
-function pickDrivingPredecessor(task, predRels, taskById) {
+function pickDrivingPredecessor(task, predRels, taskById, cal) {
   if (!predRels || predRels.length === 0) return { id: null, blockedByUnresolvedRefs: false };
 
   const taskStartMs = dateMs(task.target_start_date);
@@ -64,8 +65,11 @@ function pickDrivingPredecessor(task, predRels, taskById) {
     if (!predTask) continue;
     anyResolved = true;
 
-    const lagHrs  = parseFloat(rel.lag_hr_cnt) || 0;
-    const lagDays = lagHrs / 8;
+    // P6 stores relationship lag in hours. Turning it into days at a baked-in 8
+    // shifts the driving-link threshold by 25% on a 10 hr/day calendar and can
+    // pick a different driving predecessor. The lag is measured against this
+    // activity's own dates, so it is converted on this activity's own calendar.
+    const lagDays = cal.hoursToDays(parseFloat(rel.lag_hr_cnt) || 0, task.clndr_id) ?? 0;
 
     // Effective start threshold = task.target_start_date - lag
     const thresholdMs = taskStartMs != null ? taskStartMs - lagDays * 86400000 : null;
@@ -122,7 +126,7 @@ function pickDrivingPredecessor(task, predRels, taskById) {
  * blockedByUnresolvedRefs is always false, regardless of which rel ends up
  * chosen as "best".
  */
-function pickDrivingSuccessor(task, succRels, taskById) {
+function pickDrivingSuccessor(task, succRels, taskById, cal) {
   if (!succRels || succRels.length === 0) return { id: null, blockedByUnresolvedRefs: false };
 
   const taskEndMs = dateMs(task.target_end_date);
@@ -136,8 +140,8 @@ function pickDrivingSuccessor(task, succRels, taskById) {
     if (!succTask) continue;
     anyResolved = true;
 
-    const lagHrs  = parseFloat(rel.lag_hr_cnt) || 0;
-    const lagDays = lagHrs / 8;
+    // Same conversion, same reason — see pickDrivingPredecessor above.
+    const lagDays = cal.hoursToDays(parseFloat(rel.lag_hr_cnt) || 0, task.clndr_id) ?? 0;
 
     // Effective threshold = task.target_end_date + lag
     const thresholdMs = taskEndMs != null ? taskEndMs + lagDays * 86400000 : null;
@@ -226,6 +230,9 @@ export function traceChain(A, startId, direction) {
   const taskById = {};
   for (const t of tasks) taskById[t.task_id] = t;
 
+  // Hours become days in exactly one module — see _shared/working-days.js.
+  const cal = workingDayContext(A);
+
   const { predRelsOf, succRelsOf } = buildRelMaps(A);
 
   const chain   = [];
@@ -241,10 +248,10 @@ export function traceChain(A, startId, direction) {
     let picked;
     if (direction === 'backward') {
       const rels = predRelsOf[currentId] || [];
-      picked = pickDrivingPredecessor(currentTask, rels, taskById);
+      picked = pickDrivingPredecessor(currentTask, rels, taskById, cal);
     } else {
       const rels = succRelsOf[currentId] || [];
-      picked = pickDrivingSuccessor(currentTask, rels, taskById);
+      picked = pickDrivingSuccessor(currentTask, rels, taskById, cal);
     }
 
     if (picked.blockedByUnresolvedRefs) {

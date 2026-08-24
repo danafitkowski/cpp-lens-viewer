@@ -1,0 +1,22 @@
+ERMHDR	24.12	2026-03-02	Project	admin	Test User	dbxDB	Project Management	USD
+%T	PROJECT
+%F	proj_id	proj_short_name	proj_long_name	last_recalc_date	plan_start_date	plan_end_date	scd_end_date
+%R	1	NEGFLOAT	Negative Float Probe	2026-03-02 08:00	2026-01-05 08:00		2026-09-01 00:00
+%T	PROJWBS
+%F	wbs_id	parent_wbs_id	wbs_name	wbs_short_name	proj_id
+%R	W1		Root	W1	1
+%T	CALENDAR
+%F	clndr_id	clndr_name	day_hr_cnt	week_hr_cnt	clndr_data
+%R	C1	5-Day	8	40
+%T	TASK
+%F	task_id	task_code	task_name	proj_id	wbs_id	clndr_id	status_code	task_type	phys_complete_pct	target_drtn_hr_cnt	remain_drtn_hr_cnt	total_float_hr_cnt	target_start_date	target_end_date	act_start_date	act_end_date
+%R	1	A1000	Behind by five days	1	W1	C1	TK_Complete	TT_Task	0	40	0	-40	2026-01-05 08:00	2026-01-09 16:00	2026-01-05 08:00	2026-01-09 16:00
+%R	2	A1010	On the critical path	1	W1	C1	TK_NotStart	TT_Task	0	40	40	0	2026-01-12 08:00	2026-01-16 16:00
+%R	3	A1020	One day of float	1	W1	C1	TK_NotStart	TT_Task	0	40	40	8	2026-01-19 08:00	2026-01-23 16:00
+%R	4	A1030	One day of float too	1	W1	C1	TK_NotStart	TT_Task	0	40	40	8	2026-01-26 08:00	2026-01-30 16:00
+%T	TASKPRED
+%F	task_pred_id	task_id	pred_task_id	pred_type	lag_hr_cnt
+%R	1	2	1	PR_FS	0
+%R	2	3	2	PR_FS	0
+%R	3	4	3	PR_FS	0
+%E

@@ -2,6 +2,13 @@
 import { describe, it, expect } from 'vitest';
 import { generateHalfStep, render } from '../../src/sections/half-step.js';
 import { writeXer, parseXer } from '@criticalpathpartners/lens-parser';
+import { reexport, assertDivergentSurrogates } from '../fixtures/reexport.js';
+
+// FIXTURE CONDITION — baseModel() and updatedModel() used to be the same two
+// rows with the same task_id values ('1000', '1001'), so "matched 2 of 2" held
+// for a Half-Step that keyed on the surrogate. updatedModel() is now a genuine
+// later export: every surrogate renumbered, every Activity ID kept, TASKPRED
+// endpoints renumbered with them.
 
 const baseModel = () => ({
   ermhdr: { raw: ['ERMHDR','24.12','2026-01-01','u','db','USD'] },
@@ -15,15 +22,31 @@ const baseModel = () => ({
     TASKPRED: { fields:['task_pred_id','task_id','pred_task_id','pred_type'], records:[{ task_pred_id:'1', task_id:'1001', pred_task_id:'1000', pred_type:'PR_FS' }] },
   },
 });
+/**
+ * The same schedule as a LATER export sees it: surrogates renumbered by the
+ * shared re-export builder, Activity IDs untouched, A1 finished.
+ */
 const updatedModel = () => {
-  const m = baseModel();
-  m.tables.TASK.records[0].status_code = 'TK_Complete';
-  m.tables.TASK.records[0].phys_complete_pct = '100';
-  m.tables.TASK.records[0].remain_drtn_hr_cnt = '0';
+  const m = reexport(baseModel(), 4000);
+  const a1 = byCode(m, 'A1');
+  a1.status_code = 'TK_Complete';
+  a1.phys_complete_pct = '100';
+  a1.remain_drtn_hr_cnt = '0';
   return m;
 };
 
+/** Address a row by its stable Activity ID — the re-export reversed row order. */
+function byCode(model, code) {
+  return model.tables.TASK.records.find(t => t.task_code === code);
+}
+
 describe('Half-Step generator — edge cases never crash, output stays valid XER', () => {
+  it('fixture sanity: updated and base share Activity IDs and no task_id', () => {
+    const overlap = assertDivergentSurrogates(updatedModel(), baseModel(), { minSharedCodes: 2 });
+    expect(overlap.sharedTaskIds).toBe(0);
+    expect(overlap.sharedCodes).toBe(2);
+  });
+
   it('happy path overlays progress, preserves base structure, round-trips', () => {
     const out = generateHalfStep(updatedModel(), baseModel());
     expect(out._halfStepMeta.matched).toBe(2);
@@ -37,10 +60,10 @@ describe('Half-Step generator — edge cases never crash, output stays valid XER
   it('never regresses status back to TK_NotStart', () => {
     const A = baseModel(); // updated is all NotStart
     const B = updatedModel(); // base happens to have a Complete
-    B.tables.TASK.records[0].status_code = 'TK_Complete';
+    byCode(B, 'A1').status_code = 'TK_Complete';
     const out = generateHalfStep(A, B);
     // A says NotStart but copy-forward rule must NOT regress B's Complete
-    expect(out.tables.TASK.records[0].status_code).toBe('TK_Complete');
+    expect(byCode(out, 'A1').status_code).toBe('TK_Complete');
   });
 
   it('A has no TASK table → all base tasks preserved, no crash', () => {

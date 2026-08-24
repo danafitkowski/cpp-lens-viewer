@@ -2,6 +2,7 @@ import { h, on } from '../lib/dom.js';
 import { getTable } from '@criticalpathpartners/lens-parser';
 import { svgGantt } from './_shared/svg-gantt.js';
 import { kpiCard } from './_shared/kpi-card.js';
+import { taskKey, resolveComparisonAmbiguity } from './_shared/identity.js';
 
 const LOE_WBS = new Set(['TT_LOE', 'TT_WBS']);
 const CAP = 200;
@@ -11,29 +12,36 @@ function parseDate(str) {
   return new Date(str.slice(0, 10));
 }
 
-// Cross-schedule match key. P6 reassigns the internal surrogate task_id on
-// every re-export, so two separate exports of the same schedule share the
-// user-facing task_code (Activity ID) but NOT task_id. Match A<->B on task_code
-// (trimmed, non-empty); fall back to task_id only when a row has no task_code.
-// The 'code:'/'id:' prefixes keep a numeric task_code from colliding with a
-// numeric task_id.
-function matchKey(t) {
-  const code = t.task_code == null ? '' : String(t.task_code).trim();
-  if (code !== '') return 'code:' + code;
-  const id = t.task_id == null ? '' : String(t.task_id).trim();
-  return id !== '' ? 'id:' + id : null;
-}
+// Cross-schedule match key — the shared rule lives in _shared/identity.js.
+// This section already matched correctly on task_code; it now delegates so
+// there is exactly one implementation to keep right.
+const matchKey = taskKey;
 
 export function buildActivities(A, B, criticalOnly, showBaseline) {
   const tasks = getTable(A, 'TASK');
 
   // Build B lookup if present, keyed on the stable task_code (see matchKey).
+  //
+  // An Activity ID repeated across projects in either file is AMBIGUOUS: two
+  // different activities answer to one key, so any overlay drawn from it is a
+  // guess about which one. This used to take the first row read and say
+  // nothing, which is exactly the guess the rest of the Compare group was
+  // rewritten to refuse. Ambiguous keys are skipped and counted instead, so a
+  // bar either carries the right baseline or carries none.
+  const ambiguity = (B && showBaseline)
+    ? resolveComparisonAmbiguity(A, B)
+    : { keys: new Set() };
+  const ambiguousKeys = ambiguity.keys || new Set();
+
   const bMap = new Map();
+  let baselineAmbiguous = 0;
   if (B && showBaseline) {
     for (const t of getTable(B, 'TASK')) {
       if (t.target_start_date && t.target_end_date) {
         const k = matchKey(t);
-        if (k != null && !bMap.has(k)) bMap.set(k, t);
+        if (k == null) continue;
+        if (ambiguousKeys.has(k)) { baselineAmbiguous += 1; continue; }
+        if (!bMap.has(k)) bMap.set(k, t);
       }
     }
   }
@@ -53,7 +61,9 @@ export function buildActivities(A, B, criticalOnly, showBaseline) {
       end:       parseDate(t.target_end_date),
       critical
     };
-    const bRow = bMap.get(matchKey(t));
+    const k = matchKey(t);
+    if (k != null && ambiguousKeys.has(k)) act.baseline_ambiguous = true;
+    const bRow = (k != null && !act.baseline_ambiguous) ? bMap.get(k) : undefined;
     if (bRow) {
       act.baseline_start = parseDate(bRow.target_start_date);
       act.baseline_end   = parseDate(bRow.target_end_date);
@@ -62,8 +72,17 @@ export function buildActivities(A, B, criticalOnly, showBaseline) {
   });
 
   const sorted = activities.slice().sort((a, b) => +a.start - +b.start);
+  // Counts travel with the list so render() can disclose them without
+  // recomputing the match and risking a second, divergent answer.
+  sorted.ambiguousOverlay = activities.filter(a => a.baseline_ambiguous).length;
+  sorted.baselineAmbiguousRows = baselineAmbiguous;
 
-  if (criticalOnly) return sorted.filter(a => a.critical);
+  if (criticalOnly) {
+    const crit = sorted.filter(a => a.critical);
+    crit.ambiguousOverlay = sorted.ambiguousOverlay;
+    crit.baselineAmbiguousRows = sorted.baselineAmbiguousRows;
+    return crit;
+  }
   return sorted;
 }
 
@@ -97,6 +116,19 @@ export function render({ A, B }) {
         `Showing first ${CAP} of ${displayed.length} activities. Load a larger filter to see all.`
       );
       ganttSlot.appendChild(note);
+    }
+
+    // Say it on the chart, not in a console. A bar with no baseline because
+    // its Activity ID is repeated looks identical to a bar with no baseline
+    // because the activity is new.
+    const ambig = allActs.ambiguousOverlay || 0;
+    if (showBaseline && ambig > 0) {
+      ganttSlot.appendChild(h('div', { class: 'lens-table-foot' },
+        `${ambig} activit${ambig === 1 ? 'y carries' : 'ies carry'} an Activity ID `
+        + `that is repeated across projects, so no baseline overlay is drawn for `
+        + `${ambig === 1 ? 'it' : 'them'}: two different activities answer to that `
+        + `ID and picking one would be a guess.`
+      ));
     }
 
     // Update KPIs

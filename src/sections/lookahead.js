@@ -1,7 +1,8 @@
 import { h } from '../lib/dom.js';
-import { getTable, getCalendarMap, durationHoursToDays } from '@criticalpathpartners/lens-parser';
+import { getTable } from '@criticalpathpartners/lens-parser';
 import { kpiCard } from './_shared/kpi-card.js';
 import { dataTable } from './_shared/data-table.js';
+import { workingDayContext, disclosureCards, HOUR_FIELDS } from './_shared/working-days.js';
 
 // ─────────────────────────────────────────────────────────────────────
 // SPEC CONSTANTS — verbatim from canonical Python skill
@@ -59,7 +60,7 @@ function overlaps(aStart, aFinish, winStart, winEnd) {
 // DERIVE ONE ROW
 // ─────────────────────────────────────────────────────────────────────
 
-function deriveRow(task, calMap) {
+function deriveRow(task, cal) {
   // Exclusions — verbatim from spec
   const taskType = task.task_type || '';
   if (EXCLUDED_TYPES.has(taskType)) return null;
@@ -82,15 +83,15 @@ function deriveRow(task, calMap) {
   const startDate  = parseP6Date(startRaw);
   const finishDate = parseP6Date(finishRaw);
 
-  const cal = calMap[task.clndr_id] || null;
-
-  const odDays = durationHoursToDays(task.target_drtn_hr_cnt, cal);
-  const rdDays = durationHoursToDays(task.remain_drtn_hr_cnt, cal);
+  // Hours become working days in exactly one module — see _shared/working-days.js.
+  // ?? 0 keeps the spec's behaviour for an absent duration (0 days, not blank).
+  const odDays = cal.workingDays(task, HOUR_FIELDS.ORIGINAL_DURATION)  ?? 0;
+  const rdDays = cal.workingDays(task, HOUR_FIELDS.REMAINING_DURATION) ?? 0;
 
   let tfHrs;
   try { tfHrs = parseFloat(task.total_float_hr_cnt || 0); }
   catch (_) { tfHrs = 0; }
-  const tfDays = durationHoursToDays(tfHrs, cal);
+  const tfDays = cal.hoursToDays(tfHrs, task.clndr_id) ?? 0;
 
   // Milestone: task_type in MILESTONE_TYPES OR duration is 0/empty/null
   const rawDrtn = task.target_drtn_hr_cnt;
@@ -131,7 +132,24 @@ function deriveRow(task, calMap) {
 // COMPUTE LOOKAHEAD ROWS
 // ─────────────────────────────────────────────────────────────────────
 
-function computeLookahead(A) {
+/**
+ * Build the three week buckets plus two SEPARATE totals.
+ *
+ * `activitiesInWindow` is the DISTINCT UNION of the three buckets — an activity
+ * spanning weeks 1 and 2 sits in two buckets and must be counted once, so this
+ * is neither the sum of the bucket lengths nor the whole incomplete population.
+ * `totalIncomplete` is every eligible incomplete activity in the schedule,
+ * most of which fall outside the 21-day horizon. The old KPI showed
+ * totalIncomplete under the label "activities across all 3 weeks" (291 against
+ * weeks of 14/19/28). Keep the two labelled apart.
+ *
+ * Exported for regression testing.
+ *
+ * @param {object} A - Parsed current model
+ * @returns {{ dataDate: Date, windows: object[], weekRows: object[][],
+ *             activitiesInWindow: number, totalIncomplete: number }}
+ */
+export function computeLookahead(A) {
   // Data date from first PROJECT row's last_recalc_date
   const projects = getTable(A, 'PROJECT');
   let dataDate = null;
@@ -152,14 +170,17 @@ function computeLookahead(A) {
     end:   addDays(dataDate, 7 * (i + 1) - 1)   // inclusive end = day before next window
   }));
 
-  const calMap = getCalendarMap(A);
+  const cal = workingDayContext(A);
   const allTasks = getTable(A, 'TASK');
 
-  // Derive and filter
+  // Derive and filter. `converted` is the set of activities whose OD / RD / TF
+  // columns are printed as days, and therefore the exact scope the divisor
+  // disclosure covers.
   const rows = [];
+  const converted = [];
   for (const task of allTasks) {
-    const row = deriveRow(task, calMap);
-    if (row) rows.push(row);
+    const row = deriveRow(task, cal);
+    if (row) { rows.push(row); converted.push(task); }
   }
 
   // Bucket by window (activity can appear in multiple windows)
@@ -167,7 +188,26 @@ function computeLookahead(A) {
     rows.filter(r => overlaps(r.startDate, r.finishDate, win.start, win.end))
   );
 
-  return { dataDate, windows, weekRows, totalInLookahead: rows.length };
+  // Distinct union of the buckets. Each task derives exactly one row object, so
+  // reference identity IS activity identity here — a row appearing in two
+  // buckets is the same object and lands in the Set once.
+  const inWindow = new Set();
+  for (const bucket of weekRows) {
+    for (const r of bucket) inWindow.add(r);
+  }
+
+  return {
+    dataDate,
+    windows,
+    weekRows,
+    activitiesInWindow: inWindow.size,
+    totalIncomplete: rows.length,
+    disclosure: cal.disclose(converted, [
+      HOUR_FIELDS.ORIGINAL_DURATION,
+      HOUR_FIELDS.REMAINING_DURATION,
+      HOUR_FIELDS.TOTAL_FLOAT
+    ])
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -199,12 +239,13 @@ export function render({ A, B }) {
     ]);
   }
 
-  const { dataDate, windows, weekRows, totalInLookahead } = computeLookahead(A);
+  const { dataDate, windows, weekRows, activitiesInWindow, totalIncomplete, disclosure } = computeLookahead(A);
 
   // KPI row
   const kpiRow = h('div', { class: 'kpi-grid' }, [
     kpiCard({ title: 'Data Date',          big: fmtShort(dataDate),                    sub: 'from PROJECT.last_recalc_date' }),
-    kpiCard({ title: 'Total in Lookahead', big: totalInLookahead,                      sub: 'activities across all 3 weeks' }),
+    kpiCard({ title: 'In 3-Week Window',   big: activitiesInWindow,                    sub: 'distinct activities in weeks 1-3 (spanning counted once)' }),
+    kpiCard({ title: 'All Incomplete',     big: totalIncomplete,                       sub: 'eligible incomplete activities in the whole schedule' }),
     kpiCard({ title: 'Week 1',             big: weekRows[0].length,                    sub: `${fmtShort(windows[0].start)} → ${fmtShort(windows[0].end)}` }),
     kpiCard({ title: 'Week 2',             big: weekRows[1].length,                    sub: `${fmtShort(windows[1].start)} → ${fmtShort(windows[1].end)}` }),
     kpiCard({ title: 'Week 3',             big: weekRows[2].length,                    sub: `${fmtShort(windows[2].start)} → ${fmtShort(windows[2].end)}` })
@@ -229,6 +270,8 @@ export function render({ A, B }) {
   return h('div', { class: 'lens-section-content' }, [
     h('h2', {}, '3-Week Lookahead'),
     kpiRow,
-    weekRow
+    weekRow,
+    // OD / RD / TF are printed as days. Name the divisor they were produced at.
+    ...disclosureCards(disclosure)
   ]);
 }

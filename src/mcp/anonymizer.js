@@ -6,6 +6,11 @@
  * model plus an `anon_map` (token → original) that NEVER leaves the browser;
  * only the SHA-256 of the map is sent to the MCP for receipt validation.
  *
+ * TWO models (a current schedule and its baseline) must go through
+ * anonymizeModelPair(), or through anonymizeModel() twice with one shared
+ * createAnonContext(). Two separate calls build two independent maps and the
+ * files then disagree about what every token means.
+ *
  * Privacy contract: after anonymizeModel(), serializing the model with
  * writeXer() must contain NONE of the original name/description/label/identity
  * strings. The leak-detector test (tests/unit/anonymizer-leak.test.js) proves
@@ -99,6 +104,17 @@ function prefixFor(tableName) {
  * verbatim when present) AND every named field across the XER and XML model
  * shapes, so no header identity survives regardless of writeXer's branch.
  */
+function rememberOriginal(map, baseKey, value) {
+  if (value === undefined || value === null || value === '') return;
+  let key = baseKey;
+  let n = 1;
+  while (key in map) {
+    if (map[key] === value) return;  // already recorded under this key
+    key = `${baseKey}_${++n}`;       // second model's header — keep both
+  }
+  map[key] = value;
+}
+
 function scrubErmhdr(ermhdr, map) {
   if (!ermhdr || typeof ermhdr !== 'object') return ermhdr;
   const raw = Array.isArray(ermhdr.raw) ? ermhdr.raw : null;
@@ -113,12 +129,15 @@ function scrubErmhdr(ermhdr, map) {
     ? (raw.length >= 9 ? (raw[8] || '') : (raw.length === 6 ? (raw[5] || '') : ''))
     : (ermhdr.currency || '');
 
-  // Preserve originals locally (map never leaves the browser).
-  if (raw && raw[4]) map.ERMHDR_user = raw[4];
-  if (raw && raw[5]) map.ERMHDR_project = raw[5];
-  if (ermhdr.user && !map.ERMHDR_user) map.ERMHDR_user = ermhdr.user;
-  if ((ermhdr.project || ermhdr.database) && !map.ERMHDR_project) {
-    map.ERMHDR_project = ermhdr.project || ermhdr.database;
+  // Preserve originals locally (map never leaves the browser). Two models
+  // anonymized under one context each carry their own header, so the keys are
+  // de-duplicated rather than overwritten — the baseline's export user must not
+  // erase the current schedule's from the local map.
+  if (raw && raw[4]) rememberOriginal(map, 'ERMHDR_user', raw[4]);
+  if (raw && raw[5]) rememberOriginal(map, 'ERMHDR_project', raw[5]);
+  if (ermhdr.user) rememberOriginal(map, 'ERMHDR_user', ermhdr.user);
+  if (ermhdr.project || ermhdr.database) {
+    rememberOriginal(map, 'ERMHDR_project', ermhdr.project || ermhdr.database);
   }
 
   // Neutral 9-field header in the canonical P6 layout. Slots 4 (user) and
@@ -142,8 +161,63 @@ function scrubErmhdr(ermhdr, map) {
   };
 }
 
-export function anonymizeModel(model) {
-  const map = {};
+/**
+ * Shared tokenisation context.
+ *
+ * Deep Forensic uploads TWO schedules — the current one and its baseline — and
+ * they must be tokenised under ONE context or their tokens do not correspond:
+ * ACT_0007 in the current file would name a different activity from ACT_0007 in
+ * the baseline, so every output the Engine renders with a name beside a matched
+ * Activity ID would be nonsense, and the SHA-256 receipt would cover only half
+ * of what was uploaded. anonymizeModel() creates a private context when none is
+ * passed, so single-model callers behave exactly as before.
+ *
+ *   map          token → original (never leaves the browser)
+ *   tokenByValue table|field|original → token, so the same original string
+ *                gets the same token in both models
+ *   userTokens   create_user/update_user value → token, shared likewise
+ */
+export function createAnonContext() {
+  // userTokens is keyed by a value out of the file (a P6 login), so it gets a
+  // null prototype: a user literally named "constructor" must not read back as
+  // an already-minted token.
+  return { map: {}, tokenByValue: new Map(), userTokens: Object.create(null) };
+}
+
+/**
+ * Token for one (table, field, value), minting a fresh one on first sight.
+ *
+ * On a fresh context the row counter is always free, so single-model output is
+ * unchanged. When a second model is tokenised under the same context the probe
+ * steps past tokens the first model already took, so a token can never carry
+ * two different originals — which is what would silently corrupt the map, and
+ * with it the receipt hash.
+ */
+function tokenFor(ctx, tableName, field, value, prefix, counter, multiField) {
+  const vkey = `${tableName} ${field} ${value}`;
+  const existing = ctx.tokenByValue.get(vkey);
+  if (existing) return existing;
+  let n = counter;
+  let token;
+  for (;;) {
+    const base = `${prefix}_${String(n).padStart(4, '0')}`;
+    token = multiField ? `${base}_${field}` : base;
+    if (!(token in ctx.map)) break;
+    n++;
+  }
+  ctx.map[token] = value;
+  ctx.tokenByValue.set(vkey, token);
+  return token;
+}
+
+/**
+ * @param {object} model  parsed XER model
+ * @param {object} [ctx]  shared context from createAnonContext() — pass the
+ *                        SAME one for the current schedule and its baseline
+ * @returns {{ model: object, map: object, ctx: object }}
+ */
+export function anonymizeModel(model, ctx = createAnonContext()) {
+  const map = ctx.map;
   const out = JSON.parse(JSON.stringify(model));
 
   // 1. Header identity.
@@ -154,15 +228,13 @@ export function anonymizeModel(model) {
     const table = out.tables?.[tableName];
     if (!table?.records) continue;
     const prefix = prefixFor(tableName);
+    const multiField = fieldList.length > 1;
     let counter = 0;
     for (const rec of table.records) {
       counter++;
-      const baseToken = `${prefix}_${String(counter).padStart(4, '0')}`;
       for (const f of fieldList) {
         if (rec[f] !== undefined && rec[f] !== null && rec[f] !== '') {
-          const token = fieldList.length > 1 ? `${baseToken}_${f}` : baseToken;
-          map[token] = rec[f];
-          rec[f] = token;
+          rec[f] = tokenFor(ctx, tableName, f, rec[f], prefix, counter, multiField);
         }
       }
     }
@@ -173,7 +245,7 @@ export function anonymizeModel(model) {
   //    so a per-row token would bloat the map without hiding anything more.
   //    Same value in, same token out, so "who touched what" survives the scrub
   //    as a structural fact while the person stays anonymous.
-  const userTokens = {};
+  const userTokens = ctx.userTokens;
   for (const table of Object.values(out.tables || {})) {
     if (!table?.records) continue;
     for (const rec of table.records) {
@@ -181,7 +253,9 @@ export function anonymizeModel(model) {
         const v = rec[f];
         if (v === undefined || v === null || v === '') continue;
         if (!userTokens[v]) {
-          const token = `USER_${String(Object.keys(userTokens).length + 1).padStart(3, '0')}`;
+          let n = Object.keys(userTokens).length + 1;
+          let token = `USER_${String(n).padStart(3, '0')}`;
+          while (token in map) token = `USER_${String(++n).padStart(3, '0')}`;
           userTokens[v] = token;
           map[token] = v;
         }
@@ -190,7 +264,26 @@ export function anonymizeModel(model) {
     }
   }
 
-  return { model: out, map };
+  return { model: out, map, ctx };
+}
+
+/**
+ * Anonymize a current schedule and its baseline under ONE map.
+ *
+ * This is the only correct way to prepare a two-file Deep Forensic submission:
+ * calling anonymizeModel twice builds two independent maps, and the two files
+ * then disagree about what every token means. Returns the single map that
+ * covers BOTH models, which is the map whose SHA-256 must be reported.
+ *
+ * @param {object} current          the current / updated model (A)
+ * @param {object|null} [baseline]  the baseline / prior model (B), if loaded
+ * @returns {{ current: object, baseline: object|null, map: object, ctx: object }}
+ */
+export function anonymizeModelPair(current, baseline) {
+  const ctx = createAnonContext();
+  const a = anonymizeModel(current, ctx);
+  const b = baseline ? anonymizeModel(baseline, ctx) : null;
+  return { current: a.model, baseline: b ? b.model : null, map: ctx.map, ctx };
 }
 
 export function deanonymizeRecords(records, map) {
