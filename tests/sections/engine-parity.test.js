@@ -37,13 +37,19 @@ describe('engine parity section', () => {
   it('discloses that the port total skips comparisons', () => {
     const text = render({ A: null, B: null }).textContent;
     expect(text).toMatch(/skipped rather than failed/);
-    // 995 not 992: the harness guards TWO fields, ff_signed_working_days (61)
-    // and ff_signed (3). The first measurement removed only the first guard and
-    // understated the surface by 3. Surface grew 989 -> 995 at engine v2.9.41,
-    // which retired the three alert-parity carve-outs (+6 executed comparisons);
-    // the 64 free-float skips are unchanged.
-    expect(text).toMatch(/931 of 995/);
-    expect(text).toMatch(/11 of 45/);
+    // Surface history: 989 -> 995 at v2.9.41, which retired three alert-parity
+    // carve-outs, then 995 -> 1015 when a 46th fixture landed and two engine
+    // defects were fixed (a transposed constraint-date column read, and the
+    // missing SS/SF late-finish conversion in the backward pass). Those two
+    // fixes are why the skips collapsed from 64 to 6: the Python reference now
+    // emits a signed free-float value everywhere the JavaScript engine does,
+    // except on three fixtures where NEITHER assigns one.
+    //
+    // These are the RENDERED strings. tests/unit/engine-parity.test.js is the
+    // one that runs the real harness and pins these same numbers to it, so a
+    // figure cannot be updated here without the harness agreeing.
+    expect(text).toMatch(/1009 of 1015/);
+    expect(text).toMatch(/43 of 46/);
     expect(text).toMatch(/not a pass rate/);
   });
 
