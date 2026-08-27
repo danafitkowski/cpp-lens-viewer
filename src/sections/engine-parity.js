@@ -39,7 +39,7 @@ import { dataTable } from './_shared/data-table.js';
 // is pinned to the SSOT by tests/unit/engine-parity.test.js, which was failing
 // on exactly this before the bump — that test is the only thing that keeps this
 // line honest, so do not restate the number anywhere else.
-const ENGINE_VERSION = '2.9.41';
+const ENGINE_VERSION = '2.9.42';
 
 // Layer 1 — two ports of the same algorithm, by the same author.
 const CROSSVAL_FIXTURES = 46;
@@ -47,7 +47,7 @@ const CROSSVAL_EXECUTED = 1009;
 const CROSSVAL_POSSIBLE = 1015;
 const CROSSVAL_SKIPPED = 6;
 const CROSSVAL_CLEAN_FIXTURES = 43;
-const JS_UNIT_TESTS = 1213;
+const JS_UNIT_TESTS = 1216;
 const ENGINE_STATEMENT_COVERAGE = '41%';
 
 // Layer 2 — the engine against Primavera P6 itself.
