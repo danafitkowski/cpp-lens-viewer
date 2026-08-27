@@ -805,7 +805,7 @@ describe('Half-Step refuses the degenerate input it used to render confidently',
 //    472 retained relationships.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const QA_DIR = process.env.LENS_QA_XER_DIR || 'C:/Users/danaf/Downloads/.tmp.driveupload';
+import { QA_DIR } from '../qa-corpus.js';
 const QA_CURRENT = `${QA_DIR}/Georgian-College-current.xer`;
 const QA_BASELINE = `${QA_DIR}/Georgian-College-baseline.xer`;
 const HAVE_QA = existsSync(QA_CURRENT) && existsSync(QA_BASELINE);
