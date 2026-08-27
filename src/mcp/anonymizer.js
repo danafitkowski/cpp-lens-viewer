@@ -74,8 +74,8 @@ const STRIP_FIELDS = {
 
 // Fields stripped from EVERY table, whether or not the table is listed above.
 // P6 stamps create_user/update_user on almost every row it writes, and the
-// value is the P6 login or full display name — "Matheson Constructors - Dana
-// Fitkowski" on every activity in a TASK table. The per-table map above could
+// value is the P6 login or full display name, e.g. "Northgate Builders -
+// J. Whitfield", on every activity in a TASK table. The per-table map above could
 // never cover this: the columns are not a property of any one table, so each
 // new table added to STRIP_FIELDS would have had to remember them again, and
 // tables NOT in the map (there are many P6 emits) would leak regardless.

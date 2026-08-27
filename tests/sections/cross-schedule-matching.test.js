@@ -112,7 +112,7 @@ describe('cross-schedule matching keys on stable task_code, not surrogate task_i
 // Skipped when the files are not on this machine; LENS_QA_XER_DIR overrides.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const QA_DIR = process.env.LENS_QA_XER_DIR || 'C:/Users/danaf/Downloads/.tmp.driveupload';
+import { QA_DIR } from '../qa-corpus.js';
 const QA_CURRENT = `${QA_DIR}/Georgian-College-current.xer`;
 const QA_BASELINE = `${QA_DIR}/Georgian-College-baseline.xer`;
 const HAVE_QA = existsSync(QA_CURRENT) && existsSync(QA_BASELINE);
