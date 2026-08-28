@@ -15,6 +15,37 @@ describe('DCMA Lite', () => {
     expect(el.textContent).toContain('No XER');
   });
 
+
+  // -------------------------------------------------------------------------
+  // C10 / C11 corrections (2026-08-28). C10 published a >=80% band that
+  // DCMA-EA PAM 200.1 never contained (§4.10 is 100% — every task with
+  // duration carries dollars or hours) and stamped PASS with a fifth of the
+  // schedule unresourced. C11 was gated on TK_NotStart with a zero target,
+  // making an in-progress activity sitting past its planned finish invisible
+  // while §4.11 is a finish test with a 5% ceiling.
+  // -------------------------------------------------------------------------
+
+  it('C10 Resources reports N/A when the export carries no TASKRSRC at all', () => {
+    const A = parseXer(readFileSync(join(FIX, 'minimal-3-task.xer'), 'utf-8'));
+    const el = render({ A, B: null });
+    const rows = Array.from(el.querySelectorAll('tbody tr'));
+    const c10 = rows.find(r => /Resources/.test(r.textContent));
+    expect(c10).toBeTruthy();
+    expect(c10.textContent).toContain('N/A');
+    expect(c10.textContent).toContain('100%');
+    expect(c10.textContent).not.toContain('80');
+  });
+
+  it('C11 Missed Tasks carries the 5% band, not a zero target', () => {
+    const A = parseXer(readFileSync(join(FIX, 'minimal-3-task.xer'), 'utf-8'));
+    const el = render({ A, B: null });
+    const rows = Array.from(el.querySelectorAll('tbody tr'));
+    const c11 = rows.find(r => /Missed Tasks/.test(r.textContent));
+    expect(c11).toBeTruthy();
+    expect(c11.textContent).toMatch(/5\s*%/);
+    expect(c11.textContent).toContain('past planned finish');
+  });
+
   it('renders 14 rows in the metrics table when XER is loaded', () => {
     const A = parseXer(readFileSync(join(FIX, 'minimal-3-task.xer'), 'utf-8'));
     const el = render({ A, B: null });

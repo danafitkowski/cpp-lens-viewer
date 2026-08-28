@@ -11,7 +11,19 @@ export function renderHeader() {
     h('h1', { class: 'brand' }, 'CPP Lens'),
     h('div', { class: 'tagline' }, 'Primavera P6 viewer + forensic engine'),
     h('div', { class: 'spacer' }),
-    statusSpan
+    statusSpan,
+    // The word "privacy" appeared nowhere in a 231 KB bundle that accepts
+    // schedule files — a gap the site's own evaluation-standard page recorded
+    // as an open failure. The posture statements ("XER and XML files are never
+    // uploaded") were scattered through status strings; this is the one
+    // always-visible link to the policy that states the whole of it, including
+    // the MPP conversion path and the Deep Forensic opt-in.
+    h('a', {
+      class: 'privacy-link',
+      href: 'https://criticalpathpartners.ca/privacy-policy.html',
+      target: '_blank',
+      rel: 'noopener'
+    }, 'Privacy')
   ]);
   modelStore.subscribe(({ A, B }) => {
     let msg = 'No XER loaded';
