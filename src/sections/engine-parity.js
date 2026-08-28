@@ -140,7 +140,7 @@ export function render() {
       kpiCard({
         title: 'Fixtures with no divergence',
         big: `${CROSSVAL_CLEAN_FIXTURES} of ${CROSSVAL_FIXTURES}`,
-        sub: 'the rest differ on a free-float field',
+        sub: 'the other three carry mutual skips, not disagreements',
         tone: 'ink'
       }),
       kpiCard({
@@ -155,7 +155,7 @@ export function render() {
       h('h3', {}, 'Read the two numbers differently'),
       h('p', {}, 'The P6 figure and the port-agreement figure answer different questions, and neither is a simple pass rate. This section was rewritten after its own first version published both of them in a way that flattered the engine.'),
       h('p', {}, `On P6: thirteen small schedules were built to isolate one scheduling behaviour each, imported into ${P6_VERSION}, and scheduled there by a human operator pressing F9. P6's answers were recorded field by field and pinned as data, ${P6_FIELD_CELLS} cells across twenty-seven activities, of which ${P6_REAL_COMPARISONS} are genuine engine-computed against P6-computed comparisons; the rest are actual dates carried through, or blanks. The first run against those pinned answers passed ${P6_BLIND_FIRST_PASS} of ${P6_CASES_TOTAL}. The engine was then corrected and now passes all thirteen. That is a real cross-tool test and it is also a fitted one.`),
-      h('p', {}, `On the two ports: the harness compares a JavaScript and a Python implementation field by field and reports ${CROSSVAL_EXECUTED} of ${CROSSVAL_EXECUTED}. That is the count of comparisons it actually ran. ${CROSSVAL_SKIPPED} more were skipped because one side emits a field the other does not, and a skipped comparison is not a passing one. Counted properly it is ${CROSSVAL_EXECUTED} of ${CROSSVAL_POSSIBLE}.`),
+      h('p', {}, `On the two ports: the harness compares a JavaScript and a Python implementation field by field and reports ${CROSSVAL_EXECUTED} of ${CROSSVAL_EXECUTED}. That is the count of comparisons it actually ran. ${CROSSVAL_SKIPPED} more were skipped rather than compared, every one on a completed activity where NEITHER implementation emits the signed free-float field, so there is nothing to verify and no port gap behind them; a skipped comparison is still not a passing one. Counted properly it is ${CROSSVAL_EXECUTED} of ${CROSSVAL_POSSIBLE}.`),
       h('p', {}, 'No parity claim is made beyond the ground these cases cover.')
     ]),
 
