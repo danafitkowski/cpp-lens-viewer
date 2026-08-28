@@ -72,6 +72,17 @@ const STRIP_FIELDS = {
   RCATTYPE: ['rsrc_catg_type'],
 };
 
+// GENERIC sweep for tables NOT in STRIP_FIELDS. The per-table map above is a
+// hand-maintained list, and hand-maintained lists die quietly: POBS is not in
+// it, and the viewer ships a separate manual button for POBS precisely because
+// its pobs_name / pobs_descr carry the org chart in plain text. Any table the
+// list does not know is now swept by FIELD-NAME PATTERN instead of passing
+// through untouched — every column whose name says "this is prose or an
+// identity" is tokenized; ids, dates, durations and codes are left alone, so
+// schedule semantics survive. A table P6 grows next year is covered the day
+// it appears.
+const GENERIC_TEXT_FIELD = /(?:_name|_names|_descr|_description|_memo|_title|_label|_text|_note|_notes|_url|_addr|_phone|web_site|email|guid|logo)$/i;
+
 // Fields stripped from EVERY table, whether or not the table is listed above.
 // P6 stamps create_user/update_user on almost every row it writes, and the
 // value is the P6 login or full display name, e.g. "Northgate Builders -
@@ -233,6 +244,25 @@ export function anonymizeModel(model, ctx = createAnonContext()) {
     for (const rec of table.records) {
       counter++;
       for (const f of fieldList) {
+        if (rec[f] !== undefined && rec[f] !== null && rec[f] !== '') {
+          rec[f] = tokenFor(ctx, tableName, f, rec[f], prefix, counter, multiField);
+        }
+      }
+    }
+  }
+
+  // 2b. Generic sweep over every table the per-table list does not know.
+  for (const [tableName, table] of Object.entries(out.tables || {})) {
+    if (STRIP_FIELDS[tableName]) continue;    // already handled, field by field
+    if (!table?.records || !table?.fields) continue;
+    const sweepFields = table.fields.filter(f => GENERIC_TEXT_FIELD.test(f));
+    if (!sweepFields.length) continue;
+    const prefix = prefixFor(tableName);
+    const multiField = sweepFields.length > 1;
+    let counter = 0;
+    for (const rec of table.records) {
+      counter++;
+      for (const f of sweepFields) {
         if (rec[f] !== undefined && rec[f] !== null && rec[f] !== '') {
           rec[f] = tokenFor(ctx, tableName, f, rec[f], prefix, counter, multiField);
         }

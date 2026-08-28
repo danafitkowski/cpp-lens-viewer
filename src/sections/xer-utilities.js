@@ -64,8 +64,14 @@ function buildAnonymizerCard(A) {
   btnXer.addEventListener('click', () => {
     const { model } = anonymizeModel(A);
     const text = writeXer(model);
-    download(text, stem + '-anonymized.xer', 'text/plain');
-    statusEl.textContent = 'Downloaded: ' + stem + '-anonymized.xer';
+    // Generic name on purpose. The output of this button exists to be handed
+    // to a third party, and the ORIGINAL filename is routinely the client and
+    // project in plain text ("Northgate-C05-Mill-Update-12.xer" style), so
+    // carrying the stem forward re-identified the very thing the file was
+    // scrubbed of. The map download below keeps the stem: that file stays
+    // with the owner by definition.
+    download(text, 'anonymized-schedule.xer', 'text/plain');
+    statusEl.textContent = 'Downloaded: anonymized-schedule.xer (deliberately not named after your file)';
   });
 
   const btnMap = h('button', {}, 'Download anon map (keep safe)');

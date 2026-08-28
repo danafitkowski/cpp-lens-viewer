@@ -144,31 +144,53 @@ function computeMetrics(A) {
     status: invalidDatesCount === 0 ? 'PASS' : 'FAIL'
   };
 
-  // 10. Resources — % of tasks with at least one TASKRSRC assignment (target ≥ 80%)
+  // 10. Resources — % of tasks with at least one TASKRSRC assignment.
+  // DCMA-EA PAM 200.1 §4.10 verifies that ALL tasks with duration above zero
+  // carry dollars or hours: the target is 100%, not a band. This surface
+  // published "≥ 80%" until 2026-08-28 — a threshold the standard never
+  // contained, and one the earlier 90%→100% correction could not find because
+  // it searched for the 90% variant. A schedule with a fifth of its
+  // activities unresourced was stamped PASS here. When the export carries no
+  // TASKRSRC table at all the criterion is N/A, matching the dashboard's
+  // "Not scored" behaviour, rather than a fake FAIL.
   const taskIdsWithRsrc = new Set(rsrc.map(r => r.task_id));
   const rsrcCount = tasks.filter(t => taskIdsWithRsrc.has(t.task_id)).length;
   const rsrcPct   = pct(rsrcCount, n);
-  const metric10 = {
+  const metric10 = rsrc.length === 0 ? {
+    name:   'Resources (% assigned)',
+    result: 'N/A',
+    target: '100%',
+    status: 'N/A'
+  } : {
     name:   'Resources (% assigned)',
     result: fmtPct(rsrcPct),
-    target: '≥ 80%',
-    status: rsrcPct >= 80 ? 'PASS' : rsrcPct >= 50 ? 'REVIEW' : 'FAIL'
+    target: '100%',
+    status: rsrcPct >= 100 ? 'PASS' : 'FAIL'
   };
 
-  // 11. Missed Tasks — past data date but TK_NotStart (target = 0)
+  // 11. Missed Tasks. DCMA-EA PAM 200.1 §4.11 is a FINISH test with a 5%
+  // ceiling: a task counts when its planned finish is on or before the data
+  // date and it has not actually finished by then — including tasks that
+  // STARTED and stalled, and completed tasks that finished late are outside
+  // this screening (no baseline fields in a single XER). Until 2026-08-28
+  // this was gated on TK_NotStart with a zero target, so an in-progress
+  // activity sitting past its planned finish was invisible, and a single
+  // missed task stamped the schedule FAIL against a target the standard
+  // does not set.
   const dataDate = proj.last_recalc_date ? proj.last_recalc_date.slice(0, 10) : null;
   const missedCount = dataDate
     ? tasks.filter(t => {
-        if (t.status_code !== 'TK_NotStart') return false;
+        if (t.status_code === 'TK_Complete') return false;
         const end = (t.target_end_date || '').slice(0, 10);
         return end && end < dataDate;
       }).length
     : 0;
+  const missedPct = pct(missedCount, n);
   const metric11 = {
-    name:   'Missed Tasks (past data date)',
-    result: String(missedCount),
-    target: '0',
-    status: missedCount === 0 ? 'PASS' : 'FAIL'
+    name:   'Missed Tasks (past planned finish)',
+    result: dataDate ? `${fmtPct(missedPct)} (${missedCount})` : 'N/A',
+    target: '≤ 5%',
+    status: !dataDate ? 'N/A' : missedPct <= 5 ? 'PASS' : 'FAIL'
   };
 
   // 12. Critical Path Test — count with total_float_hr_cnt ≤ 0
