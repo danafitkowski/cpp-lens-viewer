@@ -268,3 +268,7 @@ main.lens-content h2 { color: var(--ink); margin: 0 0 12px; font-size: 22px; }
   .lens-activity-picker,
   .lens-select { font-size: 16px; }
 }
+
+/* Always-visible privacy link in the header (2026-08-28). */
+.lens-header .privacy-link { font-size: 12px; opacity: .75; margin-left: 14px; color: inherit; text-decoration: underline; }
+.lens-header .privacy-link:hover { opacity: 1; }
