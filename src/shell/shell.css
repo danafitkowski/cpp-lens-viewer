@@ -272,3 +272,78 @@ main.lens-content h2 { color: var(--ink); margin: 0 0 12px; font-size: 22px; }
 /* Always-visible privacy link in the header (2026-08-28). */
 .lens-header .privacy-link { font-size: 12px; opacity: .75; margin-left: 14px; color: inherit; text-decoration: underline; }
 .lens-header .privacy-link:hover { opacity: 1; }
+
+/* Sidebar file-box format note (which formats stay local vs go to the server). */
+aside.lens-sidebar .file-box .file-box-note { color: #B7C9DA; font-size: 11px; line-height: 1.4; margin: 4px 0 6px; }
+
+/* ── 3-Week Lookahead week tables ─────────────────────────────────────────────
+   Each week card is roughly a third of the pane while its table carries ten
+   columns, so the right-most columns (Status / Notes) used to sit clipped
+   behind an invisible overflow edge with no cue that they existed. Give the
+   table a legible minimum width, scroll the wrap sideways, and paint scroll
+   shadows: the inner white gradients ride the content (background-attachment:
+   local) and cover the shadows when that edge is fully scrolled into view, so
+   a shadow shows exactly when more table lies off that side. */
+.lens-week-card .lens-table { min-width: 680px; }
+.lens-week-card .lens-table-wrap {
+  overflow-x: auto;
+  background:
+    linear-gradient(to right, #FFFFFF 30%, rgba(255, 255, 255, 0)) left / 48px 100%,
+    linear-gradient(to left,  #FFFFFF 30%, rgba(255, 255, 255, 0)) right / 48px 100%,
+    linear-gradient(to right, rgba(15, 37, 64, 0.22), rgba(15, 37, 64, 0)) left / 16px 100%,
+    linear-gradient(to left,  rgba(15, 37, 64, 0.22), rgba(15, 37, 64, 0)) right / 16px 100%;
+  background-repeat: no-repeat;
+  background-color: #FFFFFF;
+  background-attachment: local, local, scroll, scroll;
+}
+
+/* ── Print header (screen: hidden) ────────────────────────────────────────────
+   Branded strip stamped at the top of the printed section so a printout is a
+   fileable exhibit: wordmark, viewer/engine version, loaded filename, data
+   date, and a timestamp refreshed at print time (src/shell/print.js). */
+.lens-print-header { display: none; }
+
+/* Print control in the app header. */
+.lens-header .lens-print-btn {
+  border: 0; border-radius: 6px; padding: 6px 12px; margin-left: 14px;
+  background: var(--red); color: #FFFFFF; font-family: var(--font-sans);
+  font-weight: 700; font-size: 12px; cursor: pointer;
+}
+.lens-header .lens-print-btn:hover { filter: brightness(1.05); }
+
+/* ── Print stylesheet ─────────────────────────────────────────────────────────
+   Prints the ACTIVE section only (the content pane renders exactly one section
+   at a time) on a white page: app chrome (header, sidebar, print button) is
+   hidden, scroll containers are unclamped so the full section prints instead
+   of one viewport of it, and the branded print header above becomes visible. */
+@media print {
+  body { background: #FFFFFF; }
+  header.lens-header,
+  aside.lens-sidebar,
+  .lens-skip,
+  .lens-print-btn { display: none !important; }
+  .lens-app { display: block; min-height: 0; }
+  main.lens-content { padding: 0; overflow: visible; }
+  .lens-card { box-shadow: none; break-inside: avoid; }
+  /* Unclamp every scroller: paper cannot scroll. */
+  .lens-table-wrap { max-height: none; overflow: visible; border-color: #D8E0EA; }
+  .lens-week-card .lens-table-wrap { background: #FFFFFF; }
+  .lens-week-card .lens-table { min-width: 0; }
+  .lens-dash-catalog { max-height: none; overflow: visible; }
+  aside.lens-sidebar, main.lens-content { max-height: none; }
+  /* Sticky headers double-print in some engines; let them flow. */
+  .lens-table-wrap th { position: static; }
+
+  .lens-print-header {
+    display: block;
+    border-bottom: 3px solid var(--red);
+    padding: 0 0 10px;
+    margin: 0 0 16px;
+    color: var(--ink);
+    font-family: var(--font-sans);
+  }
+  .lens-print-header .print-brand { font-size: 18px; font-weight: 800; letter-spacing: 0.02em; }
+  .lens-print-header .print-brand .print-sub { font-weight: 600; font-size: 12px; color: #5A6675; margin-left: 10px; }
+  .lens-print-header .print-meta { font-size: 11px; color: #5A6675; margin-top: 4px; }
+  .lens-print-header .print-meta span { margin-right: 14px; }
+}

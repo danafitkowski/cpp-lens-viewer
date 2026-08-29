@@ -298,7 +298,7 @@ function renderChainCard(label, chain) {
   }
   if (chain.blockedByUnresolvedRefs) {
     children.push(h('div', { class: 'lens-table-foot' },
-      'Chain ends here — a driving relationship references a task not included in this XER export (possible cross-project link).'
+      'Chain ends here: a driving relationship references a task not included in this XER export (possible cross-project link).'
     ));
   }
 
@@ -341,10 +341,10 @@ export function render({ A, B }) {
   const { pickable, eligibleCount, truncated: dropdownTruncated } = pickEligibleTasks(allTasks);
 
   // Build dropdown options
-  const placeholder = h('option', { value: '' }, '— pick an activity to trace —');
+  const placeholder = h('option', { value: '' }, 'Pick an activity to trace');
   const options = [placeholder].concat(
     pickable.map(t =>
-      h('option', { value: t.task_id }, `${t.task_code || t.task_id} — ${t.task_name || ''}`)
+      h('option', { value: t.task_id }, `${t.task_code || t.task_id} · ${t.task_name || ''}`)
     )
   );
 

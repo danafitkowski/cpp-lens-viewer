@@ -79,7 +79,7 @@ export function render({ A, B }) {
     notices.push(
       'An Activity ID repeated in one file is excluded from BOTH files, so neither side reports an addition ' +
       'or a deletion about an activity the other side plainly holds. The rows are listed in full at the foot ' +
-      'of this page — none of them is merged, dropped, or assigned to a project by guesswork.'
+      'of this page; none of them is merged, dropped, or assigned to a project by guesswork.'
     );
   }
   if (ambiguousRels > 0) {
@@ -177,7 +177,7 @@ export function render({ A, B }) {
     // The reconciliation is printed, not asserted. Every row of both files
     // lands in exactly one column, and the reader can check the addition.
     h('div', { class: 'lens-card' }, [
-      h('h3', {}, 'Reconciliation — every row accounted for'),
+      h('h3', {}, 'Reconciliation: every row accounted for'),
       h('p', {}, reconciliationLine('Current export', recon.a)),
       h('p', {}, reconciliationLine('Baseline export', recon.b)),
       h('p', {},
@@ -226,7 +226,7 @@ export function render({ A, B }) {
       })
     ]),
     h('div', { class: 'lens-card' }, [
-      h('h3', {}, 'Field changes — one row per changed field'),
+      h('h3', {}, 'Field changes: one row per changed field'),
       dataTable({
         columns: [
           {
@@ -235,7 +235,7 @@ export function render({ A, B }) {
             // Honest degradation: a row with no Activity ID was matched on the
             // internal surrogate task_id — say so rather than passing the
             // surrogate off as an Activity ID.
-            render: (v, r) => (v ? String(v) : `${r.task_id} (internal ID — no Activity ID)`)
+            render: (v, r) => (v ? String(v) : `${r.task_id} (internal ID, no Activity ID)`)
           },
           { key: 'task_name', label: 'Name' },
           { key: 'field',     label: 'Field' },
@@ -283,7 +283,7 @@ export function render({ A, B }) {
       })
     ]),
     h('div', { class: 'lens-card' }, [
-      h('h3', {}, 'Relationship lag changes — same predecessor, successor and type'),
+      h('h3', {}, 'Relationship lag changes: same predecessor, successor and type'),
       h('p', {},
         'Re-lagging existing logic moves a schedule without touching a single activity. ' +
         'Each row below is ONE link whose lag moved; it is also counted once in ' +
@@ -313,11 +313,11 @@ export function render({ A, B }) {
       })
     ]),
     h('div', { class: 'lens-card' }, [
-      h('h3', {}, 'Activity rows excluded — repeated Activity ID'),
+      h('h3', {}, 'Activity rows excluded: repeated Activity ID'),
       h('p', {},
         'An Activity ID is unique per project, not per file. Each row below shares its Activity ID with ' +
         'another row, so no comparison can say which of them the other file means. They take no part in ' +
-        'the added / deleted / changed counts above — they are listed here, with the project each one ' +
+        'the added / deleted / changed counts above. They are listed here, with the project each one ' +
         'belongs to, rather than merged, dropped, or separated by a guess.'
       ),
       dataTable({
@@ -343,7 +343,7 @@ export function render({ A, B }) {
         // they are listed in full. A capped register would make that sentence
         // false and would hide the very rows a reader needs to check.
         limit: 0,
-        emptyMsg: 'No repeated Activity IDs — every activity in both files has a unique identity.'
+        emptyMsg: 'No repeated Activity IDs. Every activity in both files has a unique identity.'
       })
     ])
   ];

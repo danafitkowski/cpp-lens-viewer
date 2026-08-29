@@ -231,7 +231,7 @@ function computeMetrics(A) {
 function qualityOverlayCard() {
   return h('div', { class: 'lens-card quality-overlay' }, [
     h('h3', {}, 'CPP Quality Overlay'),
-    h('p', { class: 'quality-overlay-sub' }, 'This Lite view shows the 14 raw metrics only — no synthesized grade.'),
+    h('p', { class: 'quality-overlay-sub' }, 'This Lite view shows the 14 raw metrics only, with no synthesized grade.'),
     h('a', {
       href: 'https://criticalpathpartners.ca/schedule-health-report.html',
       class: 'quality-cta-btn'

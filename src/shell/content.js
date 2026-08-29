@@ -2,6 +2,7 @@ import { h, mount } from '../lib/dom.js';
 import { findSection } from '../sections/_registry.js';
 import { navStore } from '../state/nav.js';
 import { modelStore } from '../state/model.js';
+import { buildPrintHeader } from './print.js';
 
 export function renderContent() {
   const root = h('main', { class: 'lens-content', id: 'lens-main', tabindex: '-1' });
@@ -20,12 +21,19 @@ export function renderContent() {
     // pane + nav. Catch it and mount a recoverable error card instead.
     try {
       mount(root, section.render({ A, B }));
+      // Print-only exhibit header for THIS section (display:none on screen;
+      // shown by the @media print block). Prepended after mount so the print
+      // header always describes exactly what the pane is showing.
+      root.insertBefore(
+        buildPrintHeader({ A, sectionTitle: section.title }),
+        root.firstChild
+      );
     } catch (err) {
       mount(root, h('div', { class: 'lens-section-content' }, [
         h('div', { class: 'lens-card' }, [
           h('h3', {}, 'This section could not render'),
           h('p', {}, (err && err.message) ? String(err.message) : 'An unexpected error occurred rendering this section.'),
-          h('p', { class: 'lens-section-stub' }, 'Other sections are unaffected — pick another from the sidebar, or reload the schedule.')
+          h('p', { class: 'lens-section-stub' }, 'Other sections are unaffected. Pick another from the sidebar, or reload the schedule.')
         ])
       ]));
     }

@@ -251,15 +251,21 @@ export function render({ A, B }) {
     kpiCard({ title: 'Week 3',             big: weekRows[2].length,                    sub: `${fmtShort(windows[2].start)} → ${fmtShort(windows[2].end)}` })
   ]);
 
-  // Three week cards side by side
+  // Three week cards side by side. The lens-week-card class carries the
+  // sideways-scroll treatment in shell.css: each card is roughly a third of the
+  // pane while the 10-column table needs far more, so without it the table's
+  // right-most columns (Status / Notes) sat clipped behind an invisible
+  // overflow edge. The CSS gives the table a legible minimum width, makes the
+  // wrap scroll horizontally, and paints edge shadows as a visible cue that
+  // there is more table to the side.
   const weekCards = windows.map((win, i) => {
     const rows = weekRows[i];
-    const heading = `Week ${i + 1} — ${fmtWeekHeading(win.start)}`;
+    const heading = `Week ${i + 1}: ${fmtWeekHeading(win.start)}`;
     const content = rows.length === 0
       ? h('p', { class: 'lens-section-stub' }, 'No activities in this window.')
       : dataTable({ columns: WEEK_COLS, rows, limit: ROW_LIMIT_PER_WEEK });
 
-    return h('div', { class: 'lens-card', style: { flex: '1', minWidth: '320px' } }, [
+    return h('div', { class: 'lens-card lens-week-card', style: { flex: '1', minWidth: '320px' } }, [
       h('h3', {}, heading),
       content
     ]);

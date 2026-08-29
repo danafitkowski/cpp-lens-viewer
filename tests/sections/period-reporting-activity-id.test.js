@@ -72,13 +72,13 @@ describe('Period Reporting names the ID column for what it holds', () => {
       row.task_id = '900';
     }
     const el = render({ A, B });
-    expect(el.textContent).toContain('900 (internal ID — no Activity ID)');
+    expect(el.textContent).toContain('900 (internal ID, no Activity ID)');
   });
 
   it('leaves rows that do have a code unlabelled', () => {
     const { A, B } = pair();
     const el = render({ A, B });
-    expect(el.textContent).not.toContain('internal ID — no Activity ID');
+    expect(el.textContent).not.toContain('internal ID, no Activity ID');
   });
 
   it('still matches all four activities across the renumbered export', () => {

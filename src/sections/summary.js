@@ -38,7 +38,7 @@ export function render({ A, B }) {
   const projectFinish = (proj.scd_end_date || proj.plan_end_date || '').slice(0, 10);
 
   const narrative = `Project ${proj.proj_short_name || '(unnamed)'} as of data date ${(proj.last_recalc_date || '').slice(0, 10) || 'unknown'}. ` +
-    `${realTasks.length.toLocaleString()} activities (${completeCount} complete, ${activeCount} in progress) — ${pctActivitiesComplete}% of activities complete by count, not weighted physical % complete. ` +
+    `${realTasks.length.toLocaleString()} activities (${completeCount} complete, ${activeCount} in progress). ${pctActivitiesComplete}% of activities complete by count, not weighted physical % complete. ` +
     `${criticalCount.toLocaleString()} activities sit on the critical path (total float ≤ 0). ` +
     `Project finish: ${projectFinish || 'not set'}.`;
 
@@ -72,16 +72,16 @@ function buildConcerns(A, { realTasks }) {
     return concerns;
   }
   const criticalPct = Math.round((realTasks.filter(t => parseFloat(t.total_float_hr_cnt) <= 0).length / taskCount) * 100);
-  if (criticalPct > 25) concerns.push(`${criticalPct}% of activities are critical — high concentration suggests over-constrained logic or under-progress.`);
+  if (criticalPct > 25) concerns.push(`${criticalPct}% of activities are critical. High concentration suggests over-constrained logic or under-progress.`);
 
   const noLogicCount = realTasks.filter(t => !t.task_id).length;
   if (noLogicCount > 0) concerns.push(`${noLogicCount} activities have no task_id (data quality).`);
 
   const assignments = getTable(A, 'TASKRSRC');
-  if (assignments.length === 0) concerns.push('No resource assignments found — cost/loading analysis will be limited.');
+  if (assignments.length === 0) concerns.push('No resource assignments found. Cost/loading analysis will be limited.');
 
   const codes = getTable(A, 'TASKACTV');
-  if (codes.length === 0) concerns.push('No activity-code assignments — rolling up by trade/area is not possible.');
+  if (codes.length === 0) concerns.push('No activity-code assignments. Rolling up by trade/area is not possible.');
 
   // > 20 WORKING DAYS on each activity's own calendar. The old test was
   // `d > 20 * 8` — 20 days only where a day is 8 hours — under a sentence that
@@ -97,7 +97,7 @@ function buildConcerns(A, { realTasks }) {
   if (longDuration > 0) {
     concerns.push(
       `${longDuration} activities have duration > ${LONG_DURATION_WD} working days ` +
-      `(converted at ${divisorCaption(disclosure)}) — review for hammock-style summary tasks.`
+      `(converted at ${divisorCaption(disclosure)}). Review for hammock-style summary tasks.`
     );
   }
   // A divisor that was guessed rather than read decides which activities land in
