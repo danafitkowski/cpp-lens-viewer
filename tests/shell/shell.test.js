@@ -46,7 +46,7 @@ describe('shell', () => {
     const el = renderContent();
     expect(el.textContent).toContain('Executive Dashboard');
     // dashboard now renders real empty-state when no XER is loaded
-    expect(el.textContent).toContain('Drop an XER');
+    expect(el.textContent).toContain('Load an XER in the sidebar to populate this dashboard.');
   });
 
   it('content swaps when navStore changes', () => {

@@ -155,7 +155,7 @@ export function workingDayContext(A) {
     // assumed.
     const note = hoursPerDay.length > 0
       ? `Durations and float converted to working days at ${hoursPerDay.join(' / ')} hr per day (CALENDAR.day_hr_cnt).`
-      : `No activity in this file resolves to a CALENDAR record with a usable day_hr_cnt — durations and float converted at the P6 default ${P6_DEFAULT_HOURS_PER_DAY} hr per day.`;
+      : `No activity in this file resolves to a CALENDAR record with a usable day_hr_cnt. Durations and float converted at the P6 default ${P6_DEFAULT_HOURS_PER_DAY} hr per day.`;
 
     let warning = null;
     if (fallback > 0) {

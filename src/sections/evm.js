@@ -141,7 +141,7 @@ export function render({ A, B }) {
 
   const chartArea = series.length > 0
     ? svgLineChart({ series, width: 740, height: 300 })
-    : h('div', { class: 'lens-empty' }, 'No data to chart — activities have no finish dates.');
+    : h('div', { class: 'lens-empty' }, 'No data to chart: activities have no finish dates.');
 
   const chartCard = h('div', { class: 'lens-card' }, [
     h('h3', {}, 'S-Curves: Planned / Actual / Forecast (cumulative activity completions)'),

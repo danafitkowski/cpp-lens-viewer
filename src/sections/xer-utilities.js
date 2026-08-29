@@ -137,7 +137,7 @@ function buildCalendarReportCard(A) {
     const html = `<!doctype html><html><head><title>Calendar Report</title>
 <style>body{font-family:system-ui,Arial,sans-serif;max-width:900px;margin:24px auto;padding:16px;color:#0F2540}h1{color:#0F2540}.cal{border:1px solid #D8E0EA;border-radius:10px;padding:14px;margin:14px 0;background:#fff}.cal h2{margin:0 0 8px;font-size:18px}.cal .meta{color:#5A6675;font-size:13px;margin-bottom:8px}.cal ul{margin:8px 0 0;padding-left:18px;font-size:13px}</style>
 </head><body>
-<h1>Calendar Report — ${escHtml(stem + '.xer')}</h1>
+<h1>Calendar Report: ${escHtml(stem + '.xer')}</h1>
 ${cards}
 </body></html>`;
 
@@ -147,7 +147,7 @@ ${cards}
 
   return h('div', { class: 'util-card' }, [
     h('h3', {}, 'Calendar Report'),
-    h('div', { class: 'desc' }, 'Generates a self-contained HTML report of every calendar — work-week, holidays, special workdays. Browser-printable.'),
+    h('div', { class: 'desc' }, 'Generates a self-contained HTML report of every calendar: work-week, holidays, special workdays. Browser-printable.'),
     btn,
     statusEl
   ]);
@@ -212,7 +212,7 @@ export function render({ A, B }) {
   return h('div', { class: 'lens-section-content' }, [
     h('h2', {}, 'XER Utilities'),
     h('p', { style: { color: 'var(--muted)', marginBottom: '4px' } },
-      'Utilities for working with the loaded XER — strip POBS, anonymize, report calendars, or export schema metadata.'),
+      'Utilities for working with the loaded XER: strip POBS, anonymize, report calendars, or export schema metadata.'),
     grid
   ]);
 }

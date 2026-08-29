@@ -12,7 +12,7 @@ const FIX = join(__dirname, '..', 'fixtures');
 describe('Executive Dashboard', () => {
   it('renders empty state when A is null', () => {
     const el = render({ A: null, B: null });
-    expect(el.textContent).toContain('Drop an XER');
+    expect(el.textContent).toContain('Load an XER in the sidebar to populate this dashboard.');
   });
 
   it('renders KPI grid when A is loaded', () => {

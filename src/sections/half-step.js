@@ -250,7 +250,7 @@ function triggerDownload(text, filename, mime = 'text/plain') {
 export function render({ A, B }) {
   if (!A || !B) {
     return h('div', { class: 'lens-section-content' }, [
-      h('h2', {}, 'Half-Step XER — AACE 29R-03 MIP 3.4'),
+      h('h2', {}, 'Half-Step XER (AACE 29R-03 MIP 3.4)'),
       h('div', { class: 'lens-card' }, [
         h('p', {},
           'Load two XERs (baseline + updated) to generate a Half-Step XER.  ' +
@@ -272,7 +272,7 @@ export function render({ A, B }) {
       'progress fields (actual dates, remaining duration, % complete, status) ' +
       'from the UPDATED schedule (A).  Planned dates, durations, logic, names, ' +
       'and WBS remain exactly as B defined them.  This isolates pure progress ' +
-      'impact from plan changes — the canonical AACE 29R-03 MIP 3.4 construct ' +
+      'impact from plan changes: the canonical AACE 29R-03 MIP 3.4 construct ' +
       'for forensic period analysis.'
     )
   ]);
@@ -285,9 +285,9 @@ export function render({ A, B }) {
 
   const kpiRow = h('div', { class: 'kpi-grid' }, [
     kpiCard({ title: 'Matched activities',       big: meta.matched,              sub: matchSub, tone: meta.implausible ? 'red' : 'ink' }),
-    kpiCard({ title: 'Unmatched in updated',     big: meta.unmatchedInUpdated,   sub: 'A-only — dropped (not added to output)' }),
-    kpiCard({ title: 'Unmatched in base',        big: meta.unmatchedInBase,      sub: 'B-only — preserved verbatim' }),
-    kpiCard({ title: 'Ambiguous — not overlaid', big: meta.ambiguousIdentitiesBase, sub: 'base rows with a repeated Activity ID, left verbatim',
+    kpiCard({ title: 'Unmatched in updated',     big: meta.unmatchedInUpdated,   sub: 'A-only: dropped (not added to output)' }),
+    kpiCard({ title: 'Unmatched in base',        big: meta.unmatchedInBase,      sub: 'B-only: preserved verbatim' }),
+    kpiCard({ title: 'Ambiguous: not overlaid',  big: meta.ambiguousIdentitiesBase, sub: 'base rows with a repeated Activity ID, left verbatim',
               tone: meta.ambiguousIdentitiesBase > 0 ? 'red' : 'ink' }),
     kpiCard({ title: 'Logic preserved',          big: meta.logicPreserved,       sub: 'TASKPRED rows from B' })
   ]);
@@ -341,7 +341,7 @@ export function render({ A, B }) {
   // The reconciliation is printed, not asserted: every base row lands in
   // exactly one column and the reader can check the addition.
   const reconciliationCard = h('div', { class: 'lens-card' }, [
-    h('h3', {}, 'Reconciliation — every base row accounted for'),
+    h('h3', {}, 'Reconciliation: every base row accounted for'),
     h('p', {},
       `Base export: ${meta.matched} overlaid + ${meta.unmatchedInBase} preserved (no counterpart in the updated ` +
       `export) + ${meta.ambiguousIdentitiesBase} excluded as ambiguous = ${meta.bCount} activity rows.`
@@ -358,10 +358,10 @@ export function render({ A, B }) {
   // handing over a confident answer. matchRatio is null on the degenerate
   // cases — never format it there, it would print a confident "0.0%".
   const refusalHeadline = {
-    [REFUSAL_REASONS.NO_ACTIVITIES_EITHER]:  'Half-Step withheld — neither schedule has any activities',
-    [REFUSAL_REASONS.NO_ACTIVITIES_UPDATED]: 'Half-Step withheld — the updated schedule has no activities',
-    [REFUSAL_REASONS.NO_ACTIVITIES_BASE]:    'Half-Step withheld — the base schedule has no activities'
-  }[meta.refusalReason] || 'Half-Step withheld — the two schedules barely match';
+    [REFUSAL_REASONS.NO_ACTIVITIES_EITHER]:  'Half-Step withheld: neither schedule has any activities',
+    [REFUSAL_REASONS.NO_ACTIVITIES_UPDATED]: 'Half-Step withheld: the updated schedule has no activities',
+    [REFUSAL_REASONS.NO_ACTIVITIES_BASE]:    'Half-Step withheld: the base schedule has no activities'
+  }[meta.refusalReason] || 'Half-Step withheld: the two schedules barely match';
 
   const refusalDetail = meta.matchRatio === null
     ? `A (updated) holds ${meta.aCount} activities and B (base) holds ${meta.bCount}. ` +
@@ -372,10 +372,10 @@ export function render({ A, B }) {
 
   const refusalAdvice = meta.matchRatio === null
     ? 'A Half-Step is the base schedule with the updated schedule\'s progress overlaid. With one ' +
-      'side empty the output would just be the other file — a valid-looking XER that proves nothing. ' +
+      'side empty the output would just be the other file: a valid-looking XER that proves nothing. ' +
       'Check that both uploads are complete P6 exports and that the TASK table survived the export profile.'
     : 'With this little overlap the output would be the base schedule with almost no ' +
-      'progress overlaid — indistinguishable from a real Half-Step, and wrong. Check that ' +
+      'progress overlaid: indistinguishable from a real Half-Step, and wrong. Check that ' +
       'both files are exports of the SAME project and that their Activity IDs (task_code) ' +
       'were not renumbered between updates.';
 
@@ -406,26 +406,26 @@ export function render({ A, B }) {
     previewContainer.appendChild(h('p', {}, `Matched on Activity ID (task_code): ${meta.matched - meta.matchedOnSurrogate}`));
     if (meta.matchedOnSurrogate > 0) {
       previewContainer.appendChild(h('p', { style: { color: '#B45309' } },
-        `Matched on internal task_id (no Activity ID): ${meta.matchedOnSurrogate} — those matches only hold ` +
+        `Matched on internal task_id (no Activity ID): ${meta.matchedOnSurrogate}. Those matches only hold ` +
         'if both exports happen to number the activity the same way.'
       ));
     }
     if (meta.ambiguousIdentities > 0) {
       previewContainer.appendChild(h('p', { style: { color: '#B45309' } },
-        `Rows excluded in the updated schedule (repeated Activity ID): ${meta.ambiguousIdentities} — no row of ` +
+        `Rows excluded in the updated schedule (repeated Activity ID): ${meta.ambiguousIdentities}. No row of ` +
         'a repeat was used as an overlay source, because either one would be a guess.'
       ));
     }
     if (meta.ambiguousIdentitiesBase > 0) {
       previewContainer.appendChild(h('p', { style: { color: '#B45309' } },
-        `Rows excluded in the base schedule (repeated Activity ID): ${meta.ambiguousIdentitiesBase} — those rows were left ` +
+        `Rows excluded in the base schedule (repeated Activity ID): ${meta.ambiguousIdentitiesBase}. Those rows were left ` +
         'verbatim, because there is no way to tell which of them the updated progress belongs to.'
       ));
     }
     previewContainer.appendChild(
       meta.implausible
         ? h('p', { style: { color: '#C8392F', fontWeight: '700' } },
-            `Half-Step WITHHELD — only ${meta.matched} of a possible ${meta.comparable} activities matched.`)
+            `Half-Step WITHHELD: only ${meta.matched} of a possible ${meta.comparable} activities matched.`)
         : h('p', { style: { color: '#15803D', fontWeight: '700' } },
             'AACE 29R-03 MIP 3.4 Half-Step flag is set.')
     );
@@ -446,7 +446,7 @@ export function render({ A, B }) {
         disabled: true,
         style: { background: '#9CA3AF', color: '#fff', padding: '10px 20px', border: 'none',
                  borderRadius: '4px', cursor: 'not-allowed', fontWeight: '700', marginRight: '12px' }
-      }, 'Half-Step XER withheld — match too low')
+      }, 'Half-Step XER withheld: match too low')
     : h('button', {
         class: 'lens-btn-primary',
         style: { background: '#0F2540', color: '#fff', padding: '10px 20px', border: 'none',
@@ -479,7 +479,7 @@ export function render({ A, B }) {
   const buttonRow = h('div', { style: { margin: '16px 0' } }, [downloadBtn, toggleBtn]);
 
   return h('div', { class: 'lens-section-content' }, [
-    h('h2', {}, 'Half-Step XER — AACE 29R-03 MIP 3.4'),
+    h('h2', {}, 'Half-Step XER (AACE 29R-03 MIP 3.4)'),
     ...(refusalCard ? [refusalCard] : []),
     ...(ambiguityCard ? [ambiguityCard] : []),
     explainerCard,

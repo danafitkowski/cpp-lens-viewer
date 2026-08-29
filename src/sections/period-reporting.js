@@ -63,7 +63,7 @@ export function render({ A, B }) {
     return h('div', { class: 'lens-section-content' }, [
       h('h2', {}, 'Period Reporting'),
       h('div', { class: 'lens-card' }, [
-        h('p', {}, 'Load two XERs — Period Reporting compares progress between baseline and current.')
+        h('p', {}, 'Load two XERs. Period Reporting compares progress between baseline and current.')
       ])
     ]);
   }
@@ -180,7 +180,7 @@ export function render({ A, B }) {
       // Honest degradation: a row with no task_code was matched on the internal
       // surrogate, which is export-specific. Say so rather than printing it under
       // an "Activity ID" header as though it would survive the next export.
-      render: (v, r) => (r.matchedOn === 'task_code' ? String(v) : `${v} (internal ID — no Activity ID)`)
+      render: (v, r) => (r.matchedOn === 'task_code' ? String(v) : `${v} (internal ID, no Activity ID)`)
     },
     { key: 'task_name', label: 'Name' },
     {
@@ -296,7 +296,7 @@ export function render({ A, B }) {
 
     // The reconciliation is printed, not asserted.
     h('div', { class: 'lens-card' }, [
-      h('h3', {}, 'Reconciliation — every row accounted for'),
+      h('h3', {}, 'Reconciliation: every row accounted for'),
       h('p', {},
         `Current export: ${matched.toLocaleString()} compared + ${currentOnly.toLocaleString()} current-only + ` +
         `${aIdx.ambiguous.toLocaleString()} excluded as ambiguous + ${aIdx.noIdentity.toLocaleString()} with no ` +
