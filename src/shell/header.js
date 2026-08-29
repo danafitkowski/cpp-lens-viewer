@@ -1,5 +1,6 @@
 import { h } from '../lib/dom.js';
 import { modelStore } from '../state/model.js';
+import { buildPrintButton } from './print.js';
 
 export function renderHeader() {
   const statusSpan = h('div', { class: 'status', id: 'lens-status', role: 'status', 'aria-live': 'polite' }, 'No XER loaded');
@@ -12,6 +13,10 @@ export function renderHeader() {
     h('div', { class: 'tagline' }, 'Primavera P6 viewer + forensic engine'),
     h('div', { class: 'spacer' }),
     statusSpan,
+    // Print path: the content pane renders one section at a time, so this
+    // prints the active section on a white page under the branded exhibit
+    // header (see ./print.js and the @media print block in shell.css).
+    buildPrintButton(),
     // The word "privacy" appeared nowhere in a 231 KB bundle that accepts
     // schedule files — a gap the site's own evaluation-standard page recorded
     // as an open failure. The posture statements ("XER and XML files are never

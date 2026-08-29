@@ -49,7 +49,7 @@ export function render({ A, B }) {
     return h('div', { class: 'lens-section-content' }, [
       h('h2', {}, 'Narrative Flip'),
       h('div', { class: 'lens-card' }, [
-        h('p', {}, 'Load two XERs — Narrative Flip detects activity-code reassignments between baseline and current.')
+        h('p', {}, 'Load two XERs. Narrative Flip detects activity-code reassignments between baseline and current.')
       ])
     ]);
   }
@@ -201,7 +201,7 @@ export function render({ A, B }) {
       // export-specific surrogate. Say so rather than passing it off as an
       // Activity ID that would survive the next export.
       render: (v, r) => r.matched_on === 'task_id'
-        ? `${v} (internal ID — no Activity ID)`
+        ? `${v} (internal ID, no Activity ID)`
         : String(v == null ? '' : v)
     },
     { key: 'task_name', label: 'Activity Name' },
@@ -249,7 +249,7 @@ export function render({ A, B }) {
       (ambiguousAssignments > 0
         ? `, carrying ${ambiguousAssignments.toLocaleString()} activity-code assignment(s) with them`
         : '') +
-      '. Nothing was merged and nothing was dropped — a repeated Activity ID cannot be matched one-to-one ' +
+      '. Nothing was merged and nothing was dropped: a repeated Activity ID cannot be matched one-to-one ' +
       'across two exports, and this section will not guess which row is which.'
     );
   }
@@ -318,12 +318,12 @@ export function render({ A, B }) {
       )] : []),
       // The reconciliation is printed, not asserted.
       h('p', {},
-        `Reconciliation — current export: ${sharedIds.length.toLocaleString()} compared + ` +
+        `Reconciliation (current export): ${sharedIds.length.toLocaleString()} compared + ` +
         `${aOnlyCount.toLocaleString()} current-only + ${aIdx.ambiguous.toLocaleString()} excluded as ambiguous + ` +
         `${aIdx.noIdentity.toLocaleString()} with no Activity ID = ${aIdx.total.toLocaleString()} activity rows.`
       ),
       h('p', {},
-        `Reconciliation — baseline export: ${sharedIds.length.toLocaleString()} compared + ` +
+        `Reconciliation (baseline export): ${sharedIds.length.toLocaleString()} compared + ` +
         `${bOnlyCount.toLocaleString()} baseline-only + ${bIdx.ambiguous.toLocaleString()} excluded as ambiguous + ` +
         `${bIdx.noIdentity.toLocaleString()} with no Activity ID = ${bIdx.total.toLocaleString()} activity rows.`
       ),

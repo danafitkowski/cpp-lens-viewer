@@ -27,7 +27,52 @@ import { runDeepForensic, toolRequiresBaseline, ENGINE_TOOLS } from '../mcp/clie
 import { anonymizeModelPair } from '../mcp/anonymizer.js';
 import { prefsStore } from '../state/prefs.js';
 import { buildResultPanel } from './deep-forensic-result.js';
+import { SAMPLE_FILENAME, SAMPLE_DEMO_FRAGNETS } from '../sample/sample-schedule.js';
 import { LENS_VERSION } from '../version.js';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ENGINE ERROR TRANSLATION
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Translate a raw Engine schema error into plain-language guidance.
+ *
+ * The Engine's adapters refuse a run that is missing tool-specific options with
+ * messages like "time-impact-analysis requires options.fragnets: list of {id,
+ * name, liability, activities, ties}". Shown raw, that is a dead end: the
+ * viewer has no fragnet UI, so the user is told to supply a data structure they
+ * have no way to enter. Every known "requires options..." message is mapped
+ * here to what the user should actually do instead; an unrecognized
+ * "requires options.X" still gets a generic translation naming the missing
+ * input. Messages that are not schema refusals pass through untranslated.
+ *
+ * Exported for tests (tests/sections/deep-forensic-error-translation.test.js).
+ *
+ * @param {string} message - raw Engine error text
+ * @returns {string|null} plain-language guidance, or null when the message is
+ *   not a recognized schema error (caller shows the raw message instead)
+ */
+export function translateEngineError(message) {
+  const msg = String(message || '');
+  if (/requires options\.fragnets/i.test(msg)) {
+    return 'Time Impact Analysis needs a fragnet: the delay event to insert, ' +
+      'with its activities and logic ties into the schedule. The viewer does ' +
+      'not have a fragnet builder yet. Load the built-in sample schedule to ' +
+      'run a canned demo fragnet, or pick another tool from the list.';
+  }
+  if (/requires options\.delay_events/i.test(msg)) {
+    return 'Collapsed As-Built needs a list of delay events to remove from ' +
+      'the as-built schedule: which activities each event affected and by how ' +
+      'many days. The viewer does not have a delay-event editor yet. Pick ' +
+      'another tool from the list, or contact CPP to run this method on your schedule.';
+  }
+  const generic = msg.match(/requires options\.([A-Za-z0-9_]+)/i);
+  if (generic) {
+    return `This analysis needs an extra input the viewer cannot collect yet (${generic[1]}). ` +
+      'Pick another tool from the list, or contact CPP to run it on your schedule.';
+  }
+  return null;
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TOOL DEFINITIONS
@@ -41,13 +86,13 @@ export const TOOLS = [
     id:          'forensic-delay-analysis',
     title:       'Windows Analysis',
     label:       'MIP 3.3',
-    description: 'Contemporaneous Period Analysis — attribute delay windows to owner, contractor, or concurrent causes.'
+    description: 'Contemporaneous Period Analysis: attribute delay windows to owner, contractor, or concurrent causes.'
   },
   {
     id:          'time-impact-analysis',
     title:       'Time Impact Analysis',
     label:       'MIP 3.7',
-    description: 'Prospective fragnet insertion — quantify the impact of a specific event on project completion.'
+    description: 'Prospective fragnet insertion: quantify the impact of a specific event on project completion.'
   },
   {
     id:          'collapsed-as-built',
@@ -59,7 +104,7 @@ export const TOOLS = [
     id:          'claim-workbench',
     title:       'Claim Workbench',
     label:       'Forensic',
-    description: 'Mixed evidence ledger — chain-of-custody diff, trust scoring, and slip-to-evidence linkage.'
+    description: 'Mixed evidence ledger: chain-of-custody diff, trust scoring, and slip-to-evidence linkage.'
   },
   {
     id:          'schedule-risk-analysis',
@@ -89,12 +134,19 @@ export function render({ A, B }) {
 
   const hasBaseline = !!B;
 
+  // Built-in sample detection: the sample loader stamps SAMPLE_FILENAME on the
+  // model, and with the sample loaded, Time Impact Analysis runs the canned
+  // demo fragnet automatically (see SAMPLE_DEMO_FRAGNETS). Without this, the
+  // default first click on Run could never succeed: TIA is the pre-selected
+  // tool when no baseline is loaded, and the Engine refuses TIA with no fragnet.
+  const isSample = !!(A && A.filename === SAMPLE_FILENAME);
+
   // ── Explainer card ──────────────────────────────────────────────────────────
   const explainerCard = h('div', { class: 'lens-card' }, [
     h('h3', {}, 'Run Deep Forensic Analysis'),
     h('p', {},
       'Submit your schedule to the CPP Engine for a forensic analysis.  ' +
-      'Anonymized by default — your activity names never leave the browser.  ' +
+      'Anonymized by default: your activity names never leave the browser.  ' +
       'Rate-limited to 25 runs per day per IP.'
     )
   ]);
@@ -107,7 +159,7 @@ export function render({ A, B }) {
     ? [
         h('h3', {}, 'Baseline: loaded'),
         h('p', {},
-          'Both files are submitted — the current schedule (A) and the baseline (B).  ' +
+          'Both files are submitted: the current schedule (A) and the baseline (B).  ' +
           'With anonymization on they are tokenized under one map, so the same activity ' +
           'carries the same token in each file and the reported SHA-256 covers both.'
         )
@@ -116,8 +168,8 @@ export function render({ A, B }) {
         h('h3', {}, 'Baseline: none loaded'),
         h('p', {},
           'Only the current schedule (A) will be submitted.  ' +
-          'Tools that compare a baseline against the current schedule are disabled below — ' +
-          'load a second XER in the sidebar to enable them.'
+          'Tools that compare a baseline against the current schedule are disabled below.  ' +
+          'Load a second XER in the sidebar to enable them.'
         )
       ]);
 
@@ -154,6 +206,36 @@ export function render({ A, B }) {
   const blocked = (tool) => toolRequiresBaseline(tool.id) && !hasBaseline;
   let selectedTool = (TOOLS.find(t => !blocked(t)) || TOOLS[0]).id;
 
+  // ── Demo fragnet card (sample schedule + Time Impact Analysis only) ─────────
+  // TIA needs a fragnet and the viewer has no fragnet builder, so the sample
+  // ships with a canned one. This card says exactly what will be submitted, in
+  // the words the run will use, BEFORE the click. Hidden whenever another tool
+  // is selected; never rendered for a user-loaded schedule.
+  const demoFragnet = SAMPLE_DEMO_FRAGNETS[0];
+  const demoFragnetCard = isSample
+    ? h('div', {
+        class: 'lens-card',
+        id: 'deep-forensic-demo-fragnet',
+        style: { borderLeft: '4px solid #0F2540' }
+      }, [
+        h('h3', {}, 'Demo fragnet (sample schedule)'),
+        h('p', {},
+          'Time Impact Analysis needs a delay event (a fragnet) to insert. ' +
+          'The built-in sample runs with a canned demo fragnet: ' +
+          demoFragnet.name.replace(/^Demo fragnet: /, '') + '. It inserts ' +
+          `${demoFragnet.activities[0].duration_days} working days of rework ` +
+          'between Metal Stud Framing (A3010) and Electrical Rough-In (A4000) ' +
+          'on the critical path, so the result shows a real impacted ' +
+          'completion date. Load your own schedule to analyze real events.')
+      ])
+    : null;
+
+  function syncDemoFragnetCard() {
+    if (!demoFragnetCard) return;
+    demoFragnetCard.style.display =
+      (selectedTool === 'time-impact-analysis') ? '' : 'none';
+  }
+
   const radioInputs = [];
 
   const toolCards = TOOLS.map(tool => {
@@ -170,6 +252,7 @@ export function render({ A, B }) {
     radio.disabled = isBlocked;
     radio.addEventListener('change', () => {
       if (radio.checked && !isBlocked) selectedTool = tool.id;
+      syncDemoFragnetCard();
     });
     radioInputs.push(radio);
 
@@ -186,7 +269,7 @@ export function render({ A, B }) {
       labelChildren.push(h('br', {}));
       labelChildren.push(h('span', {
         style: { color: '#B45309', fontSize: '13px', fontWeight: '600' }
-      }, 'Requires a baseline XER — load a second file (B) in the sidebar.'));
+      }, 'Requires a baseline XER. Load a second file (B) in the sidebar.'));
     } else if (hasBaseline) {
       // Say what the Engine does with the baseline for THIS method. Two of the
       // five do not read it, and a user who loaded one should not be left to
@@ -246,8 +329,8 @@ export function render({ A, B }) {
       if (toolRequiresBaseline(selectedTool) && !B) {
         clear(resultPanelSlot);
         setStatus(
-          'This analysis compares a baseline against the current schedule — ' +
-          'load a baseline XER (file B) in the sidebar first.',
+          'This analysis compares a baseline against the current schedule. ' +
+          'Load a baseline XER (file B) in the sidebar first.',
           '#C8392F'
         );
         return;
@@ -298,12 +381,23 @@ export function render({ A, B }) {
           ? 'Submitting to Engine (schedule + baseline)...'
           : 'Submitting to Engine...');
 
+        // Tool-specific options. The ONLY case the viewer can fill today is the
+        // built-in sample running TIA, which submits the canned demo fragnet
+        // announced in the card above. The anonymizer preserves task_code (it
+        // tokenizes names/memos only; see ../mcp/anonymizer.js), so the
+        // fragnet's ties still resolve against the uploaded file with
+        // anonymization on.
+        const options = (isSample && selectedTool === 'time-impact-analysis')
+          ? { fragnets: SAMPLE_DEMO_FRAGNETS, project_name: 'CPP Lens sample (demo fragnet)' }
+          : {};
+
         const result = await runDeepForensic({
           tool:          selectedTool,
           xerBase64,
           xerBaselineBase64,
           anonymized:    anonymize,
           anonMapSha256,
+          options,
           // Read from package.json via src/version.js. This used to be the
           // release string written out as a literal, a second source of truth
           // that would have gone stale on the next bump and told the Engine
@@ -316,7 +410,7 @@ export function render({ A, B }) {
         if (result.status === 'rate_limited') {
           clear(resultPanelSlot);
           setStatus(
-            'Daily limit reached — try again tomorrow or contact us for engagement-grade access.',
+            'Daily limit reached. Try again tomorrow or contact us for engagement-grade access.',
             '#B45309'
           );
         } else if (result.status === 'done' && result.resultUrl) {
@@ -324,7 +418,7 @@ export function render({ A, B }) {
           resultPanelSlot.appendChild(buildResultPanel({
             jobId: result.jobId, resultUrl: result.resultUrl
           }));
-          setStatus('Done — result below. Use Share to send a link.', '#15803D');
+          setStatus('Done. Result below; use Share to send a link.', '#15803D');
         } else {
           clear(resultPanelSlot);
           const detail = (result.errors && result.errors[0]) || `status: ${result.status}`;
@@ -333,10 +427,11 @@ export function render({ A, B }) {
 
       } catch (err) {
         clear(resultPanelSlot);
-        setStatus(
-          'Run failed: ' + (err && err.message ? err.message : 'unknown error'),
-          '#C8392F'
-        );
+        // Known Engine schema refusals become plain-language guidance; anything
+        // else surfaces as-is so a real failure is never papered over.
+        const raw = (err && err.message) ? err.message : 'unknown error';
+        const friendly = translateEngineError(raw);
+        setStatus(friendly ? friendly : 'Run failed: ' + raw, '#C8392F');
       } finally {
         runBtn.disabled = false;
         runBtn.style.opacity = '1';
@@ -344,12 +439,15 @@ export function render({ A, B }) {
     }
   }, 'Run Deep Forensic');
 
+  syncDemoFragnetCard();
+
   return h('div', { class: 'lens-section-content' }, [
     h('h2', {}, 'Deep Forensic'),
     explainerCard,
     baselineCard,
     anonRow,
     toolPickerCard,
+    ...(demoFragnetCard ? [demoFragnetCard] : []),
     runBtn,
     statusArea,
     resultPanelSlot

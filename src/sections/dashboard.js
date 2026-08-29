@@ -12,7 +12,7 @@ export function render({ A, B }) {
     return h('div', { class: 'lens-section-content' }, [
       h('h2', {}, 'Executive Dashboard'),
       h('div', { class: 'lens-card' }, [
-        h('p', {}, 'Drop an XER into the sidebar to see this dashboard come alive.')
+        h('p', {}, 'Load an XER in the sidebar to populate this dashboard.')
       ])
     ]);
   }
@@ -20,7 +20,7 @@ export function render({ A, B }) {
   const m = computeMetrics(A);
   const banner = renderStatusBanner(m);
   const halfStepWarning = A.ermhdr?.isHalfStep
-    ? h('div', { class: 'lens-card lens-warn' }, 'Half-Step XER (AACE 29R-03 MIP 3.4) — derived from base+update merge')
+    ? h('div', { class: 'lens-card lens-warn' }, 'Half-Step XER (AACE 29R-03 MIP 3.4): derived from base+update merge')
     : null;
 
   const elements = [
@@ -36,7 +36,7 @@ export function render({ A, B }) {
       // status_code is TK_Complete. It ignores duration weighting and ignores
       // phys_complete_pct, so it is NOT physical % complete and must not read as
       // though it were. Same wording as the Executive Summary narrative.
-      kpiCard({ title: 'Activities complete', big: `${m.pctActivitiesComplete}%`, sub: `${m.completeCount} of ${m.totalActivities} by count — not physical % complete` }),
+      kpiCard({ title: 'Activities complete', big: `${m.pctActivitiesComplete}%`, sub: `${m.completeCount} of ${m.totalActivities} by count, not physical % complete` }),
       kpiCard({ title: 'Critical activities', big: m.criticalCount.toLocaleString(), sub: `${m.criticalPercent}% of total`, tone: m.criticalPercent > 25 ? 'red' : m.criticalPercent > 15 ? 'amber' : 'green' }),
       kpiCard({ title: 'Data date', big: m.dataDate || '—', sub: 'last_recalc_date' }),
       kpiCard({ title: 'Project finish', big: m.projectFinish || '—', sub: 'scd_end_date' })
@@ -48,7 +48,7 @@ export function render({ A, B }) {
       // Negative-float activities are the most behind-schedule work in the file; an
       // "equals zero" test drops exactly them while still claiming "≤ 0". The split
       // is spelled out so the reader can reconcile this against Critical activities.
-      kpiCard({ title: 'Zero or negative float', big: `${m.nonPositiveFloatPercent}%`, sub: `total float ≤ 0 — ${m.negativeFloatCount} negative, ${m.zeroFloatCount} zero`, tone: m.nonPositiveFloatPercent > 30 ? 'amber' : 'ink' }),
+      kpiCard({ title: 'Zero or negative float', big: `${m.nonPositiveFloatPercent}%`, sub: `total float ≤ 0: ${m.negativeFloatCount} negative, ${m.zeroFloatCount} zero`, tone: m.nonPositiveFloatPercent > 30 ? 'amber' : 'ink' }),
       kpiCard({ title: 'Calendars in use', big: m.calendarsInUse.toLocaleString() })
     ])
   );
@@ -147,13 +147,13 @@ function computeMetrics(A) {
 // the two cards disagreed. One measure, one threshold pair.
 function renderStatusBanner(m) {
   let tone = 'green';
-  let label = 'Schedule status — healthy';
+  let label = 'Schedule status: healthy';
   if (m.criticalPercent > 25) {
     tone = 'red';
-    label = 'Schedule status — high concentration of activities at or below zero total float';
+    label = 'Schedule status: high concentration of activities at or below zero total float';
   } else if (m.criticalPercent > 15) {
     tone = 'amber';
-    label = 'Schedule status — elevated concentration of activities at or below zero total float';
+    label = 'Schedule status: elevated concentration of activities at or below zero total float';
   }
   return h('div', { class: 'lens-status-banner', 'data-tone': tone }, label);
 }
