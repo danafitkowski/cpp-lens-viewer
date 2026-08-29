@@ -564,7 +564,7 @@ describe('a repeated Activity ID is disclosed, never resolved by guessing', () =
     expect(el.textContent).toContain('Repeated across: ALPHA, BRAVO');
     expect(el.textContent).toContain('Second ALPHA A1000');
     // and the reconciliation is printed, not merely true
-    expect(el.textContent).toContain('Reconciliation — every row accounted for');
+    expect(el.textContent).toContain('Reconciliation: every row accounted for');
     expect(el.textContent).toContain('= 5 activity rows.');
   });
 
@@ -593,7 +593,7 @@ describe('a repeated Activity ID is disclosed, never resolved by guessing', () =
     expect(el.textContent).not.toContain('Read this before the numbers');
     expect(el.textContent).toContain('every Activity ID is unique within its file');
     // The reconciliation still prints — it is not a disclosure, it is the sum.
-    expect(el.textContent).toContain('Reconciliation — every row accounted for');
+    expect(el.textContent).toContain('Reconciliation: every row accounted for');
     expect(el.textContent).toContain('3 matched + 0 added + 0 excluded as ambiguous');
   });
 
@@ -614,7 +614,7 @@ describe('a repeated Activity ID is disclosed, never resolved by guessing', () =
     const el = renderHalfStep({ A, B });
     expect(el.textContent).toContain('repeated in the updated export');
     expect(el.textContent).toContain('Repeated across: ALPHA, BRAVO');
-    expect(el.textContent).toContain('Reconciliation — every base row accounted for');
+    expect(el.textContent).toContain('Reconciliation: every base row accounted for');
   });
 
   it('Half-Step leaves a repeated base row verbatim instead of guessing', () => {

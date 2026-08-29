@@ -1,6 +1,5 @@
 import { h, on } from '../lib/dom.js';
 import { getTable } from '@criticalpathpartners/lens-parser';
-import { svgGantt } from './_shared/svg-gantt.js';
 import { kpiCard } from './_shared/kpi-card.js';
 import { taskKey, resolveComparisonAmbiguity } from './_shared/identity.js';
 
@@ -9,7 +8,8 @@ const CAP = 200;
 
 function parseDate(str) {
   if (!str) return null;
-  return new Date(str.slice(0, 10));
+  const d = new Date(str.slice(0, 10));
+  return isNaN(+d) ? null : d;
 }
 
 // Cross-schedule match key — the shared rule lives in _shared/identity.js.
@@ -86,6 +86,219 @@ export function buildActivities(A, B, criticalOnly, showBaseline) {
   return sorted;
 }
 
+// ---------------------------------------------------------------------------
+// Timescale
+//
+// All date math is UTC. parseDate() above builds dates from a YYYY-MM-DD
+// slice, which the Date constructor reads as UTC midnight, so every boundary
+// computed here must use the getUTC*/Date.UTC family or a viewer in a
+// non-UTC timezone gets ticks one day off the bars.
+// ---------------------------------------------------------------------------
+
+const DAY_MS = 86400000;
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+// Unit selection by calendar span:
+//   up to ~3 months  -> weekly ticks (Mondays)
+//   up to 3 years    -> month ticks
+//   longer           -> quarter ticks
+const WEEK_MAX_DAYS  = 90;
+const MONTH_MAX_DAYS = 1095;
+
+/**
+ * Time domain for the chart: min start to max finish over current AND
+ * baseline dates, the data date included, padded 3% (at least one day) each
+ * side so the first and last bars do not touch the edges.
+ *
+ * @returns {{min: Date, max: Date}|null} null when nothing carries a date.
+ */
+export function computeTimeDomain(activities, dataDate) {
+  const times = [];
+  for (const a of activities || []) {
+    for (const d of [a.start, a.end, a.baseline_start, a.baseline_end]) {
+      if (d instanceof Date && !isNaN(+d)) times.push(+d);
+    }
+  }
+  if (dataDate instanceof Date && !isNaN(+dataDate)) times.push(+dataDate);
+  if (times.length === 0) return null;
+  let min = Math.min(...times);
+  let max = Math.max(...times);
+  if (max === min) max = min + DAY_MS;
+  const pad = Math.max((max - min) * 0.03, DAY_MS);
+  return { min: new Date(min - pad), max: new Date(max + pad) };
+}
+
+/**
+ * Tick positions and labels for a [minD, maxD] domain.
+ *
+ * Week ticks land on Mondays; month ticks on the first of each month
+ * (correctly rolling Dec -> Jan across a year end); quarter ticks on
+ * 1 Jan / 1 Apr / 1 Jul / 1 Oct. Every tick lies inside the domain.
+ *
+ * @returns {{unit: 'week'|'month'|'quarter', ticks: {date: Date, label: string}[]}}
+ */
+export function computeTicks(minD, maxD) {
+  const spanDays = (+maxD - +minD) / DAY_MS;
+  const unit = spanDays <= WEEK_MAX_DAYS ? 'week'
+             : spanDays <= MONTH_MAX_DAYS ? 'month'
+             : 'quarter';
+  const ticks = [];
+
+  if (unit === 'week') {
+    // First Monday at or after minD. Stepping by exactly 7 days is safe
+    // because the arithmetic is in UTC, which has no DST.
+    let t = Date.UTC(minD.getUTCFullYear(), minD.getUTCMonth(), minD.getUTCDate());
+    t += ((8 - new Date(t).getUTCDay()) % 7) * DAY_MS;
+    if (t < +minD) t += 7 * DAY_MS;
+    for (; t <= +maxD; t += 7 * DAY_MS) {
+      const dt = new Date(t);
+      ticks.push({ date: dt, label: `${dt.getUTCDate()} ${MONTHS[dt.getUTCMonth()]}` });
+    }
+  } else {
+    const step = unit === 'month' ? 1 : 3;
+    // First boundary at or after minD. Date.UTC normalises month overflow,
+    // so advancing past December lands on January of the next year.
+    let y = minD.getUTCFullYear();
+    let m = unit === 'quarter'
+      ? Math.ceil(minD.getUTCMonth() / 3) * 3
+      : minD.getUTCMonth();
+    let t = Date.UTC(y, m, 1);
+    while (t < +minD) { m += step; t = Date.UTC(y, m, 1); }
+    while (t <= +maxD) {
+      const dt = new Date(t);
+      const yy = String(dt.getUTCFullYear()).slice(2);
+      const label = unit === 'quarter'
+        ? `Q${dt.getUTCMonth() / 3 + 1} ${yy}`
+        : `${MONTHS[dt.getUTCMonth()]} ${yy}`;
+      ticks.push({ date: dt, label });
+      t = Date.UTC(dt.getUTCFullYear(), dt.getUTCMonth() + step, 1);
+    }
+  }
+
+  return { unit, ticks };
+}
+
+// ---------------------------------------------------------------------------
+// SVG rendering — same approach and tokens as the other _shared/svg-* charts.
+// ---------------------------------------------------------------------------
+
+const NS = 'http://www.w3.org/2000/svg';
+
+function svg(tag, attrs = {}, children = []) {
+  const el = document.createElementNS(NS, tag);
+  for (const [k, v] of Object.entries(attrs)) if (v != null) el.setAttribute(k, v);
+  for (const c of children) el.appendChild(c);
+  return el;
+}
+
+function svgText(attrs, str) {
+  const t = svg('text', attrs);
+  t.appendChild(document.createTextNode(str));
+  return t;
+}
+
+const ROW_H    = 24;
+const NAME_W   = 220;
+const HEADER_H = 36;   // timescale header row
+const PAD_R    = 10;
+
+const CRITICAL_COLOR = '#C8392F';
+const NORMAL_COLOR   = '#0F5F99';
+const BASELINE_COLOR = '#94A3B8';
+const GRID_COLOR     = '#E2E8F0';
+const LABEL_COLOR    = '#5A6675';
+const NAVY           = '#0F2540';
+
+const MIN_LABEL_PX = 42;  // narrower tick spacing labels every Nth tick
+
+export function ganttSvg({ activities, dataDate = null, width = 980 }) {
+  if (!activities || activities.length === 0) return h('div', { class: 'lens-empty' }, 'No activities to chart.');
+  const rows = activities.filter(a => a.start && a.end);
+  if (rows.length === 0) return h('div', { class: 'lens-empty' }, 'No activities have dates.');
+
+  const domain = computeTimeDomain(rows, dataDate);
+  const span = +domain.max - +domain.min;
+  const timelineW = width - NAME_W - 20;
+  const xs = (d) => NAME_W + 10 + timelineW * ((+d - +domain.min) / span);
+
+  const totalH = HEADER_H + rows.length * ROW_H + 8;
+  const root = svg('svg', { width, height: totalH, viewBox: `0 0 ${width} ${totalH}`, class: 'lens-gantt' });
+
+  // --- Timescale header: gridlines through the rows, tick labels above ---
+  const { ticks } = computeTicks(domain.min, domain.max);
+  const spacingPx = ticks.length > 1
+    ? (xs(ticks[1].date) - xs(ticks[0].date))
+    : timelineW;
+  const labelEvery = Math.max(1, Math.ceil(MIN_LABEL_PX / Math.max(spacingPx, 1)));
+
+  ticks.forEach((tick, i) => {
+    const x = xs(tick.date);
+    root.appendChild(svg('line', {
+      class: 'gantt-grid', x1: x, x2: x, y1: HEADER_H - 6, y2: totalH,
+      stroke: GRID_COLOR, 'stroke-width': 1
+    }));
+    if (i % labelEvery === 0) {
+      root.appendChild(svgText({
+        class: 'gantt-tick-label', x: x + 3, y: HEADER_H - 10,
+        'font-size': '10', fill: LABEL_COLOR
+      }, tick.label));
+    }
+  });
+
+  // Rule separating the header from the rows.
+  root.appendChild(svg('line', {
+    class: 'gantt-header-rule',
+    x1: NAME_W + 10, x2: width - PAD_R, y1: HEADER_H, y2: HEADER_H,
+    stroke: GRID_COLOR, 'stroke-width': 1
+  }));
+
+  // --- Rows: name, baseline ghost bar (behind), current bar ---
+  rows.forEach((a, i) => {
+    const y = HEADER_H + 2 + i * ROW_H;
+
+    root.appendChild(svgText({
+      x: 8, y: y + 14, 'font-size': '11', fill: NAVY
+    }, String(a.task_name || a.task_id || '').slice(0, 32)));
+
+    if (a.baseline_start && a.baseline_end) {
+      const bx = xs(a.baseline_start);
+      const bw = Math.max(xs(a.baseline_end) - bx, 2);
+      root.appendChild(svg('rect', {
+        class: 'gantt-baseline', x: bx, y: y + 16, width: bw, height: 4,
+        fill: BASELINE_COLOR, rx: 1
+      }));
+    }
+
+    const x = xs(a.start);
+    const w = Math.max(xs(a.end) - x, 2);
+    root.appendChild(svg('rect', {
+      class: 'gantt-bar', x, y: y + 4, width: w, height: 12,
+      fill: a.critical ? CRITICAL_COLOR : NORMAL_COLOR, rx: 2
+    }));
+  });
+
+  // --- Data date reference line, drawn last so it sits above the bars ---
+  if (dataDate instanceof Date && !isNaN(+dataDate)) {
+    const dx = xs(dataDate);
+    root.appendChild(svg('line', {
+      class: 'gantt-datadate', x1: dx, x2: dx, y1: 4, y2: totalH,
+      stroke: NAVY, 'stroke-width': 1.5, 'stroke-dasharray': '4 3'
+    }));
+    const dd = dataDate;
+    const label = `Data date ${dd.getUTCDate()}-${MONTHS[dd.getUTCMonth()]}-${String(dd.getUTCFullYear()).slice(2)}`;
+    const nearRightEdge = dx > width - 130;
+    root.appendChild(svgText({
+      class: 'gantt-datadate-label',
+      x: nearRightEdge ? dx - 4 : dx + 4, y: 12,
+      'text-anchor': nearRightEdge ? 'end' : 'start',
+      'font-size': '9', fill: NAVY
+    }, label));
+  }
+
+  return root;
+}
+
 export function render({ A, B }) {
   if (!A) {
     return h('div', { class: 'lens-section-content' }, [
@@ -93,6 +306,11 @@ export function render({ A, B }) {
       h('div', { class: 'lens-card' }, [h('p', {}, 'No XER loaded.')])
     ]);
   }
+
+  // Data date: first PROJECT row's last_recalc_date, same source as the
+  // Dashboard and Distribution sections.
+  const proj = getTable(A, 'PROJECT')[0];
+  const dataDate = proj ? parseDate(proj.last_recalc_date) : null;
 
   let criticalOnly = false;
   let showBaseline = false;
@@ -108,7 +326,7 @@ export function render({ A, B }) {
 
     while (ganttSlot.firstChild) ganttSlot.removeChild(ganttSlot.firstChild);
 
-    const svgEl = svgGantt({ activities: capped });
+    const svgEl = ganttSvg({ activities: capped, dataDate });
     ganttSlot.appendChild(svgEl);
 
     if (truncated) {

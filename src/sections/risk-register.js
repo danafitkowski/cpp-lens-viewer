@@ -84,7 +84,7 @@ function computeRisks(A) {
         rule: 'Negative float',
         activity_code: taskCode,
         activity_name: taskName,
-        detail: 'Already late — total float is negative.'
+        detail: 'Already late: total float is negative.'
       });
       continue; // priority order — first match wins
     }
@@ -101,7 +101,7 @@ function computeRisks(A) {
         rule: 'Long duration',
         activity_code: taskCode,
         activity_name: taskName,
-        detail: `Duration > ${LONG_DURATION_WD} working days — review for hammock-style summary task.`
+        detail: `Duration > ${LONG_DURATION_WD} working days. Review for hammock-style summary task.`
       });
       continue;
     }

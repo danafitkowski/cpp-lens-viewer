@@ -18,10 +18,10 @@ async function fetchWithTimeout(url, init, timeoutMs, label) {
     return await fetch(url, ctl ? { ...init, signal: ctl.signal } : init);
   } catch (e) {
     if (e && e.name === 'AbortError') {
-      throw new Error(`${label} timed out after ${Math.round(timeoutMs / 1000)}s — the Engine may be busy or unreachable.`);
+      throw new Error(`${label} timed out after ${Math.round(timeoutMs / 1000)}s. The Engine may be busy or unreachable.`);
     }
     // Network failure (offline / DNS / CORS) surfaces as TypeError "Failed to fetch".
-    throw new Error(`${label} failed to reach the Engine — check your connection and try again.`);
+    throw new Error(`${label} failed to reach the Engine. Check your connection and try again.`);
   } finally {
     if (timer) clearTimeout(timer);
   }
@@ -34,7 +34,7 @@ async function jsonOrThrow(resp, label) {
   try {
     return JSON.parse(text);
   } catch {
-    throw new Error(`${label} returned an unexpected (non-JSON) response — the Engine may be redeploying. Try again shortly.`);
+    throw new Error(`${label} returned an unexpected (non-JSON) response. The Engine may be redeploying; try again shortly.`);
   }
 }
 
@@ -62,7 +62,7 @@ async function jsonOrThrow(resp, label) {
 export const ENGINE_TOOLS = {
   'forensic-delay-analysis': {
     requiresBaseline: true,
-    baselineUse: 'the earlier snapshot every window is measured from — required'
+    baselineUse: 'the earlier snapshot every window is measured from (required)'
   },
   'time-impact-analysis': {
     requiresBaseline: false,
@@ -70,7 +70,7 @@ export const ENGINE_TOOLS = {
   },
   'collapsed-as-built': {
     requiresBaseline: false,
-    baselineUse: 'not read — the method subtracts delays from the single as-built schedule'
+    baselineUse: 'not read: the method subtracts delays from the single as-built schedule'
   },
   'claim-workbench': {
     requiresBaseline: false,
@@ -78,7 +78,7 @@ export const ENGINE_TOOLS = {
   },
   'schedule-risk-analysis': {
     requiresBaseline: false,
-    baselineUse: 'not read — Monte Carlo runs on the single schedule'
+    baselineUse: 'not read: Monte Carlo runs on the single schedule'
   }
 };
 
@@ -115,8 +115,8 @@ export function toolRequiresBaseline(tool) {
 export async function runDeepForensic(opts) {
   if (toolRequiresBaseline(opts.tool) && !opts.xerBaselineBase64) {
     throw new Error(
-      `${opts.tool} compares a baseline schedule against the current one — ` +
-      'load a baseline XER (file B) before running it. Submitting a single ' +
+      `${opts.tool} compares a baseline schedule against the current one. ` +
+      'Load a baseline XER (file B) before running it. Submitting a single ' +
       'file would compare the schedule against itself and report zero slip.'
     );
   }
@@ -170,7 +170,7 @@ export async function runDeepForensic(opts) {
     result = await jsonOrThrow(poll, 'Status check');
     if (result.status === 'done' || result.status === 'failed' || result.status === 'rate_limited') return result;
   }
-  throw new Error(`The analysis is taking longer than expected (over ${Math.round(maxPolls * pollMs / 1000)}s). It may still finish — check back, or contact dana@criticalpathpartners.ca for a large schedule.`);
+  throw new Error(`The analysis is taking longer than expected (over ${Math.round(maxPolls * pollMs / 1000)}s). It may still finish. Check back, or contact dana@criticalpathpartners.ca for a large schedule.`);
 }
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
@@ -210,10 +210,10 @@ export async function convertMpp(mppBytes) {
   }, CONVERT_TIMEOUT_MS, 'MPP conversion');
 
   if (resp.status === 503) {
-    throw new Error('MPP conversion isn’t enabled on the server yet — export your schedule from MS Project as XML, or use a P6 XER/XML file.');
+    throw new Error('MPP conversion is not enabled on the server yet. Export your schedule from MS Project as XML, or use a P6 XER/XML file.');
   }
   if (resp.status === 429) {
-    throw new Error('Daily limit reached — try again tomorrow, or use a P6 XER/XML file (no limit).');
+    throw new Error('Daily limit reached. Try again tomorrow, or use a P6 XER/XML file (no limit).');
   }
   const data = await jsonOrThrow(resp, 'MPP conversion');
   if (resp.ok && data.status === 'done' && data.xml) return data.xml;

@@ -4,7 +4,7 @@ import { navStore } from '../state/nav.js';
 import { modelStore } from '../state/model.js';
 import { parseXer, parseP6Xml, getTable, detectBomEncoding } from '@criticalpathpartners/lens-parser';
 import { convertMpp } from '../mcp/client.js';
-import { SAMPLE_XER } from '../sample/sample-schedule.js';
+import { SAMPLE_XER, SAMPLE_FILENAME } from '../sample/sample-schedule.js';
 
 // File loader that picks the parser based on extension.
 //   .xer / .txt → parseXer        (100% local)
@@ -28,7 +28,7 @@ export async function parseUploadedFile(file, onStatus) {
   const maxBytes = isMpp ? MAX_MPP_BYTES : MAX_XER_XML_BYTES;
   if (typeof file.size === 'number' && file.size > maxBytes) {
     const mb = Math.round(file.size / (1024 * 1024));
-    throw new Error(`That file is ${mb} MB — the viewer caps ${isMpp ? 'MPP' : 'XER/XML'} uploads at ${Math.round(maxBytes / (1024 * 1024))} MB. Export a smaller schedule or split it.`);
+    throw new Error(`That file is ${mb} MB. The viewer caps ${isMpp ? 'MPP' : 'XER/XML'} uploads at ${Math.round(maxBytes / (1024 * 1024))} MB. Export a smaller schedule or split it.`);
   }
   if (isMpp) {
     // Say "uploading", not just "converting". A browser cannot parse .mpp, so this
@@ -105,7 +105,7 @@ function renderFileBox() {
       const A = await parseUploadedFile(fa, (m) => showStatus(m, 'info'));
       if (!modelHasContent(A)) {
         showStatus(
-          `"${fa.name}" has no PROJECT or TASK data — is it a valid P6 XER/XML export?`,
+          `"${fa.name}" has no PROJECT or TASK data. Is it a valid P6 XER/XML export?`,
           'error');
         return;
       }
@@ -115,7 +115,7 @@ function renderFileBox() {
         B = await parseUploadedFile(fb, (m) => showStatus(m, 'info'));
         if (!modelHasContent(B)) {
           showStatus(
-            `Baseline "${fb.name}" has no PROJECT or TASK data — loaded the current file only.`,
+            `Baseline "${fb.name}" has no PROJECT or TASK data. Loaded the current file only.`,
             'error');
           B = null;
         }
@@ -147,17 +147,22 @@ function renderFileBox() {
   // throw an unhandled error into the click handler.
   on(sample, 'click', () => {
     try {
-      const A = parseXer(SAMPLE_XER, { filename: 'sample-demo.xer' });
+      const A = parseXer(SAMPLE_XER, { filename: SAMPLE_FILENAME });
       modelStore.set({ A, B: null });
-      showStatus(`Loaded sample — ${getTable(A, 'TASK').length} activities (demo data).`, 'ok');
+      showStatus(`Loaded sample: ${getTable(A, 'TASK').length} activities (demo data).`, 'ok');
     } catch (err) {
       showStatus('Could not load the sample schedule: ' + ((err && err.message) || 'unknown'), 'error');
     }
   });
 
   return h('div', { class: 'file-box' }, [
-    h('label', { for: 'lens-file-a' }, 'Current / update XER'), fileA,
-    h('label', { for: 'lens-file-b' }, 'Previous / baseline XER (optional)'), fileB,
+    // Labels state what the inputs actually accept (the pickers take
+    // .xer/.xml/.mpp/.txt), not just "XER". The format note under them says
+    // where MPP goes: converted on the CPP server, per parseUploadedFile above.
+    h('label', { for: 'lens-file-a' }, 'Current schedule (XER / XML / MPP)'), fileA,
+    h('label', { for: 'lens-file-b' }, 'Baseline schedule (XER / XML / MPP, optional)'), fileB,
+    h('div', { class: 'file-box-note' },
+      'XER and XML files are read entirely in the browser. MPP files are converted to P6 format on the CPP server.'),
     analyze, reset, sample, statusSlot
   ]);
 }

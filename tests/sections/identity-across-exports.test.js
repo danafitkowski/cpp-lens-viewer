@@ -475,7 +475,7 @@ describe('honest degradation — fall back to task_id, and say so', () => {
     const el = renderNarrativeFlip({ A, B });
     expect(kpi(el, 'Shared activities compared')).toBe('5');
     expect(kpi(el, 'Total flips detected')).toBe('3');
-    expect(el.textContent).toContain('900 (internal ID — no Activity ID)');
+    expect(el.textContent).toContain('900 (internal ID, no Activity ID)');
   });
 
   it('Narrative Flip counts code assignments whose task_id has no TASK row', () => {

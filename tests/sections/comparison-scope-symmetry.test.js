@@ -327,7 +327,7 @@ describe('a multi-project file against a single-project file', () => {
     expect(text).toContain('excluded from the comparison');
     expect(text).toContain('cover only the unambiguous remainder');
     expect(text).toContain('Repeated across: ALPHA, BRAVO');
-    expect(text).toContain('Reconciliation — every row accounted for');
+    expect(text).toContain('Reconciliation: every row accounted for');
     expect(text).toContain('Current export: 1 matched + 1 added + 2 excluded as ambiguous + 0 with no Activity ID = 4 activity rows.');
     expect(text).toContain('Baseline export: 1 matched + 0 deleted + 1 excluded as ambiguous + 0 with no Activity ID = 2 activity rows.');
     // The disclosure comes before the KPI numbers in document order.
