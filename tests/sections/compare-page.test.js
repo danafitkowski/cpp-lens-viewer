@@ -26,9 +26,17 @@ describe('How Lens Compares', () => {
     expect(text).toContain('Path Explorer');
     expect(text).toContain('Half-Step XER');
     expect(text).toContain('Monte Carlo');
-    // "Daubert-grade" was deliberately softened sitewide in the 2026-07 audit pass
-    // (Dana's call) — "Court-disclosure footers" is the replacement row, not a typo.
-    expect(text).toContain('Court-disclosure footers');
+    // Comment chain, two deliberate decisions:
+    // 2026-07 (Dana's call): "Daubert-grade" softened to "Court-disclosure
+    // footers" sitewide.
+    // 2026-09-01 (site promise audit): the row was removed from this table
+    // entirely, along with "Claims-grade packaging". Both sat in the FREE
+    // "Lens + Forensic Engine" column, and the Terms of Service say free
+    // output is not a forensic opinion and not for contested proceedings.
+    // Those deliverable properties belong to a retained engagement, which
+    // this table does not cover. The assertions now pin the absence.
+    expect(text).not.toContain('Court-disclosure footers');
+    expect(text).not.toContain('Claims-grade packaging');
   });
 
   it('does not name any specific competitor', () => {
