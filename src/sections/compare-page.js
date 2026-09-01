@@ -15,10 +15,14 @@ const FEATURES = [
   ['MIP 3.7 TIA', 'no', 'no', 'yes'],
   ['MIP 3.8 collapsed as-built', 'no', 'no', 'yes'],
   ['Claim workbench', 'no', 'no', 'yes'],
-  ['Monte Carlo SRA', 'no', 'no', 'yes'],
-  ['Claims-grade packaging', 'no', 'no', 'yes'],
-  ['Court-disclosure footers', 'no', 'no', 'yes']
+  ['Monte Carlo SRA', 'no', 'no', 'yes']
 ];
+// 'Claims-grade packaging' and 'Court-disclosure footers' were removed from
+// this table on 2026-09-01: they are properties of a retained CPP
+// engagement's deliverables, not of the free tools, and listing them under
+// the free 'Lens + Forensic Engine' column contradicted the Terms of
+// Service (free output is not a forensic opinion and is not for contested
+// proceedings).
 
 function cell(state) {
   const map = {
