@@ -280,7 +280,7 @@ export function render({ A, B }) {
   return h('div', { class: 'lens-section-content' }, [
     h('h2', {}, 'DCMA Lite'),
     h('div', { class: 'lens-card' }, [
-      h('p', {}, `14-point screening · ${passCount} PASS · ${reviewCount} REVIEW · ${failCount} FAIL`)
+      h('p', {}, `DCMA screening, ${metrics.length} of the 14 points (CPLI and BEI need a baseline) · ${passCount} PASS · ${reviewCount} REVIEW · ${failCount} FAIL`)
     ]),
     qualityOverlayCard(),
     h('div', { class: 'lens-card' }, [table]),
