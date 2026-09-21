@@ -2,7 +2,7 @@ import { h } from '../lib/dom.js';
 import { getTable } from '@criticalpathpartners/lens-parser';
 import { kpiCard } from './_shared/kpi-card.js';
 import { svgLineChart } from './_shared/svg-line-chart.js';
-import { dayOf, dataDateOf } from './_shared/input-quality.js';
+import { dayOf, dataDateOf, inputQualityCards } from './_shared/input-quality.js';
 
 const LOE_WBS = new Set(['TT_LOE', 'TT_WBS']);
 
@@ -190,6 +190,7 @@ export function render({ A, B }) {
 
   return h('div', { class: 'lens-section-content' }, [
     h('h2', {}, 'EVM / S-Curves Lite'),
+    ...inputQualityCards(A),
     kpiRow,
     ...(cutoffNote ? [cutoffNote] : []),
     chartCard

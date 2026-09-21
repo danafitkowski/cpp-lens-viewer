@@ -1,7 +1,7 @@
 import { h } from '../lib/dom.js';
 import { getTable, getTableAliased } from '@criticalpathpartners/lens-parser';
 import { kpiCard } from './_shared/kpi-card.js';
-import { actualsAfterDataDate } from './_shared/input-quality.js';
+import { actualsAfterDataDate, inputQualityCards } from './_shared/input-quality.js';
 import { computeMetrics as computeDcmaLite, NOT_SCORED } from './dcma-lite.js';
 
 const COMPLETE_STATUS = 'TK_Complete';
@@ -27,6 +27,8 @@ export function render({ A, B }) {
 
   const elements = [
     h('h2', {}, 'Executive Dashboard'),
+    // The input-file finding goes above every figure it qualifies.
+    ...inputQualityCards(A),
     banner
   ];
   if (halfStepWarning) elements.push(halfStepWarning);
