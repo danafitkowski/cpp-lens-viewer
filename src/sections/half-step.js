@@ -7,6 +7,14 @@
  *
  * This isolates "what changed in terms of progress?" from "what changed
  * in terms of plan?" — the canonical MIP 3.4 construct.
+ *
+ * WHAT THIS FILE IS AND IS NOT. MIP 3.4 describes the half-step as the prior
+ * update statused with the current update's progress AND RECALCULATED at the
+ * current data date. This viewer does not recalculate. What it produces is the
+ * overlay, carrying the update's data date, whose early dates, late dates and
+ * float are still the base schedule's calculation. The section and the download
+ * preview both say so, and tell the visitor to schedule it in P6 (F9) before
+ * reading a date from it.
  */
 
 import { h } from '../lib/dom.js';
@@ -181,6 +189,29 @@ export function generateHalfStep(A, B) {
     return !k || !bKeys.has(k);
   }).length;
 
+  // THE DATA DATE. The overlay above carries the update's progress, so the file
+  // has to carry the update's data date with it. This function never touched
+  // PROJECT, so the download kept the BASE schedule's data date: measured on
+  // the public demonstration pair it kept 2025-04-01 where the update's is
+  // 2025-07-01, with 83 completed activities overlaid. A file statused to July
+  // under an April data date is exactly the input fault the rest of this viewer
+  // now warns about. Only last_recalc_date is carried; every other PROJECT
+  // field stays the base schedule's. "The" project is the first PROJECT row,
+  // as everywhere else in the viewer.
+  const projectTable = result.tables?.PROJECT;
+  const baseProject = projectTable?.records?.[0];
+  const dataDateBase = baseProject?.last_recalc_date || '';
+  const dataDateUpdated = (getTable(A, 'PROJECT') || [])[0]?.last_recalc_date || '';
+  let dataDateCarried = false;
+  if (baseProject && dataDateUpdated) {
+    baseProject.last_recalc_date = dataDateUpdated;
+    // writeXer emits declared fields only, so declare it if the base never did.
+    if (Array.isArray(projectTable.fields) && !projectTable.fields.includes('last_recalc_date')) {
+      projectTable.fields.push('last_recalc_date');
+    }
+    dataDateCarried = true;
+  }
+
   // Count TASKPRED rows preserved from B
   const logicPreserved = result.tables?.TASKPRED?.records?.length ?? 0;
 
@@ -212,6 +243,12 @@ export function generateHalfStep(A, B) {
     unmatchedInUpdated,
     unmatchedInBase,
     logicPreserved,
+    // The data date the base file stated, the one the update states, and
+    // whether the update's made it into the output (false when it states none).
+    dataDateBase,
+    dataDateUpdated,
+    dataDateCarried,
+    projectRows: projectTable?.records?.length ?? 0,
     aCount,
     bCount,
     comparable,
@@ -224,8 +261,79 @@ export function generateHalfStep(A, B) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// WHAT TO DO WITH THE FILE
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * The instruction that travels with the file, as plain sentences. Used by the
+ * section AND by the download preview, so the two can never say different
+ * things about the same download.
+ *
+ * @param {object} meta - result._halfStepMeta
+ * @returns {string[]}
+ */
+export function halfStepInstructions(meta) {
+  const updated = (meta.dataDateUpdated || '').slice(0, 10);
+  const base = (meta.dataDateBase || '').slice(0, 10);
+  const lines = [];
+
+  if (meta.dataDateCarried) {
+    lines.push(
+      `Data date in this file: ${updated}, carried over from the updated schedule` +
+      (base && base !== updated ? `. The base schedule's was ${base}.` : '.')
+    );
+  } else {
+    lines.push(
+      `The updated schedule states no data date, so the file keeps the base schedule's, ${base || 'which is also blank'}. ` +
+      'Set the data date in P6 to the date the updated progress was recorded to before you schedule.'
+    );
+  }
+  if (meta.dataDateCarried && base && updated < base) {
+    lines.push(
+      `That is earlier than the base schedule's data date (${base}). Check that the two files are loaded the right way ` +
+      'round: the updated schedule goes in the Current box and the earlier one in the Baseline box.'
+    );
+  }
+  if (meta.projectRows > 1) {
+    lines.push(`The base file holds ${meta.projectRows} projects. The data date was set on the first one only.`);
+  }
+  lines.push(
+    'This viewer does not recalculate. Every early date, late date and float value in the file is still the base ' +
+    'schedule\'s calculation, made before this progress was laid over it.'
+  );
+  lines.push(
+    'AACE RP 29R-03 MIP 3.4 describes the half-step as the prior update statused with the current update\'s progress ' +
+    'and recalculated at the current data date. To get that schedule: import the file into P6, ' +
+    (meta.dataDateCarried ? `confirm the data date reads ${updated}, ` : 'set the data date, ') +
+    'then schedule (F9). Read dates from it only after that.'
+  );
+  return lines;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // DOWNLOAD HELPER
 // ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Name the download after the file the visitor LOADED as the updated schedule.
+ *
+ * It used to be built from PROJECT.proj_short_name, the project name INSIDE
+ * the file. That is how a client's name reached a filename the visitor never
+ * chose: a file loaded under a neutral name came back out named for the
+ * project it contained. The loaded file's own name is the one the visitor
+ * already decided was fit to show.
+ *
+ * @param {object|null} A - the updated schedule's parsed model
+ * @returns {string}
+ */
+export function halfStepFilename(A) {
+  const stem = String((A && A.filename) || '')
+    .replace(/\.(xer|xml|mpp|txt)$/i, '')
+    .replace(/\s+/g, '-')
+    .replace(/[^A-Za-z0-9._-]/g, '')
+    .replace(/^\.+/, '');
+  return `${stem || 'schedule'}-half-step.xer`;
+}
 
 function triggerDownload(text, filename, mime = 'text/plain') {
   const blob = new Blob([text], { type: mime });
@@ -388,15 +496,25 @@ export function render({ A, B }) {
     h('p', { style: { color: '#0F2540' } }, refusalAdvice)
   ]);
 
+  // What the file is and what to do with it, in the section itself and not
+  // only behind the preview toggle: nobody should be able to download this file
+  // without having been told it still has to be scheduled.
+  const instructions = halfStepInstructions(meta);
+  const instructionCard = h('div', { class: 'lens-card lens-warn lens-half-step-instruction' }, [
+    h('h3', {}, 'Before you read a date from this file'),
+    ...instructions.map(t => h('p', {}, t))
+  ]);
+
   // Preview state container
   let previewVisible = false;
-  const previewContainer = h('div', { class: 'lens-card', style: { display: 'none' } });
+  const previewContainer = h('div', { class: 'lens-card lens-half-step-preview', style: { display: 'none' } });
 
   function buildPreview() {
     const taskCount  = model.tables?.TASK?.records?.length ?? 0;
     const isHalfStep = model.ermhdr?.isHalfStep ?? false;
     previewContainer.innerHTML = '';
     previewContainer.appendChild(h('h3', {}, 'Half-Step Model Preview'));
+    for (const t of instructions) previewContainer.appendChild(h('p', {}, t));
     previewContainer.appendChild(h('p', {}, `TASK rows: ${taskCount}`));
     previewContainer.appendChild(h('p', {}, `ermhdr.isHalfStep: ${isHalfStep}`));
     previewContainer.appendChild(h('p', {}, `TASKPRED rows: ${meta.logicPreserved}`));
@@ -431,13 +549,6 @@ export function render({ A, B }) {
     );
   }
 
-  // Derive a sensible filename from A's first PROJECT row
-  function buildFilename() {
-    const projects = getTable(A, 'PROJECT') || [];
-    const shortName = (projects[0]?.proj_short_name || 'schedule').replace(/\s+/g, '-').toLowerCase();
-    return `${shortName}-half-step.xer`;
-  }
-
   // "Generate + Download" button. Withheld entirely when the match is
   // implausible — an unusable file should not be one click away.
   const downloadBtn = meta.implausible
@@ -453,7 +564,7 @@ export function render({ A, B }) {
                  borderRadius: '4px', cursor: 'pointer', fontWeight: '700', marginRight: '12px' },
         onclick() {
           const xerText  = writeXer(model);
-          const filename = buildFilename();
+          const filename = halfStepFilename(A);
           triggerDownload(xerText, filename, 'text/plain');
         }
       }, 'Generate + Download Half-Step XER');
@@ -485,6 +596,7 @@ export function render({ A, B }) {
     explainerCard,
     kpiRow,
     reconciliationCard,
+    instructionCard,
     buttonRow,
     previewContainer
   ]);
