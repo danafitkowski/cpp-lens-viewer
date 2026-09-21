@@ -1,3 +1,4 @@
+import { h } from '../../lib/dom.js';
 import { getTable } from '@criticalpathpartners/lens-parser';
 
 /**
@@ -80,4 +81,33 @@ export function actualsAfterDataDate(model) {
     if (a.any) out.activities++;
   }
   return out;
+}
+
+function plural(n, one, many) {
+  return n === 1 ? one : many;
+}
+
+/**
+ * The finding, rendered identically wherever it appears, worded as a finding
+ * about the INPUT FILE and not as a verdict on the schedule or on anyone who
+ * statused it. Returns [] when the file is statused up to its data date, so a
+ * section spreads it in without a test of its own.
+ *
+ * @param {object|null} model
+ * @param {''|'current'|'baseline'} [role]  names the file on a two-file page
+ * @returns {Node[]}
+ */
+export function inputQualityCards(model, role = '') {
+  const f = actualsAfterDataDate(model);
+  if (f.activities === 0) return [];
+  const name = model && model.filename ? ` (${model.filename})` : '';
+  const file = `${role ? `the ${role} file` : 'this file'}${name}`;
+  return [h('div', { class: 'lens-card lens-warn lens-input-quality' },
+    `Input file finding: in ${file}, ${f.activities.toLocaleString()} of ${f.population.toLocaleString()} activities ` +
+    `${plural(f.activities, 'has', 'have')} an actual start or actual finish after the data date, ${f.dataDate} ` +
+    `(${f.starts.toLocaleString()} actual ${plural(f.starts, 'start', 'starts')} and ` +
+    `${f.finishes.toLocaleString()} actual ${plural(f.finishes, 'finish', 'finishes')}). ` +
+    `The latest actual date in the file is ${f.latestActual}. A data date is the day progress is recorded up to, ` +
+    'so these dates disagree with it. Level of effort and WBS summary activities are not counted. Counts of started ' +
+    'and finished work on this page include these activities unless the page says it leaves them out.')];
 }

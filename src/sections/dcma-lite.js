@@ -3,7 +3,7 @@ import { getTable, getTableAliased, buildPredecessorMap } from '@criticalpathpar
 import { dataTable } from './_shared/data-table.js';
 import { workingDayContext, disclosureCards, HOUR_FIELDS } from './_shared/working-days.js';
 import { taskKey, indexTasks, resolveComparisonAmbiguity } from './_shared/identity.js';
-import { dayOf, dataDateOf, actualsAfter } from './_shared/input-quality.js';
+import { dayOf, dataDateOf, actualsAfter, inputQualityCards } from './_shared/input-quality.js';
 
 const LOE_WBS = new Set(['TT_LOE', 'TT_WBS']);
 const MILESTONES = new Set(['TT_Mile', 'TT_FinMile']);
@@ -383,6 +383,7 @@ export function render({ A, B }) {
 
   return h('div', { class: 'lens-section-content' }, [
     h('h2', {}, 'DCMA Lite'),
+    ...inputQualityCards(A),
     h('div', { class: 'lens-card' }, [
       // Count what was scored. This line used to say "14 of the 14 points" with
       // CPLI and BEI hard-coded to a dash and the Critical Path Test passing on

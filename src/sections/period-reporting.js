@@ -6,6 +6,7 @@ import {
   indexTasks as indexTasksShared, indexTasksByCode, resolveTaskKey, resolveComparisonAmbiguity
 } from './_shared/identity.js';
 import { percentComplete, describeProgressBasis } from './_shared/percent-complete.js';
+import { inputQualityCards } from './_shared/input-quality.js';
 
 /**
  * Compute A − B in calendar days for two date strings.
@@ -251,6 +252,10 @@ export function render({ A, B }) {
 
   const elements = [
     h('h2', {}, 'Period Reporting'),
+    // Both files are read here, so both are checked. "Completed this period"
+    // counts a status change, whatever date the file puts on it.
+    ...inputQualityCards(A, 'current'),
+    ...inputQualityCards(B, 'baseline'),
     ...(ambiguityCard ? [ambiguityCard] : []),
 
     // KPI row
