@@ -37,7 +37,7 @@
 //   Sched Quality Large Float      2   vs 3
 //
 import { describe, it, expect } from 'vitest';
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseXer, getTable, getCalendarMap } from '@criticalpathpartners/lens-parser';
@@ -426,13 +426,12 @@ describe('an 8 hr/day file is unchanged by the fix', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// REAL QA PAIR — Ontario Community College current vs baseline.
+// REAL QA PAIR — the demonstration pair, current vs baseline.
 // Skipped when the files are not on this machine; LENS_QA_XER_DIR overrides.
 // ─────────────────────────────────────────────────────────────────────────────
-import { QA_DIR } from '../qa-corpus.js';
-const QA_CURRENT = `${QA_DIR}/Ontario-Community-College-current.xer`;
-const QA_BASELINE = `${QA_DIR}/Ontario-Community-College-baseline.xer`;
-const HAVE_QA = existsSync(QA_CURRENT) && existsSync(QA_BASELINE);
+// The folder and the two file names come from tests/qa-corpus.js: neutral
+// defaults, overridable by environment or an untracked local config.
+import { QA_CURRENT, QA_BASELINE, HAVE_QA } from '../qa-corpus.js';
 
 describe.skipIf(!HAVE_QA)('real QA pair — working-day thresholds', () => {
   const A = HAVE_QA ? parseXer(readFileSync(QA_CURRENT, 'latin1')) : null;

@@ -44,13 +44,22 @@ header.lens-header {
   color: #FFFFFF;
   padding: 18px 28px;
   display: flex; align-items: center; gap: 16px;
+  /* One unwrappable row made the PAGE wider than a phone once file names were
+     in it: 546px of document in a 390px viewport, with Print and Privacy off
+     the right edge. Wrap onto a second line instead. On a wide screen
+     everything still fits on one line and nothing moves. */
+  flex-wrap: wrap;
 }
 /* .brand is an <h1>; reset the UA default margin so promoting it from a div
    does not shift the header layout. */
 header.lens-header .brand { font-weight: 700; font-size: 18px; margin: 0; }
 header.lens-header .tagline { color: #B7C9DA; font-size: 12px; }
 header.lens-header .spacer { flex: 1; }
-header.lens-header .status { color: #B7C9DA; font-size: 12px; }
+/* The status holds the loaded file names, which are long and unbroken
+   (underscores give a browser nowhere to break). min-width: 0 lets this flex
+   item shrink below its content, and overflow-wrap: anywhere lets a name break,
+   so a long name wraps inside the header instead of setting the page width. */
+header.lens-header .status { color: #B7C9DA; font-size: 12px; min-width: 0; overflow-wrap: anywhere; }
 
 .lens-app {
   display: grid;
@@ -69,6 +78,8 @@ header.lens-header .status { color: #B7C9DA; font-size: 12px; }
   .lens-app {
     grid-template-columns: 1fr;
   }
+  /* Tighter header on a phone, so the wrapped rows have the width to work with. */
+  header.lens-header { padding: 12px 16px; gap: 8px 12px; }
   aside.lens-sidebar {
     max-height: 45vh;
     overflow-y: auto;
@@ -311,6 +322,15 @@ aside.lens-sidebar .file-box .file-box-note { color: #B7C9DA; font-size: 11px; l
 }
 .lens-header .lens-print-btn:hover { filter: brightness(1.05); }
 
+/* Phone: the header's own gap spaces Print and Privacy once they wrap, so the
+   desktop left margins would only indent the second line. Stated here, after
+   both base rules, because a media query adds no specificity (see the note on
+   the phone overrides above). */
+@media (max-width: 860px) {
+  .lens-header .lens-print-btn,
+  .lens-header .privacy-link { margin-left: 0; }
+}
+
 /* ── Print stylesheet ─────────────────────────────────────────────────────────
    Prints the ACTIVE section only (the content pane renders exactly one section
    at a time) on a white page: app chrome (header, sidebar, print button) is
@@ -322,6 +342,8 @@ aside.lens-sidebar .file-box .file-box-note { color: #B7C9DA; font-size: 11px; l
   aside.lens-sidebar,
   .lens-skip,
   .lens-print-btn { display: none !important; }
+  /* A printed exhibit is not the place for a Download button. */
+  .lens-register-csv { display: none !important; }
   .lens-app { display: block; min-height: 0; }
   main.lens-content { padding: 0; overflow: visible; }
   .lens-card { box-shadow: none; break-inside: avoid; }

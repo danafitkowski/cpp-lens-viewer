@@ -3,6 +3,7 @@ import { getTable } from '@criticalpathpartners/lens-parser';
 import { kpiCard } from './_shared/kpi-card.js';
 import { dataTable } from './_shared/data-table.js';
 import { workingDayContext, disclosureCards, HOUR_FIELDS } from './_shared/working-days.js';
+import { percentComplete, describeProgressBasis } from './_shared/percent-complete.js';
 
 // ─────────────────────────────────────────────────────────────────────
 // SPEC CONSTANTS — verbatim from canonical Python skill
@@ -68,10 +69,16 @@ function deriveRow(task, cal) {
   const statusCode = task.status_code || '';
   if (statusCode === COMPLETE_STATUS) return null;
 
-  let pct;
-  try { pct = parseFloat(task.phys_complete_pct || 0); }
-  catch (_) { pct = 0; }
-  if (pct >= 100) return null;
+  let physPct;
+  try { physPct = parseFloat(task.phys_complete_pct || 0); }
+  catch (_) { physPct = 0; }
+  if (physPct >= 100) return null;
+
+  // What the %Done column and the note PRINT is the activity's percent complete
+  // by its own P6 type (see _shared/percent-complete.js). phys_complete_pct
+  // alone stays 0 on an ordinary Duration-type activity however far along it is.
+  // The exclusion above is the spec's and is left exactly as it was.
+  const pct = percentComplete(task).pct;
 
   // Date selection per spec:
   //   START: act_start_date if non-empty (stripped), else early_start_date
@@ -147,7 +154,8 @@ function deriveRow(task, cal) {
  *
  * @param {object} A - Parsed current model
  * @returns {{ dataDate: Date, windows: object[], weekRows: object[][],
- *             activitiesInWindow: number, totalIncomplete: number }}
+ *             activitiesInWindow: number, totalIncomplete: number,
+ *             progressBasis: string }}
  */
 export function computeLookahead(A) {
   // Data date from first PROJECT row's last_recalc_date
@@ -202,6 +210,8 @@ export function computeLookahead(A) {
     weekRows,
     activitiesInWindow: inWindow.size,
     totalIncomplete: rows.length,
+    // The rows whose %Done is printed, so the basis line counts exactly those.
+    progressBasis: describeProgressBasis(converted),
     disclosure: cal.disclose(converted, [
       HOUR_FIELDS.ORIGINAL_DURATION,
       HOUR_FIELDS.REMAINING_DURATION,
@@ -239,7 +249,7 @@ export function render({ A, B }) {
     ]);
   }
 
-  const { dataDate, windows, weekRows, activitiesInWindow, totalIncomplete, disclosure } = computeLookahead(A);
+  const { dataDate, windows, weekRows, activitiesInWindow, totalIncomplete, progressBasis, disclosure } = computeLookahead(A);
 
   // KPI row
   const kpiRow = h('div', { class: 'kpi-grid' }, [
@@ -276,6 +286,11 @@ export function render({ A, B }) {
   return h('div', { class: 'lens-section-content' }, [
     h('h2', {}, '3-Week Lookahead'),
     kpiRow,
+    // The progress basis, above the %Done columns it governs.
+    h('div', { class: 'lens-card' }, [
+      h('p', { class: 'lens-progress-basis' },
+        `%Done basis, over the ${totalIncomplete.toLocaleString()} incomplete activities read: ${progressBasis}`)
+    ]),
     weekRow,
     // OD / RD / TF are printed as days. Name the divisor they were produced at.
     ...disclosureCards(disclosure)

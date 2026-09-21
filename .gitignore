@@ -3,3 +3,6 @@ dist/
 .vitest-cache/
 .DS_Store
 *.log
+# The optional QA corpus is real project data and never belongs in this public repo.
+tests/fixtures/qa/
+tests/qa-corpus.local.json

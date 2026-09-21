@@ -1,6 +1,7 @@
 import { h } from '../lib/dom.js';
 import { getTable } from '@criticalpathpartners/lens-parser';
 import { workingDayContext, divisorCaption, HOUR_FIELDS } from './_shared/working-days.js';
+import { inputQualityCards } from './_shared/input-quality.js';
 
 const MILESTONE_TYPES = new Set(['TT_Mile', 'TT_FinMile']);
 const EXCLUDED_TYPES = new Set(['TT_LOE', 'TT_WBS']);
@@ -47,6 +48,8 @@ export function render({ A, B }) {
 
   return h('div', { class: 'lens-section-content' }, [
     h('h2', {}, 'Executive Summary'),
+    // The narrative counts finished work, so the input-file finding goes above it.
+    ...inputQualityCards(A),
     h('div', { class: 'lens-card lens-narrative' }, [
       h('div', { class: 'lens-narrative-header' }, proj.proj_short_name || '(unnamed project)'),
       h('p', {}, narrative)

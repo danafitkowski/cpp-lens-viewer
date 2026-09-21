@@ -11,7 +11,7 @@ import { assertDivergentSurrogates } from '../fixtures/reexport.js';
 // (task_code) is what stays put. Because the fixture matched on a key that
 // happened to agree, all nine tests passed with the root-cause defect in place
 // — a matcher keyed on task_id looked correct here while matching 0 of 318
-// activities on the real Ontario Community College pair.
+// activities on the real demonstration pair.
 //
 // Every model below therefore draws its surrogates from a side-specific range:
 // the current export numbers in the 9000s, the prior export in the 100s. The
