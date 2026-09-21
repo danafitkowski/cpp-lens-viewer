@@ -31,12 +31,12 @@ import { getTable, getTableAliased, getFirstField } from '@criticalpathpartners/
  * really can repeat an Activity ID. Three successive attempts to solve that by
  * auto-detecting a project scope each produced a NEW way to be confidently
  * wrong, because every project-level field is free to move between two exports
- * of the same project. Measured on the two real Ontario Community College exports:
+ * of the same project. Measured on the real demonstration pair, two exports of
+ * one project (the names are the client's and are written here as patterns):
  *
  *   proj_id          4795                                        vs 4799
- *   proj_short_name  "Ontario Community College"                          vs "Ontario Community College - B2"
- *   WBS root name    "Ontario Community College Building F Expansion (CURRENT - FIXED)"
- *                                                                vs "Ontario Community College - baseline - FOR ANALYSIS"
+ *   proj_short_name  "<name>"                                    vs "<name> - B2"
+ *   WBS root name    "<name> <building> (CURRENT - FIXED)"       vs "<name> - baseline - FOR ANALYSIS"
  *
  * NOT ONE project-level discriminator survives. Scoping that pair on any of
  * them matches 0 of 318 shared Activity IDs. Renaming a project between the

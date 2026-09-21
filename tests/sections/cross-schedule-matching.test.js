@@ -17,7 +17,7 @@
 // endpoints, TASKACTV, TASKRSRC — and reverses TASK row order so a section that
 // matches by array position cannot pass either.
 import { describe, it, expect } from 'vitest';
-import { existsSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { parseXer, getTable } from '@criticalpathpartners/lens-parser';
 import { SAMPLE_XER } from '../../src/sample/sample-schedule.js';
 import { buildActivities } from '../../src/sections/gantt.js';
@@ -112,10 +112,9 @@ describe('cross-schedule matching keys on stable task_code, not surrogate task_i
 // Skipped when the files are not on this machine; LENS_QA_XER_DIR overrides.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { QA_DIR } from '../qa-corpus.js';
-const QA_CURRENT = `${QA_DIR}/Ontario-Community-College-current.xer`;
-const QA_BASELINE = `${QA_DIR}/Ontario-Community-College-baseline.xer`;
-const HAVE_QA = existsSync(QA_CURRENT) && existsSync(QA_BASELINE);
+// The folder and the two file names come from tests/qa-corpus.js: neutral
+// defaults, overridable by environment or an untracked local config.
+import { QA_CURRENT, QA_BASELINE, HAVE_QA } from '../qa-corpus.js';
 
 describe.skipIf(!HAVE_QA)('real QA pair — Gantt baseline overlay', () => {
   const A = HAVE_QA ? parseXer(readFileSync(QA_CURRENT, 'latin1')) : null;

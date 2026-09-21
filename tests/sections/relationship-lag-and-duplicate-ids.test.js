@@ -5,7 +5,7 @@
 // 1. RELATIONSHIP LAG was not in the match key, so a link whose lag moved read
 //    as "retained": the diff reported no change at all on one of the standard
 //    ways a schedule is moved without touching an activity. On the real QA pair
-//    (Ontario Community College current vs baseline) the lag-blind key returned
+//    (the demonstration pair, current vs baseline) the lag-blind key returned
 //    179 added / 59 deleted / 476 retained against a QA-confirmed 183 / 63 / 472
 //    — exactly four relationships whose lag, and nothing else, had changed.
 //
@@ -18,7 +18,7 @@
 //    reassigns on export exactly like task_id (the real QA pair carries 4795 in
 //    the current export and 4799 in the baseline for the SAME project), and
 //    proj_short_name and the WBS root name move too — the same pair reads
-//    "Ontario Community College" vs "Ontario Community College - B2" and
+//    "<name>" vs "<name> - B2" and
 //    "…(CURRENT - FIXED)" vs "…- baseline - FOR ANALYSIS". Every project-level
 //    discriminator fails on the ordinary case of a renamed baseline copy.
 //
@@ -38,7 +38,7 @@
 // share NOTHING in task_id (or proj_id). Every test fails against the pre-fix
 // source.
 import { describe, it, expect } from 'vitest';
-import { existsSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { parseXer, getTable, getTableAliased } from '@criticalpathpartners/lens-parser';
 import { diffModels } from '../../src/sections/_shared/diff-models.js';
 import {
@@ -471,7 +471,7 @@ describe('a repeated Activity ID is disclosed, never resolved by guessing', () =
   });
 
   it('a project renamed between exports changes nothing — the name is never consulted', () => {
-    // "Ontario Community College" vs "Ontario Community College - B2": the baseline was saved as
+    // "<name>" vs "<name> - B2": the baseline was saved as
     // a copy and renamed, which is ordinary practice.
     const d = diffModels(singleProjA(), singleProjB());
     expect(d.counts.activitiesChanged).toBe(0);
@@ -805,12 +805,11 @@ describe('Half-Step refuses the degenerate input it used to render confidently',
 //    472 retained relationships.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { QA_DIR } from '../qa-corpus.js';
-const QA_CURRENT = `${QA_DIR}/Ontario-Community-College-current.xer`;
-const QA_BASELINE = `${QA_DIR}/Ontario-Community-College-baseline.xer`;
-const HAVE_QA = existsSync(QA_CURRENT) && existsSync(QA_BASELINE);
+// The folder and the two file names come from tests/qa-corpus.js: neutral
+// defaults, overridable by environment or an untracked local config.
+import { QA_CURRENT, QA_BASELINE, HAVE_QA } from '../qa-corpus.js';
 
-describe.skipIf(!HAVE_QA)('real QA pair — Ontario Community College current vs baseline', () => {
+describe.skipIf(!HAVE_QA)('real QA pair — current vs baseline', () => {
   const A = HAVE_QA ? parseXer(readFileSync(QA_CURRENT, 'latin1')) : null;
   const B = HAVE_QA ? parseXer(readFileSync(QA_BASELINE, 'latin1')) : null;
 
