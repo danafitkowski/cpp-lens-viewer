@@ -1,6 +1,8 @@
 import { h } from '../lib/dom.js';
 import { getTable, getTableAliased } from '@criticalpathpartners/lens-parser';
 import { kpiCard } from './_shared/kpi-card.js';
+import { actualsAfterDataDate } from './_shared/input-quality.js';
+import { computeMetrics as computeDcmaLite, NOT_SCORED } from './dcma-lite.js';
 
 const COMPLETE_STATUS = 'TK_Complete';
 const ACTIVE_STATUS = 'TK_Active';
@@ -18,7 +20,7 @@ export function render({ A, B }) {
   }
 
   const m = computeMetrics(A);
-  const banner = renderStatusBanner(m);
+  const banner = renderStatusBanner(m, computeDcmaLite(A, B), actualsAfterDataDate(A));
   const halfStepWarning = A.ermhdr?.isHalfStep
     ? h('div', { class: 'lens-card lens-warn' }, 'Half-Step XER (AACE 29R-03 MIP 3.4): derived from base+update merge')
     : null;
@@ -145,15 +147,38 @@ function computeMetrics(A) {
 // zeroFloatPercent — as though they measured different things. They read the same
 // population (total float ≤ 0), so the second test only ever masked the fact that
 // the two cards disagreed. One measure, one threshold pair.
-function renderStatusBanner(m) {
+//
+// "Healthy" is a statement about the whole file, so it cannot stand beside a
+// failed check or a file statused past its own data date. It used to: the public
+// demonstration file read "Schedule status: healthy" here while the full
+// assessment graded the same file F, because this banner looked at the float
+// concentration and nothing else. It now also reads the DCMA Lite results (the
+// same rows that page prints) and the actual-dates-after-data-date check, and
+// names what it found instead of summarising it away.
+function renderStatusBanner(m, dcma, actuals) {
+  const findings = [];
   let tone = 'green';
-  let label = 'Schedule status: healthy';
   if (m.criticalPercent > 25) {
     tone = 'red';
-    label = 'Schedule status: high concentration of activities at or below zero total float';
+    findings.push('high concentration of activities at or below zero total float');
   } else if (m.criticalPercent > 15) {
     tone = 'amber';
-    label = 'Schedule status: elevated concentration of activities at or below zero total float';
+    findings.push('elevated concentration of activities at or below zero total float');
   }
+
+  const scored = dcma.metrics.filter(x => x.status !== NOT_SCORED);
+  const failed = scored.filter(x => x.status === 'FAIL').map(x => x.name.split(' (')[0]);
+  if (failed.length > 0) {
+    tone = 'red';
+    findings.push(`${failed.length} of the ${scored.length} DCMA Lite checks scored on this file ` +
+      `${failed.length === 1 ? 'fails' : 'fail'} (${failed.join(', ')})`);
+  }
+  if (actuals.activities > 0) {
+    if (tone === 'green') tone = 'amber';
+    findings.push(`${actuals.activities.toLocaleString()} ${actuals.activities === 1 ? 'activity carries' : 'activities carry'} ` +
+      'an actual date after the data date');
+  }
+
+  const label = findings.length === 0 ? 'Schedule status: healthy' : `Schedule status: ${findings.join('; ')}`;
   return h('div', { class: 'lens-status-banner', 'data-tone': tone }, label);
 }
