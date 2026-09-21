@@ -7,6 +7,7 @@ import {
 } from './_shared/identity.js';
 import { percentComplete, describeProgressBasis } from './_shared/percent-complete.js';
 import { inputQualityCards } from './_shared/input-quality.js';
+import { registerCsvButton, countNoun } from './_shared/register-csv.js';
 
 /**
  * Compute A − B in calendar days for two date strings.
@@ -137,14 +138,19 @@ export function render({ A, B }) {
 
     // Bucket assignment (in priority order)
     if (bStatus !== 'TK_Complete' && aStatus === 'TK_Complete') {
+      row.bucket = 'Completed this period';
       completedThisPeriod.push(row);
     } else if (bStatus === 'TK_NotStart' && aStatus === 'TK_Active') {
+      row.bucket = 'Started this period';
       startedThisPeriod.push(row);
     } else if (dateDelta > 0) {
+      row.bucket = 'Slipped';
       slipped.push(row);
     } else if (dateDelta < 0) {
+      row.bucket = 'Accelerated';
       accelerated.push(row);
     } else {
+      row.bucket = 'Unchanged';
       // Catch-all: status unchanged, target_end_date unchanged, but something else
       // moved (typically percent complete). This activity already contributed to
       // earnedWeightedSum/earnedWeightTotal above, so it must still land in exactly
@@ -203,6 +209,24 @@ export function render({ A, B }) {
 
   const currentOnly  = aTasks.size - matched;
   const baselineOnly = bTasks.size - matched;
+
+  // The full register as CSV. Each bucket table below draws its first 200 rows
+  // and says so; this carries every matched activity, with the bucket it fell in.
+  const registerRows = [...completedThisPeriod, ...startedThisPeriod, ...slipped, ...accelerated, ...unchanged];
+  const registerButton = registerCsvButton({
+    A, B, filename: 'period-reporting-register.csv',
+    label: `Download the full period register: ${countNoun(registerRows.length, 'activity', 'activities')} (CSV)`,
+    fields: ['Bucket', 'Activity ID', 'Matched on', 'Name',
+             'Change in percent complete (points)', 'Change in planned finish (calendar days)'],
+    rows: registerRows.map(r => ({
+      'Bucket': r.bucket,
+      'Activity ID': r.activityId,
+      'Matched on': r.matchedOn === 'task_code' ? 'Activity ID' : 'internal task_id',
+      'Name': r.task_name,
+      'Change in percent complete (points)': r.pctDelta.toFixed(1),
+      'Change in planned finish (calendar days)': r.dateDelta
+    }))
+  });
 
   /**
    * Join project labels for disclosure, or say plainly that the file does not
@@ -311,7 +335,8 @@ export function render({ A, B }) {
         `Every bucket total covers the ${matched.toLocaleString()} activities present, unambiguously, in both files: ` +
         `${completedThisPeriod.length} + ${startedThisPeriod.length} + ${slipped.length} + ${accelerated.length} + ` +
         `${unchanged.length} = ${matched.toLocaleString()}.`
-      )
+      ),
+      ...(registerButton ? [registerButton] : [])
     ]),
 
     // The reconciliation is printed, not asserted.
