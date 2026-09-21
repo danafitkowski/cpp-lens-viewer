@@ -342,6 +342,8 @@ aside.lens-sidebar .file-box .file-box-note { color: #B7C9DA; font-size: 11px; l
   aside.lens-sidebar,
   .lens-skip,
   .lens-print-btn { display: none !important; }
+  /* A printed exhibit is not the place for a Download button. */
+  .lens-register-csv { display: none !important; }
   .lens-app { display: block; min-height: 0; }
   main.lens-content { padding: 0; overflow: visible; }
   .lens-card { box-shadow: none; break-inside: avoid; }
