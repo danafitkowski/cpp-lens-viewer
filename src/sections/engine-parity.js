@@ -33,8 +33,9 @@ import { dataTable } from './_shared/data-table.js';
  * lens-kpi-value, lens-kpi-sub, lens-note) that do not exist in shell.css, so it
  * would have rendered unstyled while looking correct in source.
  */
-// Bumped 2026-09-21 from 2.9.43 (2026-09-07 from 2.9.42; 2026-08-19 from 2.9.40;
-// 2026-08-16 from 2.9.39). This is a COPY of the engine's SSOT
+// Bumped 2026-09-21 from 2.9.44, and earlier the same day from 2.9.43
+// (2026-09-07 from 2.9.42; 2026-08-19 from 2.9.40; 2026-08-16 from 2.9.39).
+// This is a COPY of the engine's SSOT
 // (~/.claude/skills/_cpp_common/scripts/engine_version.py), which a browser
 // bundle cannot read, and it had already drifted a release behind it. The copy
 // is pinned to the SSOT by tests/unit/engine-parity.test.js, which was failing
@@ -45,11 +46,13 @@ import { dataTable } from './_shared/data-table.js';
 // here (the Deep Forensic path posts to the CPP server, src/mcp/client.js), so
 // this string is a statement about the RELEASED engine the parity figures below
 // were measured on, not about a copy shipped in this page. Nothing else needed
-// changing for 2.9.44: the crossval constants below still match the SSOT and a
-// live run of the engine's own harness, and the generated P6 comparison matrix,
-// regenerated at 2.9.44, still reports 13 of 13. Every one of those is checked
-// against its source by that test rather than taken on trust.
-const ENGINE_VERSION = '2.9.44';
+// changing for 2.9.45 but the JS unit count: the crossval constants below still
+// match the SSOT, and the generated P6 comparison matrix still reports 13 of 13.
+// Every one of those is checked against its source by that test rather than
+// taken on trust, which is how the stale pair below was found — the deployed
+// bundle told visitors 2.9.44 for the hours between the engine's release and
+// this bump.
+const ENGINE_VERSION = '2.9.45';
 
 // Layer 1 — two ports of the same algorithm, by the same author.
 const CROSSVAL_FIXTURES = 46;
@@ -57,7 +60,7 @@ const CROSSVAL_EXECUTED = 1009;
 const CROSSVAL_POSSIBLE = 1015;
 const CROSSVAL_SKIPPED = 6;
 const CROSSVAL_CLEAN_FIXTURES = 43;
-const JS_UNIT_TESTS = 1288;
+const JS_UNIT_TESTS = 1306;
 const ENGINE_STATEMENT_COVERAGE = '41%';
 
 // Layer 2 — the engine against Primavera P6 itself.
