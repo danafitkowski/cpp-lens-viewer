@@ -25,25 +25,40 @@ describe('DCMA Lite', () => {
   // while §4.11 is a finish test with a 5% ceiling.
   // -------------------------------------------------------------------------
 
-  it('C10 Resources reports N/A when the export carries no TASKRSRC at all', () => {
+  // Changed 2026-09-21. This test used to pin the bare text "N/A". An unscored
+  // row now says "Not scored here" with its reason and carries the NOT SCORED
+  // status, so the reader can tell a check that was not run from one that
+  // passed. What the test protects is unchanged: no TASKRSRC means no fake
+  // verdict, and the target stays 100%, never the 80% band.
+  it('C10 Resources is not scored, with the reason, when the export carries no TASKRSRC at all', () => {
     const A = parseXer(readFileSync(join(FIX, 'minimal-3-task.xer'), 'utf-8'));
     const el = render({ A, B: null });
     const rows = Array.from(el.querySelectorAll('tbody tr'));
     const c10 = rows.find(r => /Resources/.test(r.textContent));
     expect(c10).toBeTruthy();
-    expect(c10.textContent).toContain('N/A');
+    expect(c10.textContent).toContain('Not scored here: the file carries no resource assignments');
+    expect(c10.textContent).toContain('NOT SCORED');
+    expect(c10.textContent).not.toContain('PASS');
     expect(c10.textContent).toContain('100%');
     expect(c10.textContent).not.toContain('80');
   });
 
-  it('C11 Missed Tasks carries the 5% band, not a zero target', () => {
+  // Changed 2026-09-21. This test used to pin the label "past planned finish".
+  // The check no longer reads the current file's own planned finish (P6 moves
+  // that on every update, which is why the public demonstration pair read 0.0%
+  // PASS where the full assessment finds 38 of 43). It is measured against the
+  // baseline finish, so with no baseline loaded it is not scored. The 5% band
+  // this test was written to protect is still asserted.
+  it('C11 Missed Tasks carries the 5% band, not a zero target, and needs a baseline', () => {
     const A = parseXer(readFileSync(join(FIX, 'minimal-3-task.xer'), 'utf-8'));
     const el = render({ A, B: null });
     const rows = Array.from(el.querySelectorAll('tbody tr'));
     const c11 = rows.find(r => /Missed Tasks/.test(r.textContent));
     expect(c11).toBeTruthy();
     expect(c11.textContent).toMatch(/5\s*%/);
-    expect(c11.textContent).toContain('past planned finish');
+    expect(c11.textContent).toContain('late against the baseline finish');
+    expect(c11.textContent).toContain('needs a baseline');
+    expect(c11.textContent).not.toContain('PASS');
   });
 
   it('renders 14 rows in the metrics table when XER is loaded', () => {

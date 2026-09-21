@@ -2,6 +2,7 @@ import { h } from '../lib/dom.js';
 import { getTable } from '@criticalpathpartners/lens-parser';
 import { kpiCard } from './_shared/kpi-card.js';
 import { svgLineChart } from './_shared/svg-line-chart.js';
+import { dayOf, dataDateOf, inputQualityCards } from './_shared/input-quality.js';
 
 const LOE_WBS = new Set(['TT_LOE', 'TT_WBS']);
 
@@ -48,14 +49,12 @@ function countAtDate(curve, targetMs) {
   return last;
 }
 
-export function render({ A, B }) {
-  if (!A) {
-    return h('div', { class: 'lens-section-content' }, [
-      h('h2', {}, 'EVM / S-Curves Lite'),
-      h('div', { class: 'lens-card' }, [h('p', {}, 'No XER loaded.')])
-    ]);
-  }
-
+/**
+ * The curves and the figures on the cards. Exported for regression testing.
+ *
+ * @param {object} A - Parsed current model
+ */
+export function computeEvm(A) {
   const tasks    = getTable(A, 'TASK').filter(t => !LOE_WBS.has(t.task_type || ''));
   const projRows = getTable(A, 'PROJECT');
   const project  = projRows[0] || {};
@@ -74,8 +73,21 @@ export function render({ A, B }) {
     .filter(Boolean);
   const plannedCurve = buildCumulativeCurve(plannedDates);
 
-  // --- Actual curve: cumulative count by act_end_date (populated only) ---
-  const actualDates = tasks
+  // --- Actual curve: cumulative count by act_end_date, UP TO THE DATA DATE ---
+  // "To date" means to the data date. This curve used to take every
+  // act_end_date in the file, so on a file statused past its data date it ran
+  // on into the future and the "Actual Finishes to Date" card, which reads its
+  // last point, overstated finished work: 113 shown on the public demonstration
+  // file, 31 true. Dates are compared by day (see _shared/input-quality.js).
+  // The finishes left out are counted and reported on the page, never dropped
+  // silently.
+  const ddDay = dataDateOf(A);
+  const finishedTasks = tasks.filter(t => dayOf(t.act_end_date) !== '');
+  const finishesAfterDataDate = ddDay
+    ? finishedTasks.filter(t => dayOf(t.act_end_date) > ddDay).length
+    : 0;
+  const actualDates = finishedTasks
+    .filter(t => !ddDay || dayOf(t.act_end_date) <= ddDay)
     .map(t => parseDate(t.act_end_date))
     .filter(Boolean);
   const actualCurve = buildCumulativeCurve(actualDates);
@@ -119,6 +131,27 @@ export function render({ A, B }) {
     ? actualCurve[actualCurve.length - 1].y
     : 0;
 
+  return {
+    dataDate, ddDay, planEndDate, totalActivities,
+    plannedCurve, actualCurve, forecastCurve,
+    spiText, spiTone, actualFinishCount, finishesAfterDataDate
+  };
+}
+
+export function render({ A, B }) {
+  if (!A) {
+    return h('div', { class: 'lens-section-content' }, [
+      h('h2', {}, 'EVM / S-Curves Lite'),
+      h('div', { class: 'lens-card' }, [h('p', {}, 'No XER loaded.')])
+    ]);
+  }
+
+  const {
+    dataDate, ddDay, planEndDate, totalActivities,
+    plannedCurve, actualCurve, forecastCurve,
+    spiText, spiTone, actualFinishCount, finishesAfterDataDate
+  } = computeEvm(A);
+
   // --- Build series (omit empty) ---
   const series = [];
   if (plannedCurve.length > 0) {
@@ -134,7 +167,8 @@ export function render({ A, B }) {
   const kpiRow = h('div', { class: 'kpi-grid' }, [
     kpiCard({ title: 'Total Activities',       big: totalActivities,          sub: 'excl. LOE / WBS' }),
     kpiCard({ title: 'Planned Finish',         big: planEndDate ? planEndDate.slice(0, 10) : '—', sub: 'scd_end_date' }),
-    kpiCard({ title: 'Actual Finishes to Date', big: actualFinishCount,       sub: 'activities with act_end_date' }),
+    kpiCard({ title: 'Actual Finishes to Date', big: actualFinishCount,
+              sub: ddDay ? 'actual finish (act_end_date) on or before the data date' : 'activities with act_end_date' }),
     kpiCard({ title: 'Data Date',              big: dataDate ? dataDate.slice(0, 10) : '—', sub: 'last_recalc_date' }),
     kpiCard({ title: 'SPI Proxy',              big: spiText,                  sub: 'actual / planned at data date', tone: spiTone })
   ]);
@@ -148,9 +182,17 @@ export function render({ A, B }) {
     chartArea
   ]);
 
+  // One line, only when it applies: what was left out of "to date", and why.
+  const cutoffNote = finishesAfterDataDate === 0 ? null : h('div', { class: 'lens-card lens-warn lens-evm-cutoff' },
+    `${finishesAfterDataDate.toLocaleString()} actual finish ${finishesAfterDataDate === 1 ? 'date falls' : 'dates fall'} ` +
+    `after the data date (${ddDay}). ${finishesAfterDataDate === 1 ? 'It is' : 'They are'} left out of the Actual curve, ` +
+    'of "Actual Finishes to Date" and of the SPI proxy, which all stop at the data date.');
+
   return h('div', { class: 'lens-section-content' }, [
     h('h2', {}, 'EVM / S-Curves Lite'),
+    ...inputQualityCards(A),
     kpiRow,
+    ...(cutoffNote ? [cutoffNote] : []),
     chartCard
   ]);
 }

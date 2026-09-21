@@ -2,6 +2,7 @@ import { h } from '../lib/dom.js';
 import { diffModels } from './_shared/diff-models.js';
 import { kpiCard } from './_shared/kpi-card.js';
 import { dataTable } from './_shared/data-table.js';
+import { registerCsvButton, countNoun } from './_shared/register-csv.js';
 
 /**
  * Join a list of project labels into a readable clause, or say plainly that the
@@ -110,6 +111,67 @@ export function render({ A, B }) {
     ...notices.map(t => h('p', { style: { color: '#0F2540' } }, t))
   ]);
 
+  // The relationship register, built once: the table below draws the first 200
+  // rows of it and the CSV beside it carries all of them.
+  const relationshipRows = [
+    // A row flagged lag_changed is one half of a re-lag: the same
+    // pred/succ/type exists on the other side with a different lag. It is
+    // counted in the +/− totals, and labelled so the reader does not read
+    // it as a link that appeared or vanished.
+    ...d.relationships.added.map(r => ({ ...r, change: r.lag_changed ? 'added (lag changed)' : 'added' })),
+    ...d.relationships.deleted.map(r => ({ ...r, change: r.lag_changed ? 'deleted (lag changed)' : 'deleted' }))
+  ];
+
+  // The full registers as CSV. The tables cap what they draw and say so; these
+  // carry every row, with full values where the screen cuts a cell short.
+  const activityCsv = (t) => ({ 'Activity ID': t.task_code || '', 'Internal ID': t.task_id || '', 'Name': t.task_name || '' });
+  const endpointCsv = (r) => ({
+    'Predecessor': r.pred_code, 'Successor': r.succ_code,
+    'Endpoints resolved to Activity IDs': r.endpoints_resolved ? 'yes' : 'no', 'Type': r.pred_type
+  });
+  const csvButtons = {
+    added: registerCsvButton({
+      A, B, filename: 'xer-comparison-added-activities.csv',
+      label: `Download the full register: ${countNoun(d.tasks.added.length, 'added activity', 'added activities')} (CSV)`,
+      fields: ['Activity ID', 'Internal ID', 'Name'],
+      rows: d.tasks.added.map(activityCsv)
+    }),
+    deleted: registerCsvButton({
+      A, B, filename: 'xer-comparison-deleted-activities.csv',
+      label: `Download the full register: ${countNoun(d.tasks.deleted.length, 'deleted activity', 'deleted activities')} (CSV)`,
+      fields: ['Activity ID', 'Internal ID', 'Name'],
+      rows: d.tasks.deleted.map(activityCsv)
+    }),
+    changed: registerCsvButton({
+      A, B, filename: 'xer-comparison-field-changes.csv',
+      label: `Download the full register: ${countNoun(d.tasks.changed.length, 'field change', 'field changes')} (CSV)`,
+      fields: ['Activity ID', 'Matched on', 'Name', 'Field', 'Before', 'After', 'Change (calendar days)'],
+      rows: d.tasks.changed.map(r => ({
+        'Activity ID': r.task_code || r.task_id,
+        // Same honest degradation as the table: say when a row had no
+        // Activity ID and was matched on the internal surrogate instead.
+        'Matched on': r.task_code ? 'Activity ID' : 'internal task_id',
+        'Name': r.task_name, 'Field': r.field, 'Before': r.before, 'After': r.after,
+        'Change (calendar days)': r.daysDelta == null ? '' : r.daysDelta
+      }))
+    }),
+    relationships: registerCsvButton({
+      A, B, filename: 'xer-comparison-relationship-changes.csv',
+      label: `Download the full register: ${countNoun(relationshipRows.length, 'relationship change', 'relationship changes')} (CSV)`,
+      fields: ['Predecessor', 'Successor', 'Endpoints resolved to Activity IDs', 'Type', 'Lag (hr)', 'Change'],
+      rows: relationshipRows.map(r => ({ ...endpointCsv(r), 'Lag (hr)': r.lag_hr_cnt, 'Change': r.change }))
+    }),
+    lagChanged: registerCsvButton({
+      A, B, filename: 'xer-comparison-lag-changes.csv',
+      label: `Download the full register: ${countNoun(d.relationships.lagChanged.length, 'lag change', 'lag changes')} (CSV)`,
+      fields: ['Predecessor', 'Successor', 'Endpoints resolved to Activity IDs', 'Type', 'Lag before (hr)', 'Lag after (hr)', 'Change in lag (hr)'],
+      rows: d.relationships.lagChanged.map(r => ({
+        ...endpointCsv(r), 'Lag before (hr)': r.lag_before_hr, 'Lag after (hr)': r.lag_after_hr,
+        'Change in lag (hr)': r.lagDeltaHr == null ? '' : r.lagDeltaHr
+      }))
+    })
+  };
+
   const elements = [
     h('h2', {}, 'XER Comparison'),
     ...(noticeCard ? [noticeCard] : []),
@@ -193,6 +255,7 @@ export function render({ A, B }) {
     ]),
     h('div', { class: 'lens-card' }, [
       h('h3', {}, 'Added activities'),
+      ...(csvButtons.added ? [csvButtons.added] : []),
       dataTable({
         columns: [
           { key: 'task_code', label: 'Activity ID' },
@@ -210,6 +273,7 @@ export function render({ A, B }) {
     ]),
     h('div', { class: 'lens-card' }, [
       h('h3', {}, 'Deleted activities'),
+      ...(csvButtons.deleted ? [csvButtons.deleted] : []),
       dataTable({
         columns: [
           { key: 'task_code', label: 'Activity ID' },
@@ -227,6 +291,7 @@ export function render({ A, B }) {
     ]),
     h('div', { class: 'lens-card' }, [
       h('h3', {}, 'Field changes: one row per changed field'),
+      ...(csvButtons.changed ? [csvButtons.changed] : []),
       dataTable({
         columns: [
           {
@@ -250,6 +315,7 @@ export function render({ A, B }) {
     ]),
     h('div', { class: 'lens-card' }, [
       h('h3', {}, 'Relationship changes'),
+      ...(csvButtons.relationships ? [csvButtons.relationships] : []),
       dataTable({
         columns: [
           // Endpoints are shown as ACTIVITY IDs, resolved through each file's
@@ -270,14 +336,7 @@ export function render({ A, B }) {
           { key: 'lag_hr_cnt',   label: 'Lag (hr)' },
           { key: 'change',       label: 'Change' }
         ],
-        rows: [
-          // A row flagged lag_changed is one half of a re-lag: the same
-          // pred/succ/type exists on the other side with a different lag. It is
-          // counted in the +/− totals, and labelled so the reader does not read
-          // it as a link that appeared or vanished.
-          ...d.relationships.added.map(r => ({ ...r, change: r.lag_changed ? 'added (lag changed)' : 'added' })),
-          ...d.relationships.deleted.map(r => ({ ...r, change: r.lag_changed ? 'deleted (lag changed)' : 'deleted' }))
-        ],
+        rows: relationshipRows,
         limit: 200,
         emptyMsg: 'No relationship changes.'
       })
@@ -290,6 +349,7 @@ export function render({ A, B }) {
         '"Relationships +" and once in "Relationships −" above, because the lag is part of ' +
         'what identifies a relationship.'
       ),
+      ...(csvButtons.lagChanged ? [csvButtons.lagChanged] : []),
       dataTable({
         columns: [
           {

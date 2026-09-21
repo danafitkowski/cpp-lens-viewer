@@ -2,6 +2,7 @@ import { h } from '../lib/dom.js';
 import { getTable, buildWbsMap } from '@criticalpathpartners/lens-parser';
 import { kpiCard } from './_shared/kpi-card.js';
 import { dataTable } from './_shared/data-table.js';
+import { percentComplete, describeProgressBasis } from './_shared/percent-complete.js';
 
 const fmtCost = (v) => '$' + v.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 const fmtHrs  = (v) => v.toLocaleString();
@@ -62,11 +63,18 @@ function computeRollup(A) {
     direct[wbsId] = { actCount: 0, sumDrtn: 0, sumTargetCost: 0, sumActCost: 0, sumWeightedPct: 0, sumDrtnForPct: 0 };
   }
 
+  // The activities that actually reach a WBS row, so the basis line on the page
+  // counts exactly the rows the percentages were read from.
+  const rolledTasks = [];
+
   for (const t of tasks) {
     const wbsId = t.wbs_id || '';
     if (!wbsId || !(wbsId in direct)) continue;
+    rolledTasks.push(t);
     const drtn       = parseFloat(t.target_drtn_hr_cnt) || 0;
-    const pct        = parseFloat(t.phys_complete_pct)  || 0;
+    // By the activity's own percent complete type, never phys_complete_pct
+    // alone: see _shared/percent-complete.js.
+    const pct        = percentComplete(t).pct;
     const tCost      = (parseFloat(t.target_cost) || 0) + (taskTargetCost[t.task_id] || 0);
     const aCost      = (parseFloat(t.act_reg_cost) || 0) + (taskActCost[t.task_id]   || 0);
 
@@ -140,7 +148,10 @@ function computeRollup(A) {
     totalTargetCost += d.sumTargetCost;
   }
 
-  return { rows, totalWbs: rows.length, totalActCount, totalTargetHrs, totalTargetCost };
+  return {
+    rows, totalWbs: rows.length, totalActCount, totalTargetHrs, totalTargetCost,
+    progressBasis: describeProgressBasis(rolledTasks)
+  };
 }
 
 const COLS = [
@@ -172,6 +183,10 @@ export function render({ A, B }) {
 
   const tableCard = h('div', { class: 'lens-card' }, [
     h('h3', {}, 'WBS Roll-up by Level'),
+    // The progress basis, on the face of the table it governs.
+    h('p', { class: 'lens-progress-basis' },
+      `${m.progressBasis} Each WBS row is the average of its activities, weighted by original duration ` +
+      '(target_drtn_hr_cnt), so a zero-duration milestone carries no weight.'),
     dataTable({ columns: COLS, rows: m.rows, limit: 500, emptyMsg: 'No WBS nodes.' })
   ]);
 
