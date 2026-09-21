@@ -57,7 +57,7 @@ const CROSSVAL_EXECUTED = 1009;
 const CROSSVAL_POSSIBLE = 1015;
 const CROSSVAL_SKIPPED = 6;
 const CROSSVAL_CLEAN_FIXTURES = 43;
-const JS_UNIT_TESTS = 1273;
+const JS_UNIT_TESTS = 1288;
 const ENGINE_STATEMENT_COVERAGE = '41%';
 
 // Layer 2 — the engine against Primavera P6 itself.
