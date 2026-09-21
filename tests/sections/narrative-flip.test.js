@@ -12,7 +12,7 @@
 // B is now a real re-export, and both sides carry activity codes.
 import { describe, it, expect } from 'vitest';
 import { render } from '../../src/sections/narrative-flip.js';
-import { existsSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseXer, getTable } from '@criticalpathpartners/lens-parser';
@@ -90,12 +90,11 @@ describe('Narrative Flip', () => {
 // runs anywhere; point LENS_QA_XER_DIR at them to enable it.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { QA_DIR } from '../qa-corpus.js';
-const QA_CURRENT = `${QA_DIR}/Ontario-Community-College-current.xer`;
-const QA_BASELINE = `${QA_DIR}/Ontario-Community-College-baseline.xer`;
-const HAVE_QA = existsSync(QA_CURRENT) && existsSync(QA_BASELINE);
+// The folder and the two file names come from tests/qa-corpus.js: neutral
+// defaults, overridable by environment or an untracked local config.
+import { QA_CURRENT, QA_BASELINE, HAVE_QA } from '../qa-corpus.js';
 
-describe.skipIf(!HAVE_QA)('Narrative Flip — real QA pair, Ontario Community College', () => {
+describe.skipIf(!HAVE_QA)('Narrative Flip — real QA pair', () => {
   const A = HAVE_QA ? parseXer(readFileSync(QA_CURRENT, 'latin1')) : null;
   const B = HAVE_QA ? parseXer(readFileSync(QA_BASELINE, 'latin1')) : null;
 

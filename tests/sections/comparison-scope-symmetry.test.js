@@ -7,7 +7,7 @@
 // `task_code` is unique per PROJECT, not per FILE, so a multi-project export
 // really can repeat an Activity ID. Three successive attempts to auto-detect a
 // project scope for cross-export matching each shipped a fresh catastrophe,
-// every number below measured on real Ontario Community College exports:
+// every number below measured on the real demonstration pair:
 //
 //   1. per-model scope selection. A scoped by proj_short_name, B not scoped at
 //      all → 732 added / 327 deleted / 0 changed / 0 retained on a pair sharing
@@ -27,9 +27,11 @@
 // discriminator survives:
 //
 //   proj_id          4795                                        vs 4799
-//   proj_short_name  'Ontario Community College'                          vs 'Ontario Community College - B2'
-//   WBS root name    'Ontario Community College Building F Expansion (CURRENT - FIXED)'
-//                                                                vs 'Ontario Community College - baseline - FOR ANALYSIS'
+//   proj_short_name  '<name>'                                    vs '<name> - B2'
+//   WBS root name    '<name> <building> (CURRENT - FIXED)'       vs '<name> - baseline - FOR ANALYSIS'
+//
+// (The names themselves are the client's and are not written in this public
+// repository. The QA suite below reads them from the files and pins the pattern.)
 //
 // Scoping that pair on ANY of them matches 0 of 318. Renaming a project between
 // baseline and current is normal working practice, so no heuristic can tell
@@ -55,7 +57,7 @@
 // asymmetric about, and no project field is read), and the disclosure,
 // reconciliation and no-throw guarantees are new.
 import { describe, it, expect } from 'vitest';
-import { existsSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { parseXer, getTable, getTableAliased } from '@criticalpathpartners/lens-parser';
 import { diffModels } from '../../src/sections/_shared/diff-models.js';
 import {
@@ -565,10 +567,9 @@ describe('the ambiguous rows are kept, counted and listed', () => {
 //    472 retained relationships.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { QA_DIR } from '../qa-corpus.js';
-const QA_CURRENT = `${QA_DIR}/Ontario-Community-College-current.xer`;
-const QA_BASELINE = `${QA_DIR}/Ontario-Community-College-baseline.xer`;
-const HAVE_QA = existsSync(QA_CURRENT) && existsSync(QA_BASELINE);
+// The folder and the two file names come from tests/qa-corpus.js: neutral
+// defaults, overridable by environment or an untracked local config.
+import { QA_CURRENT, QA_BASELINE, HAVE_QA } from '../qa-corpus.js';
 
 /** Concatenate two models into ONE file — a genuine multi-project export. */
 function mergeProjects(m1, m2) {
@@ -581,7 +582,7 @@ function mergeProjects(m1, m2) {
   return out;
 }
 
-describe.skipIf(!HAVE_QA)('real QA pair — Ontario Community College current vs baseline', () => {
+describe.skipIf(!HAVE_QA)('real QA pair — current vs baseline', () => {
   const A = HAVE_QA ? parseXer(readFileSync(QA_CURRENT, 'latin1')) : null;
   const B = HAVE_QA ? parseXer(readFileSync(QA_BASELINE, 'latin1')) : null;
 
@@ -596,11 +597,18 @@ describe.skipIf(!HAVE_QA)('real QA pair — Ontario Community College current vs
     // Measured, not assumed. This is the whole reason no project field is read.
     expect(getTable(A, 'PROJECT')[0].proj_id).toBe('4795');
     expect(getTable(B, 'PROJECT')[0].proj_id).toBe('4799');
-    expect(getTable(A, 'PROJECT')[0].proj_short_name).toBe('Ontario Community College');
-    expect(getTable(B, 'PROJECT')[0].proj_short_name).toBe('Ontario Community College - B2');
+    // The literal names used to be asserted here. They are read from the files
+    // instead, and what is pinned is the PATTERN that defeats scoping: the
+    // baseline was saved as a suffixed copy of the project, and both WBS roots
+    // were relabelled around the same name.
+    const nameA = getTable(A, 'PROJECT')[0].proj_short_name;
+    const nameB = getTable(B, 'PROJECT')[0].proj_short_name;
+    expect(nameA.trim()).not.toBe('');
+    expect(nameB).toBe(`${nameA} - B2`);
     const root = m => getTable(m, 'PROJWBS').find(w => String(w.proj_node_flag).trim() === 'Y').wbs_name;
-    expect(root(A)).toBe('Ontario Community College Building F Expansion (CURRENT - FIXED)');
-    expect(root(B)).toBe('Ontario Community College - baseline - FOR ANALYSIS');
+    expect(root(A).startsWith(`${nameA} `)).toBe(true);
+    expect(root(A).endsWith('(CURRENT - FIXED)')).toBe(true);
+    expect(root(B)).toBe(`${nameA} - baseline - FOR ANALYSIS`);
     // Every one of them differs, so scoping on any of them matches 0 of 318.
     expect(getTable(A, 'PROJECT')[0].proj_short_name).not.toBe(getTable(B, 'PROJECT')[0].proj_short_name);
     expect(root(A)).not.toBe(root(B));
@@ -659,11 +667,14 @@ describe.skipIf(!HAVE_QA)('real QA files — the multi-project input the heurist
   // inside it is re-exported, so it shares no surrogate with the standalone
   // baseline file — the real condition, not one file compared with itself.
   const MULTI = HAVE_QA ? mergeProjects(A0, reexport(B)) : null;
+  // The two project names, read from the files and never written here.
+  const NAME_A = HAVE_QA ? getTable(A0, 'PROJECT')[0].proj_short_name : '';
+  const NAME_B = HAVE_QA ? getTable(B, 'PROJECT')[0].proj_short_name : '';
 
   it('is a genuine multi-project file: 732 rows, 2 projects, 318 repeated Activity IDs', () => {
     expect(getTable(MULTI, 'TASK').length).toBe(732);
     expect(getTable(MULTI, 'PROJECT').map(p => p.proj_short_name))
-      .toEqual(['Ontario Community College', 'Ontario Community College - B2']);
+      .toEqual([NAME_A, `${NAME_A} - B2`]);
     expect(repeatedTaskKeys(MULTI).size).toBe(318);
     expect(assertDivergentSurrogates(MULTI, B, { minSharedCodes: 327 }))
       .toEqual({ sharedCodes: 327, sharedTaskIds: 0 });
@@ -710,7 +721,7 @@ describe.skipIf(!HAVE_QA)('real QA files — the multi-project input the heurist
     expect(text).toContain('excluded from the comparison');
     expect(text).toContain('cover only the unambiguous remainder');
     expect(text).toContain('636 current activity row(s) are excluded');
-    expect(text).toContain('Repeated across: Ontario Community College, Ontario Community College - B2');
+    expect(text).toContain(`Repeated across: ${NAME_A}, ${NAME_B}`);
     expect(text).toContain('Current export: 9 matched + 87 added + 636 excluded as ambiguous + 0 with no Activity ID = 732 activity rows.');
     expect(text).toContain('Baseline export: 9 matched + 0 deleted + 318 excluded as ambiguous + 0 with no Activity ID = 327 activity rows.');
     expect(text.indexOf('Read this before the numbers')).toBeLessThan(text.indexOf('Activities matched'));
@@ -728,7 +739,7 @@ describe.skipIf(!HAVE_QA)('real QA files — the multi-project input the heurist
   it('Half-Step discloses the same exclusion and reconciles both sides', () => {
     const text = renderHalfStep({ A: MULTI, B }).textContent;
     expect(text).toContain('318 Activity IDs are repeated in the updated export');
-    expect(text).toContain('Repeated across: Ontario Community College, Ontario Community College - B2');
+    expect(text).toContain(`Repeated across: ${NAME_A}, ${NAME_B}`);
     expect(text).toContain('Base export: 9 overlaid + 0 preserved (no counterpart in the updated export) + 318 excluded as ambiguous = 327 activity rows.');
     expect(text).toContain('Updated export: 9 overlaid + 87 with no counterpart in the base export + 636 excluded as ambiguous = 732 activity rows.');
     // 9 of a possible 327 is below the plausibility floor, so the file is
@@ -742,7 +753,7 @@ describe.skipIf(!HAVE_QA)('real QA files — the multi-project input the heurist
     // 405 added AND 405 deleted on two files holding the same 732 activities.
     const LATER = reexport(MULTI, 500000);
     for (const p of LATER.tables.PROJECT.records) {
-      if (p.proj_short_name === 'Ontario Community College') p.proj_short_name = 'Ontario Community College - Rev C';
+      if (p.proj_short_name === NAME_A) p.proj_short_name = `${NAME_A} - Rev C`;
     }
     for (const w of LATER.tables.PROJWBS.records) {
       if (String(w.proj_node_flag).trim() === 'Y' && /CURRENT/.test(String(w.wbs_name))) {
