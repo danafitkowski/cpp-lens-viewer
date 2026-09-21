@@ -5,6 +5,7 @@ import { dataTable } from './_shared/data-table.js';
 import {
   indexTasks as indexTasksShared, indexTasksByCode, resolveTaskKey, resolveComparisonAmbiguity
 } from './_shared/identity.js';
+import { percentComplete, describeProgressBasis } from './_shared/percent-complete.js';
 
 /**
  * Compute A − B in calendar days for two date strings.
@@ -87,18 +88,22 @@ export function render({ A, B }) {
   let earnedWeightTotal  = 0;
   let totalSlipDays      = 0;
   let matched            = 0;
+  // The current-file rows actually compared, for the progress basis line.
+  const matchedCurrent   = [];
 
   for (const [id, aTask] of aTasks) {
     const bTask = bTasks.get(id);
     if (!bTask) continue;
     matched++;
+    matchedCurrent.push(aTask);
 
     const aStatus = aTask.status_code || '';
     const bStatus = bTask.status_code || '';
 
-    const aPct = parseFloat(aTask.phys_complete_pct);
-    const bPct = parseFloat(bTask.phys_complete_pct);
-    const pctDelta = (isNaN(aPct) ? 0 : aPct) - (isNaN(bPct) ? 0 : bPct);
+    // Each side by its own percent complete type, never phys_complete_pct
+    // alone: see _shared/percent-complete.js. Read that way, an activity that
+    // went from not started to complete moved 100 points, not 0.
+    const pctDelta = percentComplete(aTask).pct - percentComplete(bTask).pct;
 
     const dateDelta = calDayDelta(aTask.target_end_date, bTask.target_end_date);
 
@@ -140,7 +145,7 @@ export function render({ A, B }) {
       accelerated.push(row);
     } else {
       // Catch-all: status unchanged, target_end_date unchanged, but something else
-      // moved (typically phys_complete_pct). This activity already contributed to
+      // moved (typically percent complete). This activity already contributed to
       // earnedWeightedSum/earnedWeightTotal above, so it must still land in exactly
       // one visible bucket table rather than being silently dropped.
       unchanged.push(row);
@@ -275,6 +280,16 @@ export function render({ A, B }) {
         big:   completedThisPeriod.length.toLocaleString(),
         tone:  completedThisPeriod.length > 0 ? 'green' : 'ink'
       })
+    ]),
+
+    // The progress basis, directly under the figures it governs.
+    h('div', { class: 'lens-card' }, [
+      h('p', { class: 'lens-progress-basis' },
+        `${describeProgressBasis(matchedCurrent)} Those counts are the matched activities as the current file ` +
+        'types them. Δ % Complete is each activity\'s percent complete in the current file minus its percent ' +
+        'complete in the baseline file, read by the same rule in both. "Earned this period" is that change ' +
+        'averaged over the matched activities, weighted by each activity\'s original duration in the current ' +
+        'file (target_drtn_hr_cnt).')
     ]),
 
     // Status-bucket summary card
