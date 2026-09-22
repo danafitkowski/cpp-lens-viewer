@@ -33,8 +33,9 @@ import { dataTable } from './_shared/data-table.js';
  * lens-kpi-value, lens-kpi-sub, lens-note) that do not exist in shell.css, so it
  * would have rendered unstyled while looking correct in source.
  */
-// Bumped 2026-09-21 from 2.9.44, and earlier the same day from 2.9.43
-// (2026-09-07 from 2.9.42; 2026-08-19 from 2.9.40; 2026-08-16 from 2.9.39).
+// Bumped 2026-09-22 from 2.9.45; before that 2026-09-21 from 2.9.44 and,
+// earlier the same day, from 2.9.43 (2026-09-07 from 2.9.42; 2026-08-19 from
+// 2.9.40; 2026-08-16 from 2.9.39).
 // This is a COPY of the engine's SSOT
 // (~/.claude/skills/_cpp_common/scripts/engine_version.py), which a browser
 // bundle cannot read, and it had already drifted a release behind it. The copy
@@ -46,21 +47,25 @@ import { dataTable } from './_shared/data-table.js';
 // here (the Deep Forensic path posts to the CPP server, src/mcp/client.js), so
 // this string is a statement about the RELEASED engine the parity figures below
 // were measured on, not about a copy shipped in this page. Nothing else needed
-// changing for 2.9.45 but the JS unit count: the crossval constants below still
-// match the SSOT, and the generated P6 comparison matrix still reports 13 of 13.
-// Every one of those is checked against its source by that test rather than
-// taken on trust, which is how the stale pair below was found — the deployed
-// bundle told visitors 2.9.44 for the hours between the engine's release and
-// this bump.
-const ENGINE_VERSION = '2.9.45';
+// changing for 2.9.46 but the crossval surface, which grew with the release:
+// 46 -> 53 fixtures and 1009/1015 -> 1167/1183 executed/defined, the seven new
+// fixtures exercising the retained-logic pass-through, SS_U and PO_SNAP rules.
+// Skips went 6 -> 16 for the same reason the original 6 exist: four of the new
+// fixtures carry completed activities and neither engine emits a signed-FF
+// value there. The generated P6 comparison matrix still reports 13 of 13, with
+// zero changed rows. Every one of those is checked against its source by that
+// test rather than taken on trust, which is how the stale pair was found on
+// 2026-09-21 — the deployed bundle told visitors 2.9.44 for the hours between
+// the engine's release and that bump.
+const ENGINE_VERSION = '2.9.46';
 
 // Layer 1 — two ports of the same algorithm, by the same author.
-const CROSSVAL_FIXTURES = 46;
-const CROSSVAL_EXECUTED = 1009;
-const CROSSVAL_POSSIBLE = 1015;
-const CROSSVAL_SKIPPED = 6;
-const CROSSVAL_CLEAN_FIXTURES = 43;
-const JS_UNIT_TESTS = 1306;
+const CROSSVAL_FIXTURES = 53;
+const CROSSVAL_EXECUTED = 1167;
+const CROSSVAL_POSSIBLE = 1183;
+const CROSSVAL_SKIPPED = 16;
+const CROSSVAL_CLEAN_FIXTURES = 46;
+const JS_UNIT_TESTS = 1307;
 const ENGINE_STATEMENT_COVERAGE = '41%';
 
 // Layer 2 — the engine against Primavera P6 itself.
@@ -108,13 +113,13 @@ const LIMITS = [
   ['Fitted, not blind',
    `The thirteen cases were captured from P6 once. That first blind run passed ${P6_BLIND_FIRST_PASS} of ${P6_CASES_TOTAL}. The seven gaps sorted into five families, and the engine was then changed to match the answers P6 had already given, across three commits. The current ${P6_CASES_PASSED} of ${P6_CASES_TOTAL} is therefore measured on the cases the engine was fitted to. No held-out case has been captured since, so the honest reading is that these thirteen behaviours are now correct, not that the next thirteen would pass first time.`],
   ['The port total skips comparisons',
-   `The cross-validation harness runs ${CROSSVAL_EXECUTED} comparisons and all of them pass. A further ${CROSSVAL_SKIPPED} are skipped rather than failed, on the two signed free-float fields, 3 on ff_signed and 3 on ff_signed_working_days. All six fall on three fixtures where neither engine assigns the field, and all three involve completed activities: a completed-and-uncompleted mix, an out-of-sequence completion, and an activity carrying an actual finish with no actual start. Counting the skips, agreement is ${CROSSVAL_EXECUTED} of ${CROSSVAL_POSSIBLE}, and ${CROSSVAL_CLEAN_FIXTURES} of ${CROSSVAL_FIXTURES} fixtures are free of any divergence. The headline is a count of comparisons run, not a pass rate.`],
+   `The cross-validation harness runs ${CROSSVAL_EXECUTED} comparisons and all of them pass. A further ${CROSSVAL_SKIPPED} are skipped rather than failed, on the two signed free-float fields, 8 on ff_signed and 8 on ff_signed_working_days. All sixteen fall on seven fixtures where neither engine assigns the field, and every one of them involves a completed activity: a completed-and-uncompleted mix, an out-of-sequence completion, an activity carrying an actual finish with no actual start, and the four retained-logic pass-through fixtures added with engine v2.9.46. Counting the skips, agreement is ${CROSSVAL_EXECUTED} of ${CROSSVAL_POSSIBLE}, and ${CROSSVAL_CLEAN_FIXTURES} of ${CROSSVAL_FIXTURES} fixtures are free of any divergence. The headline is a count of comparisons run, not a pass rate.`],
   ['Same author, both ports',
    'The JavaScript engine and the Python reference are written and maintained by the same person. That catches transcription and refactor drift. It cannot catch a shared misreading of how P6 behaves, which is why the P6 comparison exists and why it carries more weight.'],
   ['Most of the engine has no second implementation',
    `The cross-validation exercises about ${ENGINE_STATEMENT_COVERAGE} of the engine's statements. The Monte Carlo path, the DCMA-14 health computation, fragnet insertion for time impact analysis, the Bayesian update and the statutory-holiday calendars have no Python counterpart and are not cross-validated at all. Float burndown and the topology hash do have Python counterparts and, since August 2026, are compared against them field by field on an internal extended harness that also covers the salvage and strategy surfaces. That harness is not in the public repository, so the comparison is not independently runnable, and none of the figures on this page include it.`],
   ['Small synthetic networks',
-   'All forty-six fixtures are hand-built, averaging under three activities and topping out at six. No real schedule and no XER file is cross-validated. The thirteen P6 cases are the same shape, twenty-seven activities in total.'],
+   'All fifty-three fixtures are hand-built, averaging under three activities and topping out at six. No real schedule and no XER file is cross-validated. The thirteen P6 cases are the same shape, twenty-seven activities in total.'],
   ['Day granular',
    'The engine works in whole days. A sub-day lag rounds and raises an alert that is fatal in strict mode. P6 stores lags in hours, so that case cannot be compared field for field and is excluded from the matrix rather than counted as a pass.'],
   ['No resource levelling',
@@ -153,7 +158,7 @@ export function render() {
       kpiCard({
         title: 'Fixtures with no divergence',
         big: `${CROSSVAL_CLEAN_FIXTURES} of ${CROSSVAL_FIXTURES}`,
-        sub: 'the other three carry mutual skips, not disagreements',
+        sub: 'the other seven carry mutual skips, not disagreements',
         tone: 'ink'
       }),
       kpiCard({
