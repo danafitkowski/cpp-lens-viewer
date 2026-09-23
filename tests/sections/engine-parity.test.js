@@ -48,8 +48,8 @@ describe('engine parity section', () => {
     // These are the RENDERED strings. tests/unit/engine-parity.test.js is the
     // one that runs the real harness and pins these same numbers to it, so a
     // figure cannot be updated here without the harness agreeing.
-    expect(text).toMatch(/1167 of 1183/);
-    expect(text).toMatch(/46 of 53/);
+    expect(text).toMatch(/1957 of 2011/);
+    expect(text).toMatch(/59 of 82/);
     expect(text).toMatch(/not a pass rate/);
   });
 
