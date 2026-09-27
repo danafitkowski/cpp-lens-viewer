@@ -76,7 +76,7 @@ async function buildViewer() {
 <div style="max-width:640px;margin:60px auto;padding:28px 32px;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#161a1f;border:1px solid #d9dee4;border-left:4px solid #C8392F;border-radius:8px;line-height:1.6;">
 <h1 style="font-size:20px;color:#0F2540;margin:0 0 10px;">CPP Lens — Free P6 Viewer</h1>
 <p style="margin:0 0 10px;">Drop a Primavera P6 schedule (XER, XML, or MPP) and see a full diagnostic dashboard: schedule quality, DCMA checks, logic, float, Gantt, comparisons, and more. XER and XML schedules are parsed entirely in your browser and never uploaded. An MS Project .mpp file cannot be read in a browser, so it is sent to the CPP server to be converted. An optional deep forensic analysis is anonymized by default.</p>
-<p style="margin:0;">This viewer needs JavaScript to run. Enable JavaScript for this page, or visit <a href="https://criticalpathpartners.ca/" style="color:#C8392F;">criticalpathpartners.ca</a> for sample reports and case studies.</p>
+<p style="margin:0;">This viewer needs JavaScript to run. Enable JavaScript for this page, or visit <a href="https://criticalpathpartners.ca/" style="color:#C8392F;">criticalpathpartners.ca</a> for sample reports.</p>
 </div>
 </noscript>
 <script type="module">${js}</script>
