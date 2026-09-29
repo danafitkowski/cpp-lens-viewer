@@ -111,9 +111,13 @@ function buildCalendarReportCard(A) {
   const btn = h('button', {}, 'Download Calendar Report');
   btn.addEventListener('click', () => {
     const cards = calendars.map(cal => {
-      const workDays = (cal.work_day_names && cal.work_day_names.length > 0)
-        ? cal.work_day_names.join(', ')
-        : (cal.work_days && cal.work_days.length > 0 ? cal.work_days.join(', ') : '—');
+      // A work week the parser could not read is named as such, not shown as
+      // a dash (see _shared/calendar-decode.js).
+      const workDays = cal.parse_incomplete
+        ? 'could not be read from the file'
+        : (cal.work_day_names && cal.work_day_names.length > 0)
+          ? cal.work_day_names.join(', ')
+          : (cal.work_days && cal.work_days.length > 0 ? cal.work_days.join(', ') : '—');
 
       const holidayItems = (cal.holidays && cal.holidays.length > 0)
         ? '<ul>' + cal.holidays.map(d => '<li>' + d + '</li>').join('') + '</ul>'
