@@ -302,7 +302,7 @@ export function computeMetrics(A, B = null) {
   // 13 & 14. Never calculated here. They used to show a dash under a heading
   // that claimed all fourteen points.
   const metric13 = notScored('CPLI', 'it needs the critical path length in working days, which this viewer does not calculate', '≥ 0.95');
-  const metric14 = notScored('BEI', 'this view does not calculate it. The full Schedule Health Report does, from a baseline', '≥ 0.95');
+  const metric14 = notScored('BEI', 'this view does not calculate it. The analyst-delivered Schedule Health Assessment does, from a baseline', '≥ 0.95');
 
   // Metrics 6 and 8 are working-day thresholds, so the divisor they were applied
   // at — and any activity whose divisor was a fallback rather than a number read
@@ -319,11 +319,12 @@ export function computeMetrics(A, B = null) {
 }
 
 /**
- * "Lite" means lite — this view intentionally does not synthesize a CPP Quality
- * Overlay A-F grade. That grade is a real, published feature of the standalone
- * Schedule Health Report tool (also free, also no-login), which uses its own
- * scoring engine plus an AI executive summary and baseline-vs-current diffing
- * this view doesn't have. Computing a second, differently-derived grade here
+ * "Lite" means lite: this view intentionally does not synthesize a CPP Quality
+ * Overlay A-F grade. That grade comes from the analyst-delivered Schedule
+ * Health Assessment (free, requested from the schedule-health-report page),
+ * which scores the full fourteen points from a baseline and a current schedule.
+ * The old label sent readers to "the free Schedule Health Report", which is
+ * this screening's own name on the site. Computing a second, differently-derived grade here
  * would risk two different "CPP Quality Overlay" scores for the same schedule
  * on two different pages — a real problem for a brand built on reproducibility.
  * Point to the real thing instead of faking a lite version of it.
@@ -335,7 +336,7 @@ function qualityOverlayCard() {
     h('a', {
       href: 'https://criticalpathpartners.ca/schedule-health-report.html',
       class: 'quality-cta-btn'
-    }, 'Run the free Schedule Health Report for the full A–F grade →')
+    }, 'Request the free analyst-delivered Schedule Health Assessment for the full A to F grade →')
   ]);
 }
 
