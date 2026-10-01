@@ -5,10 +5,20 @@ import { workingDayContext, disclosureCards, HOUR_FIELDS } from './_shared/worki
 
 const LOE_WBS = new Set(['TT_LOE', 'TT_WBS']);
 
-/** Long-duration threshold, in WORKING DAYS. */
+/** Long-duration threshold, in WORKING DAYS. A CPP heuristic, not DCMA. */
 const LONG_DURATION_WD = 20;
-/** Large-float threshold, in WORKING DAYS. */
+/** Large-float threshold, in WORKING DAYS. A CPP heuristic, not DCMA. */
 const LARGE_FLOAT_WD = 40;
+/**
+ * DCMA's own high-duration and high-float tests both use 44 working days, and
+ * the DCMA Lite section applies them. The two cards here are tighter screens.
+ * They used to sit unlabelled beside DCMA Lite's 44, so the same schedule
+ * showed two different "long duration" counts with nothing saying why.
+ */
+export const THRESHOLD_NOTE =
+  `Long Duration and Large Float use CPP heuristic thresholds (${LONG_DURATION_WD} and ` +
+  `${LARGE_FLOAT_WD} working days). They are tighter than the 44 working days DCMA uses ` +
+  'for both, which the DCMA Lite section applies, so the counts here are not DCMA results.';
 
 function computeMetrics(A) {
   const tasks = getTable(A, 'TASK');
@@ -102,8 +112,8 @@ export function render({ A, B }) {
     kpiCard({ title: 'Orphan Activities',     big: m.orphans,            sub: 'no pred or succ',          tone: m.orphans            > 0 ? 'red'   : 'green' }),
     kpiCard({ title: 'Open Starts',           big: m.openStarts,         sub: 'no predecessors',          tone: m.openStarts         > 0 ? 'red'   : 'green' }),
     kpiCard({ title: 'Open Ends',             big: m.openEnds,           sub: 'no successors',            tone: m.openEnds           > 0 ? 'red'   : 'green' }),
-    kpiCard({ title: 'Long Duration',         big: m.longDuration,       sub: `> ${LONG_DURATION_WD} working days (per activity calendar)`, tone: m.longDuration > 0 ? 'amber' : 'green' }),
-    kpiCard({ title: 'Large Float',           big: m.largeFloat,         sub: `> ${LARGE_FLOAT_WD} working days float (per activity calendar)`, tone: m.largeFloat > 0 ? 'red' : 'green' }),
+    kpiCard({ title: 'Long Duration',         big: m.longDuration,       sub: `> ${LONG_DURATION_WD} working days (CPP heuristic, per activity calendar)`, tone: m.longDuration > 0 ? 'amber' : 'green' }),
+    kpiCard({ title: 'Large Float',           big: m.largeFloat,         sub: `> ${LARGE_FLOAT_WD} working days float (CPP heuristic, per activity calendar)`, tone: m.largeFloat > 0 ? 'red' : 'green' }),
     kpiCard({ title: 'Negative Lag',          big: m.negativeLag,        sub: 'relationships with leads', tone: m.negativeLag        > 0 ? 'red'   : 'green' }),
     kpiCard({ title: 'Started / No Actual',   big: m.startedNoActStart,  sub: 'active, no act_start',     tone: m.startedNoActStart  > 0 ? 'red'   : 'green' }),
     kpiCard({ title: 'Complete / No Actual',  big: m.completeNoActEnd,   sub: 'complete, no act_end',     tone: m.completeNoActEnd   > 0 ? 'red'   : 'green' })
@@ -122,6 +132,7 @@ export function render({ A, B }) {
       h('p', {}, `${tasks.length.toLocaleString()} activities · ${rels.length.toLocaleString()} relationships`)
     ]),
     h('div', { class: 'kpi-grid' }, cards),
+    h('div', { class: 'lens-card' }, [h('p', { class: 'threshold-note' }, THRESHOLD_NOTE)]),
     ...disclosureCards(m.disclosure)
   ];
 

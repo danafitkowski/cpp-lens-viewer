@@ -86,7 +86,7 @@ export const TOOLS = [
     id:          'forensic-delay-analysis',
     title:       'Windows Analysis',
     label:       'MIP 3.3',
-    description: 'Contemporaneous Period Analysis: attribute delay windows to owner, contractor, or concurrent causes.'
+    description: 'Contemporaneous Period Analysis: measure how far completion moved in each window and which activities drove it. Who is responsible is for the analyst to decide from the project records.'
   },
   {
     id:          'time-impact-analysis',
