@@ -68,7 +68,7 @@ describe('DCMA Lite', () => {
     expect(rows.length).toBe(14);
   });
 
-  it('does not fabricate a grade — points to the real Schedule Health Report tool instead, without hiding any of the 14 raw metric rows', () => {
+  it('does not fabricate a grade — points to the analyst-delivered Schedule Health Assessment instead, without hiding any of the 14 raw metric rows', () => {
     // "Lite" means lite: no synthesized A-F score here at all, real or blurred.
     // The real CPP Quality Overlay grade is a published feature of the standalone
     // Schedule Health Report tool. Computing a second one here would risk two
@@ -81,7 +81,9 @@ describe('DCMA Lite', () => {
     const cta = el.querySelector('.quality-overlay a');
     expect(cta).toBeTruthy();
     expect(cta.getAttribute('href')).toBe('https://criticalpathpartners.ca/schedule-health-report.html');
-    expect(cta.textContent).toMatch(/schedule health report/i);
+    // 1-Oct-2026: the grade comes from the analyst-delivered Schedule Health
+    // Assessment, requested on that page; "Schedule Health Report" is this screening.
+    expect(cta.textContent).toMatch(/schedule health assessment/i);
 
     // The full 14-row metric table must still render in full underneath.
     expect(el.querySelectorAll('tbody tr').length).toBe(14);
