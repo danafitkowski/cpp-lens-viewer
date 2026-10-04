@@ -84,7 +84,10 @@ import { dataTable } from './_shared/data-table.js';
 // fixtures, all mutual pairs on completed activities (both new fixtures
 // carry two), leaving 69 clean. The JavaScript suite went 1345 -> 1346, and
 // the P6 comparison matrix still reports 13 of 13 with zero changed rows.
-const ENGINE_VERSION = '2.9.50';
+// 2.9.51 left the surface as it was (parseXER keeps completed activities;
+// the harness hands computeCPM its networks directly). The JavaScript
+// suite went 1346 -> 1352.
+const ENGINE_VERSION = '2.9.51';
 
 // Layer 1 — two ports of the same algorithm, by the same author.
 const CROSSVAL_FIXTURES = 101;
@@ -92,9 +95,9 @@ const CROSSVAL_EXECUTED = 2623;
 const CROSSVAL_POSSIBLE = 2705;
 const CROSSVAL_SKIPPED = 82;
 const CROSSVAL_CLEAN_FIXTURES = 69;
-const JS_UNIT_TESTS = 1346;
-// c8 over cpm-engine.js running the crossval harness at the v2.9.50 tag,
-// measured 2026-10-03: 5,430 of 11,336 statements (47.90%).
+const JS_UNIT_TESTS = 1352;
+// c8 over cpm-engine.js running the crossval harness at the v2.9.51 tag,
+// measured 2026-10-04: 5,430 of 11,352 statements (47.83%).
 const ENGINE_STATEMENT_COVERAGE = '48%';
 
 // Layer 2 — the engine against Primavera P6 itself.
