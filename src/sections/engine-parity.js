@@ -87,18 +87,24 @@ import { dataTable } from './_shared/data-table.js';
 // 2.9.51 left the surface as it was (parseXER keeps completed activities;
 // the harness hands computeCPM its networks directly). The JavaScript
 // suite went 1346 -> 1352.
-const ENGINE_VERSION = '2.9.51';
+// 2.9.52 grew the surface: 101 -> 106 fixtures and 2623/2705 -> 3202/3288,
+// the 5 new fixtures (F106-F110) pinning P6's "Use Expected Finish Dates"
+// and finish constraints on work under way. Skips went 82 -> 86 on 32 -> 34
+// fixtures, all mutual pairs on completed activities, leaving 72 clean. The
+// JavaScript suite went 1352 -> 1371, and the P6 comparison matrix still
+// reports 13 of 13 with zero changed rows.
+const ENGINE_VERSION = '2.9.52';
 
 // Layer 1 — two ports of the same algorithm, by the same author.
-const CROSSVAL_FIXTURES = 101;
-const CROSSVAL_EXECUTED = 2623;
-const CROSSVAL_POSSIBLE = 2705;
-const CROSSVAL_SKIPPED = 82;
-const CROSSVAL_CLEAN_FIXTURES = 69;
-const JS_UNIT_TESTS = 1352;
-// c8 over cpm-engine.js running the crossval harness at the v2.9.51 tag,
-// measured 2026-10-04: 5,430 of 11,352 statements (47.83%).
-const ENGINE_STATEMENT_COVERAGE = '48%';
+const CROSSVAL_FIXTURES = 106;
+const CROSSVAL_EXECUTED = 3202;
+const CROSSVAL_POSSIBLE = 3288;
+const CROSSVAL_SKIPPED = 86;
+const CROSSVAL_CLEAN_FIXTURES = 72;
+const JS_UNIT_TESTS = 1371;
+// c8 over cpm-engine.js running the crossval harness at the v2.9.52 tag,
+// measured 2026-10-08: 5,728 of 11,654 statements (49.15%).
+const ENGINE_STATEMENT_COVERAGE = '49%';
 
 // Layer 2 — the engine against Primavera P6 itself.
 const P6_VERSION = 'Primavera P6 23.12';
@@ -151,7 +157,7 @@ const LIMITS = [
   ['Most of the engine has no second implementation',
    `The cross-validation exercises about ${ENGINE_STATEMENT_COVERAGE} of the engine's statements. The Monte Carlo path, the DCMA-14 health computation, fragnet insertion for time impact analysis, the Bayesian update and the statutory-holiday calendars have no Python counterpart and are not cross-validated at all. Float burndown and the topology hash do have Python counterparts and, since August 2026, are compared against them field by field on an internal extended harness that also covers the salvage and strategy surfaces. That harness is not in the public repository, so the comparison is not independently runnable, and none of the figures on this page include it.`],
   ['Small synthetic networks',
-   'All one hundred and one fixtures are hand-built, averaging about three activities and topping out at eleven. No real schedule and no XER file is cross-validated. The thirteen P6 cases are the same shape, twenty-seven activities in total.'],
+   'All one hundred and six fixtures are hand-built; most carry a handful of activities and the largest seventeen. No real schedule and no XER file is cross-validated. The thirteen P6 cases are the same shape, twenty-seven activities in total.'],
   ['Day granular',
    'The engine works in whole days. A sub-day lag rounds and raises an alert that is fatal in strict mode. P6 stores lags in hours, so that case cannot be compared field for field and is excluded from the matrix rather than counted as a pass.'],
   ['No resource levelling',
