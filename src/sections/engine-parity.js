@@ -93,17 +93,23 @@ import { dataTable } from './_shared/data-table.js';
 // fixtures, all mutual pairs on completed activities, leaving 72 clean. The
 // JavaScript suite went 1352 -> 1371, and the P6 comparison matrix still
 // reports 13 of 13 with zero changed rows.
-const ENGINE_VERSION = '2.9.52';
+// 2.9.53 grew the surface: 106 -> 108 fixtures and 3202/3288 -> 3482/3580,
+// the 2 new fixtures (F111-F112) pinning an expected finish that leaves no
+// working time, with and without resource assignments, as P6 schedules it.
+// Skips went 86 -> 98 on 34 -> 36 fixtures, all mutual pairs on completed
+// activities, leaving 72 clean. The JavaScript suite went 1371 -> 1377, and
+// the P6 comparison matrix still reports 13 of 13 with zero changed rows.
+const ENGINE_VERSION = '2.9.53';
 
 // Layer 1 — two ports of the same algorithm, by the same author.
-const CROSSVAL_FIXTURES = 106;
-const CROSSVAL_EXECUTED = 3202;
-const CROSSVAL_POSSIBLE = 3288;
-const CROSSVAL_SKIPPED = 86;
+const CROSSVAL_FIXTURES = 108;
+const CROSSVAL_EXECUTED = 3482;
+const CROSSVAL_POSSIBLE = 3580;
+const CROSSVAL_SKIPPED = 98;
 const CROSSVAL_CLEAN_FIXTURES = 72;
-const JS_UNIT_TESTS = 1371;
-// c8 over cpm-engine.js running the crossval harness at the v2.9.52 tag,
-// measured 2026-10-08: 5,728 of 11,654 statements (49.15%).
+const JS_UNIT_TESTS = 1377;
+// c8 over cpm-engine.js running the crossval harness at the v2.9.53 tag,
+// measured 2026-10-09: 5,791 of 11,735 statements (49.34%).
 const ENGINE_STATEMENT_COVERAGE = '49%';
 
 // Layer 2 — the engine against Primavera P6 itself.
@@ -157,7 +163,7 @@ const LIMITS = [
   ['Most of the engine has no second implementation',
    `The cross-validation exercises about ${ENGINE_STATEMENT_COVERAGE} of the engine's statements. The Monte Carlo path, the DCMA-14 health computation, fragnet insertion for time impact analysis, the Bayesian update and the statutory-holiday calendars have no Python counterpart and are not cross-validated at all. Float burndown and the topology hash do have Python counterparts and, since August 2026, are compared against them field by field on an internal extended harness that also covers the salvage and strategy surfaces. That harness is not in the public repository, so the comparison is not independently runnable, and none of the figures on this page include it.`],
   ['Small synthetic networks',
-   'All one hundred and six fixtures are hand-built; most carry a handful of activities and the largest seventeen. No real schedule and no XER file is cross-validated. The thirteen P6 cases are the same shape, twenty-seven activities in total.'],
+   'All one hundred and eight fixtures are hand-built; most carry a handful of activities and the largest thirty-six. No real schedule and no XER file is cross-validated. The thirteen P6 cases are the same shape, twenty-seven activities in total.'],
   ['Day granular',
    'The engine works in whole days. A sub-day lag rounds and raises an alert that is fatal in strict mode. P6 stores lags in hours, so that case cannot be compared field for field and is excluded from the matrix rather than counted as a pass.'],
   ['No resource levelling',
