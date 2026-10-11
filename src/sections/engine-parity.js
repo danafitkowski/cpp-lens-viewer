@@ -115,17 +115,23 @@ import { dataTable } from './_shared/data-table.js';
 // 2.9.56 changed what parseXER hands on (the scheduling options P6 applies by
 // default when SCHEDOPTIONS is missing or blank), not the compared surface:
 // 114 fixtures and 3924/4022 stand. The JavaScript suite went 1391 -> 1395.
-const ENGINE_VERSION = '2.9.56';
+// 2.9.57 grew the surface: 114 -> 116 fixtures and 3924/4022 -> 4244/4342,
+// the 2 new fixtures (F119-F120) handing both engines an activity's external
+// early start and external late finish, applied and ignored, as P6 schedules
+// them. Skips stayed 98 on 36 fixtures (the new two have none), leaving 80
+// clean. The JavaScript suite went 1395 -> 1402, and the P6 comparison matrix
+// still reports 13 of 13 with zero changed rows.
+const ENGINE_VERSION = '2.9.57';
 
 // Layer 1 — two ports of the same algorithm, by the same author.
-const CROSSVAL_FIXTURES = 114;
-const CROSSVAL_EXECUTED = 3924;
-const CROSSVAL_POSSIBLE = 4022;
+const CROSSVAL_FIXTURES = 116;
+const CROSSVAL_EXECUTED = 4244;
+const CROSSVAL_POSSIBLE = 4342;
 const CROSSVAL_SKIPPED = 98;
-const CROSSVAL_CLEAN_FIXTURES = 78;
-const JS_UNIT_TESTS = 1395;
-// c8 over cpm-engine.js running the crossval harness at the v2.9.56 tag,
-// measured 2026-10-11: 5,938 of 11,970 statements (49.60%).
+const CROSSVAL_CLEAN_FIXTURES = 80;
+const JS_UNIT_TESTS = 1402;
+// c8 over cpm-engine.js running the crossval harness at the v2.9.57 tag,
+// measured 2026-10-11: 6,043 of 12,094 statements (49.96%).
 const ENGINE_STATEMENT_COVERAGE = '50%';
 
 // Layer 2 — the engine against Primavera P6 itself.
