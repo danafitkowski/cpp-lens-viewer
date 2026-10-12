@@ -134,18 +134,24 @@ import { dataTable } from './_shared/data-table.js';
 // whole-day schedules). Skips stayed 98 on 36 fixtures, leaving 85 clean. The
 // JavaScript suite went 1409 -> 1416, and the P6 comparison matrix still
 // reports 13 of 13 with zero changed rows.
-const ENGINE_VERSION = '2.9.59';
+// 2.10.0 grew the surface: 121 -> 127 fixtures and 4869/4967 -> 5133/5233,
+// the 6 new fixtures (F126-F131) handing both engines P6's hours and comparing
+// the hours pass too (the engine schedules in hours and minutes). Skips went
+// 98 -> 100 on 37 fixtures, leaving 90 clean. The JavaScript suite went
+// 1416 -> 1435, and the P6 comparison matrix still reports 13 of 13 with zero
+// changed rows.
+const ENGINE_VERSION = '2.10.0';
 
 // Layer 1 — two ports of the same algorithm, by the same author.
-const CROSSVAL_FIXTURES = 121;
-const CROSSVAL_EXECUTED = 4869;
-const CROSSVAL_POSSIBLE = 4967;
-const CROSSVAL_SKIPPED = 98;
-const CROSSVAL_CLEAN_FIXTURES = 85;
-const JS_UNIT_TESTS = 1416;
-// c8 over cpm-engine.js running the crossval harness at the v2.9.59 tag,
-// measured 2026-10-12: 6,355 of 12,421 statements (51.16%).
-const ENGINE_STATEMENT_COVERAGE = '51%';
+const CROSSVAL_FIXTURES = 127;
+const CROSSVAL_EXECUTED = 5133;
+const CROSSVAL_POSSIBLE = 5233;
+const CROSSVAL_SKIPPED = 100;
+const CROSSVAL_CLEAN_FIXTURES = 90;
+const JS_UNIT_TESTS = 1435;
+// c8 over cpm-engine.js running the crossval harness at the v2.10.0 tag,
+// measured 2026-10-12: 7,198 of 13,323 statements (54.02%).
+const ENGINE_STATEMENT_COVERAGE = '54%';
 
 // Layer 2 — the engine against Primavera P6 itself.
 const P6_VERSION = 'Primavera P6 23.12';
@@ -192,7 +198,7 @@ const LIMITS = [
   ['Fitted, not blind',
    `The thirteen cases were captured from P6 once. That first blind run passed ${P6_BLIND_FIRST_PASS} of ${P6_CASES_TOTAL}. The seven gaps sorted into five families, and the engine was then changed to match the answers P6 had already given, across three commits. The current ${P6_CASES_PASSED} of ${P6_CASES_TOTAL} is therefore measured on the cases the engine was fitted to. No held-out case has been captured since, so the honest reading is that these thirteen behaviours are now correct, not that the next thirteen would pass first time.`],
   ['The port total skips comparisons',
-   `The cross-validation harness runs ${CROSSVAL_EXECUTED} comparisons and all of them pass. A further ${CROSSVAL_SKIPPED} are skipped rather than failed, on the two signed free-float fields, 49 on ff_signed and 49 on ff_signed_working_days. All ninety-eight fall on thirty-six fixtures where neither engine assigns the field, and every one of them involves a completed activity: a completed-and-uncompleted mix, an out-of-sequence completion, an activity carrying an actual finish with no actual start, the four retained-logic pass-through fixtures, sixteen of the unexpired-lag fixtures, seven of the resume-date and completed-work fixtures, the two opened-projects fixtures, the two expected-finish fixtures behind FF logic, and the two assigned-work fixtures. Counting the skips, agreement is ${CROSSVAL_EXECUTED} of ${CROSSVAL_POSSIBLE}, and ${CROSSVAL_CLEAN_FIXTURES} of ${CROSSVAL_FIXTURES} fixtures are free of any divergence. The headline is a count of comparisons run, not a pass rate.`],
+   `The cross-validation harness runs ${CROSSVAL_EXECUTED} comparisons and all of them pass. A further ${CROSSVAL_SKIPPED} are skipped rather than failed, on the two signed free-float fields, 50 on ff_signed and 50 on ff_signed_working_days. All one hundred fall on thirty-seven fixtures where neither engine assigns the field, and every one of them involves a completed activity: a completed-and-uncompleted mix, an out-of-sequence completion, an activity carrying an actual finish with no actual start, the four retained-logic pass-through fixtures, sixteen of the unexpired-lag fixtures, seven of the resume-date and completed-work fixtures, the two opened-projects fixtures, the two expected-finish fixtures behind FF logic, the two assigned-work fixtures, and one of the hours-pass fixtures. Counting the skips, agreement is ${CROSSVAL_EXECUTED} of ${CROSSVAL_POSSIBLE}, and ${CROSSVAL_CLEAN_FIXTURES} of ${CROSSVAL_FIXTURES} fixtures are free of any divergence. The headline is a count of comparisons run, not a pass rate.`],
   ['Same author, both ports',
    'The JavaScript engine and the Python reference are written and maintained by the same person. That catches transcription and refactor drift. It cannot catch a shared misreading of how P6 behaves, which is why the P6 comparison exists and why it carries more weight.'],
   ['Most of the engine has no second implementation',
