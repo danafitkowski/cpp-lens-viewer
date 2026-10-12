@@ -121,18 +121,25 @@ import { dataTable } from './_shared/data-table.js';
 // them. Skips stayed 98 on 36 fixtures (the new two have none), leaving 80
 // clean. The JavaScript suite went 1395 -> 1402, and the P6 comparison matrix
 // still reports 13 of 13 with zero changed rows.
-const ENGINE_VERSION = '2.9.57';
+// 2.9.58 grew the surface: 116 -> 119 fixtures and 4244/4342 -> 4675/4773,
+// the 3 new fixtures (F121-F123) handing both engines the milestone shapes
+// whose printed dates now follow P6 (a milestone prints the date of the
+// instant it sits at), and the dates check now carries the printed finish
+// dates. Skips stayed 98 on 36 fixtures, leaving 83 clean. The JavaScript
+// suite went 1402 -> 1409, and the P6 comparison matrix still reports 13 of
+// 13 with zero changed rows.
+const ENGINE_VERSION = '2.9.58';
 
 // Layer 1 — two ports of the same algorithm, by the same author.
-const CROSSVAL_FIXTURES = 116;
-const CROSSVAL_EXECUTED = 4244;
-const CROSSVAL_POSSIBLE = 4342;
+const CROSSVAL_FIXTURES = 119;
+const CROSSVAL_EXECUTED = 4675;
+const CROSSVAL_POSSIBLE = 4773;
 const CROSSVAL_SKIPPED = 98;
-const CROSSVAL_CLEAN_FIXTURES = 80;
-const JS_UNIT_TESTS = 1402;
-// c8 over cpm-engine.js running the crossval harness at the v2.9.57 tag,
-// measured 2026-10-11: 6,043 of 12,094 statements (49.96%).
-const ENGINE_STATEMENT_COVERAGE = '50%';
+const CROSSVAL_CLEAN_FIXTURES = 83;
+const JS_UNIT_TESTS = 1409;
+// c8 over cpm-engine.js running the crossval harness at the v2.9.58 tag,
+// measured 2026-10-12: 6,326 of 12,391 statements (51.05%).
+const ENGINE_STATEMENT_COVERAGE = '51%';
 
 // Layer 2 — the engine against Primavera P6 itself.
 const P6_VERSION = 'Primavera P6 23.12';
