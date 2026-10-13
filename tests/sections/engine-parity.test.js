@@ -34,9 +34,10 @@ describe('engine parity section', () => {
     expect(text).toMatch(/fitted to/);
   });
 
-  it('discloses that the port total skips comparisons', () => {
+  it('states the port total, and that it no longer skips comparisons', () => {
     const text = render({ A: null, B: null }).textContent;
-    expect(text).toMatch(/skipped rather than failed/);
+    expect(text).toMatch(/skips none/);
+    expect(text).toMatch(/skipped rather than failed/);   // the history, stated
     // Surface history: 989 -> 995 at v2.9.41, which retired three alert-parity
     // carve-outs, then 995 -> 1015 when a 46th fixture landed and two engine
     // defects were fixed (a transposed constraint-date column read, and the
@@ -48,14 +49,16 @@ describe('engine parity section', () => {
     // These are the RENDERED strings. tests/unit/engine-parity.test.js is the
     // one that runs the real harness and pins these same numbers to it, so a
     // figure cannot be updated here without the harness agreeing.
-    expect(text).toMatch(/5133 of 5233/);
-    expect(text).toMatch(/90 of 127/);
+    // v2.10.1: both engines emit the signed free-float pair on completed work,
+    // so the 100 mutual skips closed and every fixture is clean.
+    expect(text).toMatch(/6994 of 6994/);
+    expect(text).toMatch(/136 of 136/);
     expect(text).toMatch(/not a pass rate/);
   });
 
   it('states the limits and the boundary on the same page as the results', () => {
     const text = render({ A: null, B: null }).textContent;
-    expect(text).toContain('Day granular');
+    expect(text).toContain('Day granular without hours');
     expect(text).toContain('No resource levelling');
     expect(text).toContain('Same author, both ports');
     expect(text).toMatch(/no second implementation/);

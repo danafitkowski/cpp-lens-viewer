@@ -140,18 +140,26 @@ import { dataTable } from './_shared/data-table.js';
 // 98 -> 100 on 37 fixtures, leaving 90 clean. The JavaScript suite went
 // 1416 -> 1435, and the P6 comparison matrix still reports 13 of 13 with zero
 // changed rows.
-const ENGINE_VERSION = '2.10.0';
+// 2.10.1 grew the surface: 127 -> 136 fixtures and 5133/5233 -> 6994/6994,
+// the 9 new fixtures (F132-F140) handing both engines resource dependent work,
+// the float and critical set P6 prints, calendar-less float, a future actual
+// finish and normalized constraints; every activity also compares its start
+// and finish float. Skips went 100 -> 0: both engines now emit the signed
+// free-float pair on completed activities, so all 136 fixtures are clean. The
+// JavaScript suite went 1435 -> 1456, and the P6 comparison matrix still
+// reports 13 of 13 with zero changed rows.
+const ENGINE_VERSION = '2.10.1';
 
 // Layer 1 — two ports of the same algorithm, by the same author.
-const CROSSVAL_FIXTURES = 127;
-const CROSSVAL_EXECUTED = 5133;
-const CROSSVAL_POSSIBLE = 5233;
-const CROSSVAL_SKIPPED = 100;
-const CROSSVAL_CLEAN_FIXTURES = 90;
-const JS_UNIT_TESTS = 1435;
-// c8 over cpm-engine.js running the crossval harness at the v2.10.0 tag,
-// measured 2026-10-12: 7,198 of 13,323 statements (54.02%).
-const ENGINE_STATEMENT_COVERAGE = '54%';
+const CROSSVAL_FIXTURES = 136;
+const CROSSVAL_EXECUTED = 6994;
+const CROSSVAL_POSSIBLE = 6994;
+const CROSSVAL_SKIPPED = 0;
+const CROSSVAL_CLEAN_FIXTURES = 136;
+const JS_UNIT_TESTS = 1456;
+// c8 over cpm-engine.js running the crossval harness at the v2.10.1 tag,
+// measured 2026-10-13: 7,463 of 13,628 statements (54.76%).
+const ENGINE_STATEMENT_COVERAGE = '55%';
 
 // Layer 2 — the engine against Primavera P6 itself.
 const P6_VERSION = 'Primavera P6 23.12';
@@ -197,16 +205,16 @@ const P6_CASES = [
 const LIMITS = [
   ['Fitted, not blind',
    `The thirteen cases were captured from P6 once. That first blind run passed ${P6_BLIND_FIRST_PASS} of ${P6_CASES_TOTAL}. The seven gaps sorted into five families, and the engine was then changed to match the answers P6 had already given, across three commits. The current ${P6_CASES_PASSED} of ${P6_CASES_TOTAL} is therefore measured on the cases the engine was fitted to. No held-out case has been captured since, so the honest reading is that these thirteen behaviours are now correct, not that the next thirteen would pass first time.`],
-  ['The port total skips comparisons',
-   `The cross-validation harness runs ${CROSSVAL_EXECUTED} comparisons and all of them pass. A further ${CROSSVAL_SKIPPED} are skipped rather than failed, on the two signed free-float fields, 50 on ff_signed and 50 on ff_signed_working_days. All one hundred fall on thirty-seven fixtures where neither engine assigns the field, and every one of them involves a completed activity: a completed-and-uncompleted mix, an out-of-sequence completion, an activity carrying an actual finish with no actual start, the four retained-logic pass-through fixtures, sixteen of the unexpired-lag fixtures, seven of the resume-date and completed-work fixtures, the two opened-projects fixtures, the two expected-finish fixtures behind FF logic, the two assigned-work fixtures, and one of the hours-pass fixtures. Counting the skips, agreement is ${CROSSVAL_EXECUTED} of ${CROSSVAL_POSSIBLE}, and ${CROSSVAL_CLEAN_FIXTURES} of ${CROSSVAL_FIXTURES} fixtures are free of any divergence. The headline is a count of comparisons run, not a pass rate.`],
+  ['The port total skips nothing',
+   `The cross-validation harness runs ${CROSSVAL_EXECUTED} comparisons and all of them pass, and it skips none: agreement is ${CROSSVAL_EXECUTED} of ${CROSSVAL_POSSIBLE}, and ${CROSSVAL_CLEAN_FIXTURES} of ${CROSSVAL_FIXTURES} fixtures are free of any divergence. Through v2.10.0 one hundred comparisons were skipped rather than failed, on the two signed free-float fields of completed activities where neither engine assigned the field; since v2.10.1 both engines emit it there and those comparisons run. The headline counts comparisons run; it is still not a pass rate over every behaviour, only over the fixtures listed.`],
   ['Same author, both ports',
    'The JavaScript engine and the Python reference are written and maintained by the same person. That catches transcription and refactor drift. It cannot catch a shared misreading of how P6 behaves, which is why the P6 comparison exists and why it carries more weight.'],
   ['Most of the engine has no second implementation',
    `The cross-validation exercises about ${ENGINE_STATEMENT_COVERAGE} of the engine's statements. The Monte Carlo path, the DCMA-14 health computation, fragnet insertion for time impact analysis, the Bayesian update and the statutory-holiday calendars have no Python counterpart and are not cross-validated at all. Float burndown and the topology hash do have Python counterparts and, since August 2026, are compared against them field by field on an internal extended harness that also covers the salvage and strategy surfaces. That harness is not in the public repository, so the comparison is not independently runnable, and none of the figures on this page include it.`],
   ['Small synthetic networks',
-   'All one hundred and fourteen fixtures are hand-built; most carry a handful of activities and the largest thirty-six. No real schedule and no XER file is cross-validated. The thirteen P6 cases are the same shape, twenty-seven activities in total.'],
-  ['Day granular',
-   'The engine works in whole days. A sub-day lag rounds and raises an alert that is fatal in strict mode. P6 stores lags in hours, so that case cannot be compared field for field and is excluded from the matrix rather than counted as a pass.'],
+   'All one hundred and thirty-six fixtures are hand-built; most carry a handful of activities and the largest thirty-six. No real schedule and no XER file is cross-validated. The thirteen P6 cases are the same shape, twenty-seven activities in total.'],
+  ['Day granular without hours',
+   'Where the caller hands on P6\'s own hours the engine schedules in hours and minutes. Without them it works in whole days: a sub-day lag rounds and raises an alert that is fatal in strict mode. The thirteen matrix cases hand on days, so the sub-day lag case cannot be compared field for field and is excluded from the matrix rather than counted as a pass.'],
   ['No resource levelling',
    'Levelling is not modelled. Dates are driven by logic and calendars only.']
 ];
@@ -237,13 +245,13 @@ export function render() {
       kpiCard({
         title: 'Port agreement, counted',
         big: `${CROSSVAL_EXECUTED} of ${CROSSVAL_POSSIBLE}`,
-        sub: `${CROSSVAL_SKIPPED} comparisons skipped, not failed`,
+        sub: CROSSVAL_SKIPPED ? `${CROSSVAL_SKIPPED} comparisons skipped, not failed` : 'every comparison defined, none skipped',
         tone: 'ink'
       }),
       kpiCard({
         title: 'Fixtures with no divergence',
         big: `${CROSSVAL_CLEAN_FIXTURES} of ${CROSSVAL_FIXTURES}`,
-        sub: `the other ${CROSSVAL_FIXTURES - CROSSVAL_CLEAN_FIXTURES} carry mutual skips, not disagreements`,
+        sub: CROSSVAL_FIXTURES - CROSSVAL_CLEAN_FIXTURES ? `the other ${CROSSVAL_FIXTURES - CROSSVAL_CLEAN_FIXTURES} carry mutual skips, not disagreements` : 'every fixture, with nothing skipped',
         tone: 'ink'
       }),
       kpiCard({
@@ -258,7 +266,7 @@ export function render() {
       h('h3', {}, 'Read the two numbers differently'),
       h('p', {}, 'The P6 figure and the port-agreement figure answer different questions, and neither is a simple pass rate. This section was rewritten after its own first version published both of them in a way that flattered the engine.'),
       h('p', {}, `On P6: thirteen small schedules were built to isolate one scheduling behaviour each, imported into ${P6_VERSION}, and scheduled there by a human operator pressing F9. P6's answers were recorded field by field and pinned as data, ${P6_FIELD_CELLS} cells across twenty-seven activities, of which ${P6_REAL_COMPARISONS} are genuine engine-computed against P6-computed comparisons; the rest are actual dates carried through, or blanks. The first run against those pinned answers passed ${P6_BLIND_FIRST_PASS} of ${P6_CASES_TOTAL}. The engine was then corrected and now passes all thirteen. That is a real cross-tool test and it is also a fitted one.`),
-      h('p', {}, `On the two ports: the harness compares a JavaScript and a Python implementation field by field and reports ${CROSSVAL_EXECUTED} of ${CROSSVAL_EXECUTED}. That is the count of comparisons it actually ran. ${CROSSVAL_SKIPPED} more were skipped rather than compared, every one on a completed activity where NEITHER implementation emits the signed free-float field, so there is nothing to verify and no port gap behind them; a skipped comparison is still not a passing one. Counted properly it is ${CROSSVAL_EXECUTED} of ${CROSSVAL_POSSIBLE}.`),
+      h('p', {}, `On the two ports: the harness compares a JavaScript and a Python implementation field by field and reports ${CROSSVAL_EXECUTED} of ${CROSSVAL_EXECUTED}. That is the count of comparisons it actually ran, and since v2.10.1 it is every comparison the harness defines: none is skipped, so counted properly it is ${CROSSVAL_EXECUTED} of ${CROSSVAL_POSSIBLE}. Through v2.10.0 one hundred were skipped rather than compared, on completed activities where neither implementation emitted the signed free-float field; a skipped comparison is not a passing one, which is why those were counted apart.`),
       h('p', {}, 'No parity claim is made beyond the ground these cases cover.')
     ]),
 

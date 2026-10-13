@@ -108,7 +108,7 @@ describe('engine parity figures', () => {
   it('the skipped-comparison total is arithmetically consistent', () => {
     const { CROSSVAL_EXECUTED, CROSSVAL_POSSIBLE, CROSSVAL_SKIPPED } = PARITY_FACTS;
     expect(CROSSVAL_EXECUTED + CROSSVAL_SKIPPED).toBe(CROSSVAL_POSSIBLE);
-    expect(CROSSVAL_SKIPPED).toBeGreaterThan(0);
+    expect(CROSSVAL_SKIPPED).toBeGreaterThanOrEqual(0);
   });
 
   it('the harness still SKIPS comparisons rather than failing them', (ctx) => {
@@ -145,8 +145,10 @@ describe('engine parity figures', () => {
     expect(Number(surface[1])).toBe(PARITY_FACTS.CROSSVAL_EXECUTED);
     expect(Number(surface[2])).toBe(PARITY_FACTS.CROSSVAL_POSSIBLE);
 
-    // The per-field breakdown is what makes the disclosure specific.
-    expect(skipped[2]).toMatch(/ff_signed_working_days/);
+    // The per-field breakdown is what makes the disclosure specific; since
+    // v2.10.1 the harness skips nothing, so the breakdown is empty.
+    if (PARITY_FACTS.CROSSVAL_SKIPPED > 0) expect(skipped[2]).toMatch(/ff_signed_working_days/);
+    else expect(skipped[2].trim()).toBe('');
   });
 
   it('the internal extended harness still covers float burndown and the topology hash', (ctx) => {
