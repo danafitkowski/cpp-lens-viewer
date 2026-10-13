@@ -17,7 +17,8 @@ import { getTable, getCalendarMap } from '@criticalpathpartners/lens-parser';
  * working-day arithmetic substitutes a Monday to Friday week for such a
  * calendar, but this viewer never calls it: it does not recalculate the
  * schedule, it reads dates and float as P6 saved them, and it converts hours to
- * days by CALENDAR.day_hr_cnt alone (see working-days.js). So the notice does
+ * days by each calendar's hours per day (see working-days.js), which for a
+ * calendar whose week could not be read is its day_hr_cnt. So the notice does
  * not claim a substituted week that no figure on screen was computed on. It
  * names the calendar, says its work days are left blank, and says why nothing
  * else moves.

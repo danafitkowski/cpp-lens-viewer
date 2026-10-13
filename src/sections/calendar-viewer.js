@@ -20,6 +20,11 @@ function computeMetrics(A) {
       work_day_indices: info.work_days          || [],
       work_day_names:   info.work_day_names     || info.work_days?.map(i => DAY_NAMES[i] || String(i)) || [],
       hours_per_day:    info.hours_per_day != null ? info.hours_per_day : (parseFloat(row.day_hr_cnt) || 8),
+      // Where hours_per_day is not the file's day_hr_cnt: P6 converts on the
+      // hours the shifts work, and schedules an empty record on its internal
+      // 8-hour Standard (lens-parser getCalendarMap).
+      declared_hours_per_day: info.declared_hours_per_day != null ? info.declared_hours_per_day : null,
+      empty_record:     Boolean(info.empty_record),
       holidays:         info.holidays           || [],
       special_workdays: info.special_workdays   || [],
       parse_incomplete: Boolean(info.parse_incomplete)
@@ -51,6 +56,20 @@ function workDaysText(cal) {
     : cal.work_day_indices.map(i => DAY_NAMES[i] || String(i)).join(', ') || '—';
 }
 
+// The Hours/day card says where its figure came from when it is not the
+// file's own day_hr_cnt.
+function hoursPerDaySub(cal) {
+  if (cal.empty_record) {
+    return cal.declared_hours_per_day != null && cal.declared_hours_per_day !== cal.hours_per_day
+      ? `P6 Standard, no week defined (declares ${cal.declared_hours_per_day})`
+      : 'P6 Standard, no week defined';
+  }
+  if (cal.declared_hours_per_day != null) {
+    return `the hours its shifts work (declares ${cal.declared_hours_per_day})`;
+  }
+  return 'hr/day';
+}
+
 const HOLIDAY_COLS      = [{ key: 'date', label: 'Date' }];
 const SPECIAL_WD_COLS   = [{ key: 'date', label: 'Date' }];
 
@@ -59,7 +78,7 @@ function calendarCard(cal) {
     cal.parse_incomplete
       ? kpiCard({ title: 'Work days', big: WORK_WEEK_NOT_READ, sub: 'could not be read from the file', tone: 'amber' })
       : kpiCard({ title: 'Work days',     big: workDaysText(cal), sub: 'days of the week',        tone: 'ink' }),
-    kpiCard({ title: 'Hours/day',     big: cal.hours_per_day,   sub: 'hr/day',                  tone: 'ink' }),
+    kpiCard({ title: 'Hours/day',     big: cal.hours_per_day,   sub: hoursPerDaySub(cal),       tone: 'ink' }),
     kpiCard({ title: 'Holidays',      big: cal.holidays.length, sub: 'non-working exceptions',  tone: cal.holidays.length > 0 ? 'amber' : 'green' }),
     kpiCard({ title: 'Special workdays', big: cal.special_workdays.length, sub: 'extra working exceptions', tone: 'ink' })
   ];

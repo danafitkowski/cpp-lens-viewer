@@ -37,3 +37,32 @@ describe('Calendar Viewer', () => {
     expect(el.textContent).toContain('8');
   });
 });
+
+// The Hours/day card names where its figure came from when it is not the
+// file's day_hr_cnt (2026-10-13): P6 converts on the hours a calendar's shifts
+// work, and schedules an empty record on its internal 8-hour Standard.
+describe('Calendar Viewer hours per day, as P6 schedules them', () => {
+  const T = '\t';
+  const week = (slot) => {
+    let body = '';
+    for (let d = 1; d <= 7; d++) body += `(0||${d}()(${d >= 2 && d <= 6 ? slot : ''}))`;
+    return `(0||CalendarData()((0||DaysOfWeek()(${body}))(0||Exceptions()())))`;
+  };
+  const model = (row) => parseXer([
+    ['ERMHDR', '23.12', '2026-10-13', 'Project', 'admin', 'admin', 'db', 'Project Management', 'USD'],
+    ['%T', 'CALENDAR'],
+    ['%F', 'clndr_id', 'clndr_name', 'day_hr_cnt', 'week_hr_cnt', 'clndr_data'],
+    ['%R', ...row],
+    ['%E'],
+  ].map(l => l.join(T)).join('\r\n') + '\r\n');
+
+  it('[discriminating] a shift-hours calendar shows its shifts\' hours and what it declares', () => {
+    const el = render({ A: model(['S', 'Ten Hour Shifts', '8', '40', week('(0||0(s|07:00|f|17:00)())')]), B: null });
+    expect(el.textContent).toContain('the hours its shifts work (declares 8)');
+  });
+
+  it('[discriminating] an empty record shows P6\'s Standard and what it declares', () => {
+    const el = render({ A: model(['E', 'Empty Ten', '10', '50', '']), B: null });
+    expect(el.textContent).toContain('P6 Standard, no week defined (declares 10)');
+  });
+});

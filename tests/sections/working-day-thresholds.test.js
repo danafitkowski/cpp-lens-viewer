@@ -303,6 +303,11 @@ describe('Path Explorer converts relationship lag on the activity calendar', () 
     // change — that is the point, and it is why the divisor cannot be a constant.
     const A = load(LAG);
     A.tables.CALENDAR.records[0].day_hr_cnt = '8';
+    // ... and its week works eight hours a day: P6 converts on the hours the
+    // shifts work, so the declared figure alone does not make a 07:00-17:00
+    // week an 8 hr/day calendar.
+    A.tables.CALENDAR.records[0].clndr_data =
+      A.tables.CALENDAR.records[0].clndr_data.replaceAll('s|07:00|f|17:00', 's|08:00|f|16:00');
     const chain = traceChain(A, '3', 'backward');
     expect(chain[0].task_code).toBe('L110');
   });
