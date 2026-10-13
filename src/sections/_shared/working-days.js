@@ -88,14 +88,30 @@ export function workingDayContext(A) {
 
   /**
    * Which hours-per-day applies to an activity, and where that number came
-   * from. 'calendar' = read off CALENDAR.day_hr_cnt. 'unusable' = the CALENDAR
-   * row is there but states no usable day_hr_cnt. 'missing' = the activity
-   * names a calendar this file does not contain, or names none at all.
+   * from. 'calendar' = the calendar's hours per day as P6 schedules it:
+   * CALENDAR.day_hr_cnt, or the hours its shifts work where every working day
+   * works the same and day_hr_cnt says otherwise, or P6's internal 8-hour
+   * Standard for an empty record (lens-parser's getCalendarMap applies both
+   * rules, measured on P6's own F9). 'unusable' = the CALENDAR row is there
+   * but states no usable day_hr_cnt and has no shifts to read one from.
+   * 'missing' = the activity names a calendar this file does not contain, or
+   * names none at all.
    */
   function divisorFor(clndrId) {
     const id = (clndrId == null || clndrId === '') ? null : String(clndrId);
+    const cal = id !== null ? calMap[id] : null;
+    // The hours its shifts work, where P6 schedules on them instead of the
+    // declared figure (also where day_hr_cnt is unusable but the week has hours).
+    if (cal && !cal.empty_record && cal.declared_hours_per_day != null) {
+      return { hoursPerDay: cal.hours_per_day, source: 'calendar', clndrId: id, raw: null, basis: 'shifts' };
+    }
+    // An empty record that states its hours: P6 schedules it on its internal
+    // 8-hour Standard whatever it declares.
+    if (cal && cal.empty_record && stated.has(id)) {
+      return { hoursPerDay: cal.hours_per_day, source: 'calendar', clndrId: id, raw: null, basis: 'standard' };
+    }
     if (id !== null && stated.has(id)) {
-      return { hoursPerDay: stated.get(id), source: 'calendar', clndrId: id, raw: null };
+      return { hoursPerDay: stated.get(id), source: 'calendar', clndrId: id, raw: null, basis: 'declared' };
     }
     if (id !== null && unusable.has(id)) {
       return { hoursPerDay: P6_DEFAULT_HOURS_PER_DAY, source: 'unusable', clndrId: id, raw: unusable.get(id) };
@@ -132,6 +148,7 @@ export function workingDayContext(A) {
     const rows = Array.isArray(tasks) ? tasks : [];
     const hoursPerDaySet = new Set();
     const unusableValues = new Set();
+    const bases = new Set();
     let converted = 0;
     let missing = 0;
     let unusableCount = 0;
@@ -141,7 +158,7 @@ export function workingDayContext(A) {
       if (!fields.some(f => isConvertible(t[f]))) continue;
       converted++;
       const d = divisorFor(t.clndr_id);
-      if (d.source === 'calendar') hoursPerDaySet.add(d.hoursPerDay);
+      if (d.source === 'calendar') { hoursPerDaySet.add(d.hoursPerDay); bases.add(d.basis); }
       else if (d.source === 'unusable') { unusableCount++; unusableValues.add(d.raw); }
       else missing++;
     }
@@ -152,9 +169,14 @@ export function workingDayContext(A) {
     // Name the divisor the thresholds were applied at. On a 10 hr/day calendar
     // "> 20 working days" is 200 hr, not 160 — the reader cannot check the count
     // without knowing which divisor was used. Says what happened, not what is
-    // assumed.
+    // assumed, and where each figure came from.
+    const source = [
+      bases.has('declared') ? 'CALENDAR.day_hr_cnt' : null,
+      bases.has('shifts') ? 'the hours a calendar\'s shifts work, where they differ from day_hr_cnt, as P6 schedules' : null,
+      bases.has('standard') ? 'P6\'s internal 8-hour Standard for a calendar record with no week defined' : null,
+    ].filter(Boolean).join('; ');
     const note = hoursPerDay.length > 0
-      ? `Durations and float converted to working days at ${hoursPerDay.join(' / ')} hr per day (CALENDAR.day_hr_cnt).`
+      ? `Durations and float converted to working days at ${hoursPerDay.join(' / ')} hr per day (${source}).`
       : `No activity in this file resolves to a CALENDAR record with a usable day_hr_cnt. Durations and float converted at the P6 default ${P6_DEFAULT_HOURS_PER_DAY} hr per day.`;
 
     let warning = null;

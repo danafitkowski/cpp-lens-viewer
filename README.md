@@ -5,7 +5,7 @@ Browser-based Primavera P6 schedule viewer. Lives at https://criticalpathpartner
 Powered by [@criticalpathpartners/lens-parser](https://github.com/danafitkowski/cpp-lens-parser).
 
 ## Status
-v1.5.4 — all 30 sections wired. Live at https://criticalpathpartners.ca/viewer/.
+v1.6.0 — working days on the hours per day P6 schedules by (lens-parser 0.4.0): the hours a calendar's shifts work where they differ from `day_hr_cnt`, and P6's 8-hour Standard for a calendar record with no week defined. All 30 sections wired. Live at https://criticalpathpartners.ca/viewer/.
 
 ## Build
 - `npm run build` — both targets
