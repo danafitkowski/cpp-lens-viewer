@@ -148,17 +148,23 @@ import { dataTable } from './_shared/data-table.js';
 // free-float pair on completed activities, so all 136 fixtures are clean. The
 // JavaScript suite went 1435 -> 1456, and the P6 comparison matrix still
 // reports 13 of 13 with zero changed rows.
-const ENGINE_VERSION = '2.10.1';
+// 2.10.2 grew the surface: 136 -> 143 fixtures and 6994/6994 -> 7634/7634,
+// the 7 new fixtures (F141-F147) handing both engines start constraints on
+// work under way, As Late As Possible under way and past its late finish, and
+// free float across a lag. Skips stay 0, so all 143 fixtures are clean. The
+// JavaScript suite went 1456 -> 1461, and the P6 comparison matrix still
+// reports 13 of 13 with zero changed rows.
+const ENGINE_VERSION = '2.10.2';
 
 // Layer 1 — two ports of the same algorithm, by the same author.
-const CROSSVAL_FIXTURES = 136;
-const CROSSVAL_EXECUTED = 6994;
-const CROSSVAL_POSSIBLE = 6994;
+const CROSSVAL_FIXTURES = 143;
+const CROSSVAL_EXECUTED = 7634;
+const CROSSVAL_POSSIBLE = 7634;
 const CROSSVAL_SKIPPED = 0;
-const CROSSVAL_CLEAN_FIXTURES = 136;
-const JS_UNIT_TESTS = 1456;
-// c8 over cpm-engine.js running the crossval harness at the v2.10.1 tag,
-// measured 2026-10-13: 7,463 of 13,628 statements (54.76%).
+const CROSSVAL_CLEAN_FIXTURES = 143;
+const JS_UNIT_TESTS = 1461;
+// c8 over cpm-engine.js running the crossval harness at the v2.10.2 tag,
+// measured 2026-10-13: 7,523 of 13,664 statements (55.05%).
 const ENGINE_STATEMENT_COVERAGE = '55%';
 
 // Layer 2 — the engine against Primavera P6 itself.
