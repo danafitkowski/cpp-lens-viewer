@@ -249,7 +249,7 @@ const LIMITS = [
   ['Most of the engine has no second implementation',
    `The cross-validation exercises about ${ENGINE_STATEMENT_COVERAGE} of the engine's statements. The Monte Carlo path, the DCMA-14 health computation, fragnet insertion for time impact analysis, the Bayesian update and the statutory-holiday calendars have no Python counterpart and are not cross-validated at all. Float burndown and the topology hash do have Python counterparts and, since August 2026, are compared against them field by field on an internal extended harness that also covers the salvage and strategy surfaces. That harness is not in the public repository, so the comparison is not independently runnable, and none of the figures on this page include it.`],
   ['Small synthetic networks',
-   'All one hundred and sixty-two fixtures are hand-built; most carry a handful of activities and the largest thirty-six. No real schedule and no XER file is cross-validated. The thirteen P6 cases are the same shape, twenty-seven activities in total.'],
+   'All one hundred and sixty-eight fixtures are hand-built; most carry a handful of activities and the largest thirty-six. No real schedule and no XER file is cross-validated. The thirteen P6 cases are the same shape, twenty-seven activities in total.'],
   ['Day granular without hours',
    'Where the caller hands on P6\'s own hours the engine schedules in hours and minutes. Without them it works in whole days: a sub-day lag rounds and raises an alert that is fatal in strict mode. The thirteen matrix cases hand on days, so the sub-day lag case cannot be compared field for field and is excluded from the matrix rather than counted as a pass.'],
   ['No resource levelling',
