@@ -51,8 +51,8 @@ describe('engine parity section', () => {
     // figure cannot be updated here without the harness agreeing.
     // v2.10.1: both engines emit the signed free-float pair on completed work,
     // so the 100 mutual skips closed and every fixture is clean.
-    expect(text).toMatch(/11776 of 11776/);
-    expect(text).toMatch(/174 of 174/);
+    expect(text).toMatch(/12887 of 12887/);
+    expect(text).toMatch(/183 of 183/);
     expect(text).toMatch(/not a pass rate/);
   });
 
