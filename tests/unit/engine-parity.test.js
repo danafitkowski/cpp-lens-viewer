@@ -126,10 +126,12 @@ describe('engine parity figures', () => {
     //
     // Ask the harness instead. It prints the counts it derived, so the figures
     // on the site are checked against a real run rather than against source
-    // that anyone may reformat. ~5s.
+    // that anyone may reformat. About 2 minutes at v2.10.13 (233 fixtures,
+    // the hours fixtures through the Python reference too), so the spawn is
+    // given 10.
     readSsotOrSkip(ctx, CROSSVAL, 'cpm-engine.crossval.js (engine repo)');
     const out = execFileSync('node', [CROSSVAL], {
-      cwd: dirname(CROSSVAL), encoding: 'utf8', timeout: 120000,
+      cwd: dirname(CROSSVAL), encoding: 'utf8', timeout: 600000,
     });
 
     const skipped = out.match(/Skipped:\s+(\d+) guarded comparisons not executed\s*\(([^)]*)\)/);
@@ -149,7 +151,7 @@ describe('engine parity figures', () => {
     // v2.10.1 the harness skips nothing, so the breakdown is empty.
     if (PARITY_FACTS.CROSSVAL_SKIPPED > 0) expect(skipped[2]).toMatch(/ff_signed_working_days/);
     else expect(skipped[2].trim()).toBe('');
-  });
+  }, 600000);
 
   it('the internal extended harness still covers float burndown and the topology hash', (ctx) => {
     // The limits table says these two routines are compared JS-vs-Python on an
