@@ -163,7 +163,17 @@ function renderFileBox() {
     h('label', { for: 'lens-file-b' }, 'Baseline schedule (XER / XML / MPP, optional)'), fileB,
     h('div', { class: 'file-box-note' },
       'XER and XML files are read entirely in the browser. MPP files are converted to P6 format on the CPP server.'),
-    analyze, reset, sample, statusSlot
+    analyze, reset, sample, statusSlot,
+    // The viewer is where most site visitors finish; a visitor with a live dispute
+    // gets one plain route to an analyst. A new tab keeps the loaded schedule open.
+    h('div', { class: 'file-box-cta' }, [
+      'Delay dispute? Send the schedule for a ',
+      h('a', {
+        href: 'https://criticalpathpartners.ca/claim-check.html',
+        target: '_blank', rel: 'noopener'
+      }, 'free claim check'),
+      '.'
+    ])
   ]);
 }
 
