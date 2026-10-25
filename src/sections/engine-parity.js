@@ -230,7 +230,11 @@ import { dataTable } from './_shared/data-table.js';
 // all 233 fixtures are clean. The JavaScript suite went 1498 -> 1500 (two
 // float-type checks) and the P6 comparison matrix still reports 13 of 13 with
 // zero changed rows.
-const ENGINE_VERSION = '2.10.13';
+// 2.10.14 changes what the engine records as the driver of work under way
+// (TD-1) and moves no date: the surface stays at 233 fixtures and
+// 22189/22189, the JavaScript suite went 1500 -> 1510 (T-TD1-1 to T-TD1-10)
+// and the P6 comparison matrix still reports 13 of 13.
+const ENGINE_VERSION = '2.10.14';
 
 // Layer 1 — two ports of the same algorithm, by the same author.
 const CROSSVAL_FIXTURES = 233;
@@ -238,9 +242,9 @@ const CROSSVAL_EXECUTED = 22189;
 const CROSSVAL_POSSIBLE = 22189;
 const CROSSVAL_SKIPPED = 0;
 const CROSSVAL_CLEAN_FIXTURES = 233;
-const JS_UNIT_TESTS = 1500;
-// c8 over cpm-engine.js running the crossval harness at the v2.10.13 tag,
-// measured 2026-10-22: 8,917 of 14,722 statements (60.57%).
+const JS_UNIT_TESTS = 1510;
+// c8 over cpm-engine.js running the crossval harness at the v2.10.14 tag,
+// measured 2026-10-25: 8,992 of 14,798 statements (60.76%).
 const ENGINE_STATEMENT_COVERAGE = '61%';
 
 // Layer 2 — the engine against Primavera P6 itself.
