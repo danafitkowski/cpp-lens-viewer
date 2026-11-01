@@ -234,7 +234,10 @@ import { dataTable } from './_shared/data-table.js';
 // (TD-1) and moves no date: the surface stays at 233 fixtures and
 // 22189/22189, the JavaScript suite went 1500 -> 1510 (T-TD1-1 to T-TD1-10)
 // and the P6 comparison matrix still reports 13 of 13.
-const ENGINE_VERSION = '2.10.14';
+// 2.10.15 reads a blank relationship lag in an XER as a zero lag (issue
+// #17); the harness does not run the XER parser, so the surface stays at
+// 233 fixtures and 22189/22189. The JavaScript suite went 1510 -> 1515.
+const ENGINE_VERSION = '2.10.15';
 
 // Layer 1 — two ports of the same algorithm, by the same author.
 const CROSSVAL_FIXTURES = 233;
@@ -242,9 +245,9 @@ const CROSSVAL_EXECUTED = 22189;
 const CROSSVAL_POSSIBLE = 22189;
 const CROSSVAL_SKIPPED = 0;
 const CROSSVAL_CLEAN_FIXTURES = 233;
-const JS_UNIT_TESTS = 1510;
-// c8 over cpm-engine.js running the crossval harness at the v2.10.14 tag,
-// measured 2026-10-25: 8,992 of 14,798 statements (60.76%).
+const JS_UNIT_TESTS = 1515;
+// c8 over cpm-engine.js running the crossval harness at the v2.10.15 tag,
+// measured 2026-11-01: 8,992 of 14,832 statements (60.63%).
 const ENGINE_STATEMENT_COVERAGE = '61%';
 
 // Layer 2 — the engine against Primavera P6 itself.
