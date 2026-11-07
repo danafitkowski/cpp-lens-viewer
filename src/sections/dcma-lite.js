@@ -708,16 +708,18 @@ export function computeMetrics(file, baselineFile = null) {
       ? 'For information, no incomplete activity carries a total float'
       : `For information, ${num(criticalCount)} of ${num(nFloat)} incomplete activities that carry a total float ` +
         `have total float of zero or less; ${num(noFloat)} more carry none`;
-  // D11. The completion activity: the ordinary or milestone activity with the
-  // latest early finish (else planned finish); a finish milestone on a tie,
-  // else the first in the file.
+  // D11. The completion activity: the ordinary or milestone activity, complete
+  // or not, with the latest early finish (else planned finish). On a tie: a
+  // finish milestone, then an activity of zero original duration (a completion
+  // typed as a task), else the first in the file.
+  const tieRank = t => t.task_type === 'TT_FinMile' ? 2
+    : (isNumeric(t.target_drtn_hr_cnt) && parseFloat(t.target_drtn_hr_cnt) === 0 ? 1 : 0);
   let completion = null;
   let completionFinish = '';
   for (const t of counted) {
     const f = instantOf(t.early_end_date) || instantOf(t.target_end_date);
     if (!f) continue;
-    if (!completion || f > completionFinish ||
-        (f === completionFinish && t.task_type === 'TT_FinMile' && completion.task_type !== 'TT_FinMile')) {
+    if (!completion || f > completionFinish || (f === completionFinish && tieRank(t) > tieRank(completion))) {
       completion = t;
       completionFinish = f;
     }

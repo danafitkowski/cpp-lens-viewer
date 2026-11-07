@@ -423,3 +423,32 @@ describe('5. Missed Tasks counts deleted due work as missed, and refuses a renum
     expect(r.status).toBe('PASS');
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 6. The completion activity on a tie (2026-11-07 DCMA phase 2, definition D11)
+// ─────────────────────────────────────────────────────────────────────────────
+// The Critical Path Test FAILS when the completion activity is held by a
+// Mandatory Start or Finish. Which activity is the completion, when two share
+// the latest early finish: a finish milestone, then an activity of zero
+// original duration (a completion typed as a task), else the first in the file.
+describe('6. a zero-duration completion typed as a task wins a tie on the latest early finish', () => {
+  // A1 (5 days) and FIN (0 h, a task) both finish 2026-04-10 16:00; A1 is first in the file.
+  function tie(a1Extra, finExtra) {
+    const tasks = [
+      task(1, 'A1', a1Extra),
+      task(2, 'FIN', { target_drtn_hr_cnt: '0', remain_drtn_hr_cnt: '0', early_start_date: '2026-04-10 16:00', ...finExtra })
+    ];
+    return computeMetrics(xer({ tasks, rels: chain(tasks) }));
+  }
+
+  it('the pin on the zero-duration task FIN is read: FAIL', () => {
+    const r = metric(tie({}, { cstr_type: 'CS_MANDFIN' }), /^Critical Path Test/);
+    expect(r.status).toBe('FAIL');
+    expect(r.result).toContain('the completion activity FIN is held by a Mandatory Finish constraint');
+  });
+
+  it("a pin on the 5-day task A1, first in the file, is not the completion's: not scored", () => {
+    const r = metric(tie({ cstr_type2: 'CS_MANDSTART' }, {}), /^Critical Path Test/);
+    expect(r.status).toBe(NOT_SCORED);
+  });
+});
