@@ -39,7 +39,9 @@ const TASK_FIELDS = ['task_id', 'proj_id', 'task_code', 'task_name', 'clndr_id',
   'target_drtn_hr_cnt', 'remain_drtn_hr_cnt', 'total_float_hr_cnt', 'cstr_type', 'cstr_type2',
   'target_start_date', 'target_end_date', 'act_start_date', 'act_end_date', 'early_start_date', 'early_end_date'];
 const REL_FIELDS = ['task_pred_id', 'task_id', 'pred_task_id', 'pred_type', 'lag_hr_cnt'];
-const RSRC_FIELDS = ['taskrsrc_id', 'task_id', 'rsrc_id'];
+// 2026-11-07 DCMA phase 2: an assignment makes an activity resourced only when
+// it carries hours or cost (DCMA definition #10), so the rows carry target_qty.
+const RSRC_FIELDS = ['taskrsrc_id', 'task_id', 'rsrc_id', 'target_qty'];
 
 function proj(proj_id, proj_short_name, last_recalc_date, clndr_id = 'C8') {
   return { proj_id, proj_short_name, last_recalc_date, clndr_id };
@@ -156,8 +158,8 @@ function twoProjects(order = ['1', '2']) {
   ];
   const rels = [rel(1, 11, 12), rel(2, 12, 13), rel(3, 20, 21), rel(4, 21, 22), rel(5, 13, 21)];
   const rsrc = [
-    { taskrsrc_id: '1', task_id: '11', rsrc_id: 'R1' }, { taskrsrc_id: '2', task_id: '12', rsrc_id: 'R1' },
-    { taskrsrc_id: '3', task_id: '13', rsrc_id: 'R1' }, { taskrsrc_id: '4', task_id: '21', rsrc_id: 'R1' }
+    { taskrsrc_id: '1', task_id: '11', rsrc_id: 'R1', target_qty: '40' }, { taskrsrc_id: '2', task_id: '12', rsrc_id: 'R1', target_qty: '40' },
+    { taskrsrc_id: '3', task_id: '13', rsrc_id: 'R1', target_qty: '40' }, { taskrsrc_id: '4', task_id: '21', rsrc_id: 'R1', target_qty: '40' }
   ];
   return xer({ projects: order.map(k => projects[k]), tasks, rels, rsrc });
 }
@@ -171,9 +173,12 @@ describe('2. a multi-project file is scored on one project', () => {
     // ALPHA's 400 h float activities are not BRAVO's.
     expect(metric(m, /^High Float/).count).toBe('0 of 2 incomplete activities');
     // Only BRAVO's own relationships: the cross-project link is not one of them.
-    expect(metric(m, /^Leads/).count).toBe('0 of 2 relationships');
+    // 2026-11-07 DCMA phase 2: the count names the relationships into
+    // unfinished work, the population checks 2 to 4 now grade.
+    expect(metric(m, /^Leads/).count).toBe('0 of 2 relationships into unfinished work');
     // Assignments in the scored project only: B1 yes, B2 no.
-    expect(metric(m, /^Resources/).count).toBe('1 of 2 incomplete activities');
+    // 2026-11-07 DCMA phase 2: worded for the one-working-day population.
+    expect(metric(m, /^Resources/).count).toBe('1 of 2 incomplete activities of one working day or more carry hours or cost');
   });
 
   it('swapping the order of the PROJECT rows changes nothing', () => {
@@ -234,6 +239,50 @@ describe('2. a multi-project file is scored on one project', () => {
     const r = metric(computeMetrics(twoProjects(), B), /^Missed Tasks/);
     expect(r.count).toContain('OLD-B');
     expect(r.count).toContain('2 of 2');
+  });
+
+  // 2026-11-07 DCMA phase 2 (definition D9): the same proj_id comes first, and
+  // with no project ID, short name or Activity ID in common the baseline is not
+  // used at all. The last resort used to be "the latest data date", which
+  // compared the scored project with a baseline of some other project.
+  it('a baseline project with the same project ID is preferred over a name match', () => {
+    const B = xer({
+      projects: [proj('8', 'BRAVO', '2026-02-20 08:00'), proj('2', 'RENAMED', '2026-02-02 08:00')],
+      tasks: [
+        task(80, 'B0', { proj_id: '8', target_end_date: '2026-03-20 16:00' }),
+        task(70, 'B0', { proj_id: '2', target_end_date: '2026-03-13 16:00' }),
+        task(71, 'B1', { proj_id: '2', target_end_date: '2026-03-27 16:00' })
+      ]
+    });
+    const r = metric(computeMetrics(twoProjects(), B), /^Missed Tasks/);
+    expect(r.count).toContain('baseline project: RENAMED');
+    expect(r.count).toContain('chosen on the same project ID');
+    expect(r.count).toContain('2 of 2');
+  });
+
+  it('with nothing in common the baseline is not used: Missed Tasks not scored, durations read from the current file', () => {
+    const B = xer({
+      projects: [proj('7', 'OLD-Q', '2026-02-02 08:00'), proj('8', 'OLD-Z', '2026-02-20 08:00')],
+      tasks: [
+        task(70, 'Q1', { proj_id: '7', target_end_date: '2026-03-13 16:00', target_drtn_hr_cnt: '480' }),
+        task(80, 'Z1', { proj_id: '8', target_end_date: '2026-03-13 16:00' })
+      ]
+    });
+    const m = computeMetrics(twoProjects(), B);
+    const r = metric(m, /^Missed Tasks/);
+    expect(r.status).toBe(NOT_SCORED);
+    expect(r.result).toContain('the baseline file holds 2 projects and none matches the scored project');
+    const d = metric(m, /^High Duration/);
+    expect(d.count).toContain('durations read from the current file');
+    expect(d.den).toBe(2);
+  });
+
+  it('Resources is not scored when the scored project carries no assignments, whatever the other project carries', () => {
+    const A = twoProjects();
+    A.tables.TASKRSRC.records = A.tables.TASKRSRC.records.filter(r => r.task_id !== '21');
+    const r = metric(computeMetrics(A), /^Resources/);
+    expect(r.status).toBe(NOT_SCORED);
+    expect(r.result).toContain('the scored project carries no resource assignments');
   });
 });
 
@@ -301,8 +350,9 @@ describe('4. Hard Constraints counts Start / Finish On or Before, primary or sec
     const r = metric(computeMetrics(tenWith({ cstr_type: 'CS_MEOB' })), /^Hard Constraints/);
     expect(r.result).toBe('10.0%');
     expect(r.count).toContain('1 of 10 incomplete activities');
-    // 10.0% sits in the unchanged REVIEW band (over 5%, not over 10%). Never PASS.
-    expect(r.status).not.toBe('PASS');
+    // 2026-11-07 DCMA phase 2: there is no middle band any more. 10.0% is over
+    // the 5% line, so it FAILS (it used to read as an amber band). Never PASS.
+    expect(r.status).toBe('FAIL');
     expect(r.name).toMatch(/On or Before/);
   });
 
@@ -373,3 +423,83 @@ describe('5. Missed Tasks counts deleted due work as missed, and refuses a renum
     expect(r.status).toBe('PASS');
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 6. The completion activity on a tie (2026-11-07 DCMA phase 2, definition D11)
+// ─────────────────────────────────────────────────────────────────────────────
+// The Critical Path Test FAILS when the completion activity is held by a
+// Mandatory Start or Finish. Which activity is the completion, when two share
+// the latest early finish: a finish milestone, then an activity of zero
+// original duration (a completion typed as a task), else the first in the file.
+describe('6. a zero-duration completion typed as a task wins a tie on the latest early finish', () => {
+  // A1 (5 days) and FIN (0 h, a task) both finish 2026-04-10 16:00; A1 is first in the file.
+  function tie(a1Extra, finExtra) {
+    const tasks = [
+      task(1, 'A1', a1Extra),
+      task(2, 'FIN', { target_drtn_hr_cnt: '0', remain_drtn_hr_cnt: '0', early_start_date: '2026-04-10 16:00', ...finExtra })
+    ];
+    return computeMetrics(xer({ tasks, rels: chain(tasks) }));
+  }
+
+  it('the pin on the zero-duration task FIN is read: FAIL', () => {
+    const r = metric(tie({}, { cstr_type: 'CS_MANDFIN' }), /^Critical Path Test/);
+    expect(r.status).toBe('FAIL');
+    expect(r.result).toContain('the completion activity FIN is held by a Mandatory Finish constraint');
+  });
+
+  it("a pin on the 5-day task A1, first in the file, is not the completion's: not scored", () => {
+    const r = metric(tie({ cstr_type2: 'CS_MANDSTART' }, {}), /^Critical Path Test/);
+    expect(r.status).toBe(NOT_SCORED);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 7. The data date and the baseline finish (2026-11-07 DCMA phase 2, D14, D12)
+// ─────────────────────────────────────────────────────────────────────────────
+// D14: a blank data date is the project's planned start (fixture p9 pins it);
+// a filed data date on a day before a later planned start is lifted to the
+// planned start, as P6 does on opening the project, and the result says so.
+// D12: a baseline activity's finish is its planned finish, else its early finish.
+describe('7. the data date is lifted to a later planned start, and a baseline finish falls back to the early finish', () => {
+  function lifted(planStart) {
+    // Filed data date 2026-02-02. A1 not started, early start 2026-03-02.
+    const tasks = [task(1, 'A1', { early_start_date: '2026-03-02 08:00', early_end_date: '2026-03-06 16:00' }), task(2, 'A2')];
+    const A = xer({ projects: [proj('1', 'SYN', '2026-02-02 08:00')], tasks, rels: chain(tasks) });
+    A.tables.PROJECT.records[0].plan_start_date = planStart;
+    return metric(computeMetrics(A), /^Invalid Dates/);
+  }
+
+  it('a filed data date before the planned start is lifted: A1 forecast before 2026-04-01 is invalid, and said', () => {
+    const r = lifted('2026-04-01 08:00');
+    expect(r.status).toBe('FAIL');
+    expect(r.num).toBe(1);
+    expect(r.den).toBe(2);
+    expect(r.count).toContain("the file's data date, 2026-02-02, is before the project's planned start, 2026-04-01, so the planned start is used, as P6 does");
+  });
+
+  it('a blank data date is the planned start, and said', () => {
+    const tasks = [task(1, 'A1', { early_start_date: '2026-03-02 08:00', early_end_date: '2026-03-06 16:00' }), task(2, 'A2')];
+    const A = xer({ projects: [proj('1', 'SYN', '')], tasks, rels: chain(tasks) });
+    A.tables.PROJECT.records[0].plan_start_date = '2026-04-01 08:00';
+    const r = metric(computeMetrics(A), /^Invalid Dates/);
+    expect(r.num).toBe(1);
+    expect(r.count).toContain("the file states no data date, so the project's planned start, 2026-04-01, is used, as P6 does");
+  });
+
+  it('a planned start on or before the filed data date changes nothing and discloses nothing', () => {
+    const r = lifted('2026-01-05 08:00');
+    expect(r.status).toBe('PASS');
+    expect(r.count).not.toContain('planned start');
+  });
+
+  it('a baseline activity with no planned finish is due on its early finish', () => {
+    const B = xer({ projects: [proj('1', 'SYN', '2026-02-02 08:00')],
+      tasks: [task(100, 'T1', { target_end_date: '', early_end_date: '2026-03-13 16:00' })] });
+    const A = xer({ tasks: [task(200, 'T1', { ...DONE, act_start_date: '2026-03-09 08:00', act_end_date: '2026-03-16 16:00' })] });
+    const r = metric(computeMetrics(A, B), /^Missed Tasks/);
+    expect(r.status).toBe('FAIL');
+    expect(r.num).toBe(1);
+    expect(r.den).toBe(1);
+  });
+});
+

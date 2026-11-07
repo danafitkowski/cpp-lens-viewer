@@ -39,16 +39,27 @@
 //   All activities except level of effort / WBS summary                   = 10
 //
 //   Logic            D160 has no successor                 4 of 5 = 80.0%  FAIL
+//                    2026-11-07 DCMA phase 2: #1 counts the activities WITH an
+//                    open end over incomplete activities AND milestones: D160
+//                    of D130 D140 D150 D160 D170 M100 = 1 of 6 = 16.7% FAIL.
+//                    M100 is the finish milestone at the end of the network,
+//                    so its missing successor is not an open end.
 //   Hard Constraints D160                                  1 of 5 = 20.0%  FAIL
 //   High Float       D150 400 h / 8 = 50 wd > 44           1 of 5 = 20.0%  FAIL
 //   Negative Float   D130                                  1 of 5 = 20.0%  FAIL
 //   High Duration    D150 400 h / 8 = 50 wd > 44           1 of 5 = 20.0%  FAIL
 //   (the old all-activity population gives 7 of 10, and 1 of 10 = 10.0% each)
-//   Leads 0 of 9 PASS, Lags 1 of 9 = 11.1% FAIL, FS 8 of 9 = 88.9% REVIEW
+//   Leads 0 of 9 PASS, Lags 1 of 9 = 11.1% FAIL, FS 8 of 9 = 88.9%
+//                    2026-11-07 DCMA phase 2: graded over the 6 relationships
+//                    into unfinished work (the 3 into D100, D110 and D120 are
+//                    history): Leads 0 of 6 PASS, Lags 1 of 6 = 16.7% FAIL,
+//                    FS 5 of 6 = 83.3% FAIL. There is no middle band.
 //   Invalid Dates    D120 and D130 (actual after the data date) and D140
 //                    (forecast finish before it) = 3 ACTIVITIES of 8. D120
 //                    has two offending fields and still counts once. D105 is a
 //                    milestone, outside this check's population.
+//                    2026-11-07 DCMA phase 2: milestones are inside it now, so
+//                    D105 (actual 03-03) counts too: 4 ACTIVITIES of 10.
 //   Missing actuals  D170, reported under its own label, not as check 9.
 //   Missed Tasks     baseline finish on or before 03-02, by the BASELINE's
 //                    ordinary activities: D100 02-06, D105 02-10 (a task in
@@ -172,19 +183,25 @@ describe('DCMA Lite fixture', () => {
 
 describe('DCMA Lite check 9, Invalid Dates, compares dates with the data date', () => {
   it('counts activities with an actual date after the data date or a forecast date before it', () => {
+    // 2026-11-07 DCMA phase 2: the population is ordinary activities AND
+    // milestones, so the start milestone D105, statused past the data date, is
+    // the fourth offending activity of 10.
     const r = row(render({ A: current(), B: null }), /^Invalid Dates/);
-    expect(r[1]).toBe('3');
-    expect(r[2]).toContain('3 of 8 activities');
-    expect(r[2]).toContain('2 with an actual date after the data date');
+    expect(r[1]).toBe('4');
+    expect(r[2]).toContain('4 of 10 activities');
+    expect(r[2]).toContain('3 with an actual date after the data date');
     expect(r[2]).toContain('1 with a forecast date before it');
     expect(r[4]).toBe('FAIL');
   });
 
   it('counts an activity once however many of its dates offend', () => {
-    // D120 has an actual start AND an actual finish after the data date: four
-    // offending fields in the file, three offending activities.
+    // D120 has an actual start AND an actual finish after the data date: six
+    // offending fields in the file, four offending activities (D105 counted
+    // since 2026-11-07 DCMA phase 2: milestones are in the population).
     const m = computeMetrics(current(), null).metrics.find(x => /^Invalid Dates/.test(x.name));
-    expect(m.result).toBe('3');
+    expect(m.result).toBe('4');
+    expect(m.num).toBe(4);
+    expect(m.den).toBe(10);
   });
 
   it('reports a missing actual date under its own label, not as check 9', () => {
@@ -268,16 +285,27 @@ describe('DCMA Lite percentage checks use incomplete activities and print the de
 
   it('Logic, Hard Constraints and Negative Float use the same population', () => {
     const el = render({ A: current(), B: null });
-    expect(row(el, /^Logic/).slice(1, 3)).toEqual(['80.0%', '4 of 5 incomplete activities']);
+    // 2026-11-07 DCMA phase 2: Logic counts the open ends over incomplete
+    // activities and milestones (DCMA definition #1), so it no longer shares
+    // the population of the other two. M100 closes the network and is exempt.
+    expect(row(el, /^Logic/).slice(1, 3)).toEqual(['16.7%',
+      '1 of 6 incomplete activities and milestones: 0 with no predecessor, 1 with no successor; ' +
+      'the start and finish milestones at the ends of the network are not counted as open ends']);
+    expect(row(el, /^Logic/)[4]).toBe('FAIL');
     expect(row(el, /^Hard Constraints/).slice(1, 3)).toEqual(['20.0%', '1 of 5 incomplete activities']);
     expect(row(el, /^Negative Float/).slice(1, 3)).toEqual(['20.0%', '1 of 5 incomplete activities']);
   });
 
   it('relationship checks print the relationship count', () => {
+    // 2026-11-07 DCMA phase 2: graded over the relationships into unfinished
+    // work only (DCMA definition D4); the three into finished work are history.
+    // 5 of 6 Finish-to-Start is under 90%: FAIL, with no middle band.
     const el = render({ A: current(), B: null });
-    expect(row(el, /^Leads/).slice(1, 3)).toEqual(['0', '0 of 9 relationships']);
-    expect(row(el, /^Lags/).slice(1, 3)).toEqual(['11.1%', '1 of 9 relationships']);
-    expect(row(el, /^FS Relationships/).slice(1, 3)).toEqual(['88.9%', '8 of 9 relationships']);
+    const rest = '; 3 more end on finished work and are not graded';
+    expect(row(el, /^Leads/).slice(1, 3)).toEqual(['0', '0 of 6 relationships into unfinished work' + rest]);
+    expect(row(el, /^Lags/).slice(1, 3)).toEqual(['16.7%', '1 of 6 relationships into unfinished work' + rest]);
+    expect(row(el, /^FS Relationships/).slice(1, 3)).toEqual(['83.3%', '5 of 6 relationships into unfinished work' + rest]);
+    expect(row(el, /^FS Relationships/)[4]).toBe('FAIL');
   });
 
   it('says on the page which activities the population leaves out', () => {
@@ -311,8 +339,10 @@ describe('DCMA Lite says how many of the 14 points it scores', () => {
     const withB = render({ A: current(), B: baseline() }).querySelector('.lens-dcma-heading').textContent;
     expect(withB).toContain('10 of the 14 points are scored here');
     expect(withB).toContain('1 PASS');
-    expect(withB).toContain('1 REVIEW');
-    expect(withB).toContain('8 FAIL');
+    // 2026-11-07 DCMA phase 2: every result is PASS, FAIL or NOT SCORED. The
+    // FS row that sat in the old middle band (88.9%, now 5 of 6 = 83.3%) FAILS.
+    expect(withB).not.toMatch(/REVIEW/);
+    expect(withB).toContain('9 FAIL');
     expect(withB).toContain('4 not scored here');
     expect(withB).not.toContain('14 of the 14');
 
@@ -363,8 +393,10 @@ describe('Executive Dashboard "Schedule status" banner', () => {
   });
 
   it('does not say healthy when the file carries an actual date after its data date', () => {
-    // Only the start MILESTONE is statused past the data date, so DCMA check 9
-    // (ordinary activities only) still passes. The banner must not.
+    // Only the start MILESTONE is statused past the data date. The banner must
+    // not say healthy, and must name the date finding itself. (2026-11-07 DCMA
+    // phase 2: check 9 now counts milestones too, so it fails as well; the
+    // banner's own date finding is what this test protects.)
     const A = cleanSchedule();
     Object.assign(A.tables.TASK.records.find(t => t.task_code === 'MS'), {
       status_code: 'TK_Complete', act_start_date: '2026-03-03 08:00', act_end_date: '2026-03-03 08:00',

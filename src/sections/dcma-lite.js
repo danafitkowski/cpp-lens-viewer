@@ -1,12 +1,24 @@
 import { h } from '../lib/dom.js';
-import { getTable, getTableAliased, buildPredecessorMap } from '@criticalpathpartners/lens-parser';
+import { getTable, getTableAliased } from '@criticalpathpartners/lens-parser';
 import { dataTable } from './_shared/data-table.js';
 import { workingDayContext, disclosureCards, HOUR_FIELDS } from './_shared/working-days.js';
-import { taskKey, indexTasks, resolveComparisonAmbiguity } from './_shared/identity.js';
-import { dayOf, dataDateOf, actualsAfter, inputQualityCards } from './_shared/input-quality.js';
+import { dayOf, actualsAfter, inputQualityCards } from './_shared/input-quality.js';
 
+// ONE DEFINITION (2026-11-07, DCMA phase 2). CPP's three DCMA engines (the
+// validator, the health dashboard and this screen) measure the fourteen checks
+// exactly as tests/fixtures/dcma_parity/DCMA_DEFINITION.md writes them, a
+// byte-for-byte copy of CPP's shared definition. tests/sections/
+// dcma-parity.test.js holds this screen to the results worked out by hand from
+// that text on eight synthetic schedules. "D0" to "D11" below are the
+// definition's common rules.
+//
+// D1. Ordinary activities are every type but milestones, level of effort and
+// WBS summary. Level of effort and WBS summary are never counted, and nor is a
+// relationship with either end on one.
 const LOE_WBS = new Set(['TT_LOE', 'TT_WBS']);
 const MILESTONES = new Set(['TT_Mile', 'TT_FinMile']);
+// D2. Complete means TK_Complete; everything else is incomplete.
+const COMPLETE = 'TK_Complete';
 // DCMA-EA PAM 200.1 s4.5 lists four hard types: Must Start On, Must Finish On,
 // Start No Later Than and Finish No Later Than. In P6 the last two are Start On
 // or Before (CS_MSOB) and Finish On or Before (CS_MEOB); P6's Mandatory Start
@@ -14,20 +26,28 @@ const MILESTONES = new Set(['TT_Mile', 'TT_FinMile']);
 // types were left out and only the primary constraint was read.
 const HARD_CONSTRAINTS = new Set(['CS_MSO', 'CS_MEO', 'CS_MANDSTART', 'CS_MANDFIN', 'CS_MSOB', 'CS_MEOB']);
 const HARD_CONSTRAINTS_NAME = 'Hard Constraints (Mandatory, Start / Finish On, Start / Finish On or Before)';
+const MANDATORY = { CS_MANDSTART: 'Mandatory Start', CS_MANDFIN: 'Mandatory Finish' };
+// #10. Assignment fields that make an activity resourced: hours or cost above 0.
+const RESOURCE_FIELDS = ['target_qty', 'remain_qty', 'target_cost', 'remain_cost'];
 
 /** Share of the due baseline activities that must match the current file before #11 is scored. */
 const MIN_BASELINE_MATCH = 0.8;
 
-/** DCMA-14 High Float / High Duration threshold, in WORKING DAYS. */
+/** DCMA-14 thresholds in WORKING DAYS on the activity's own calendar. */
 const HIGH_FLOAT_WD    = 44;
 const HIGH_DURATION_WD = 44;
+const LONG_LAG_WD      = 44;   // #3: listed for information, decides nothing
+const MIN_RESOURCE_WD  = 1;    // #10: shorter activities are left out
 
 /** Status of a row this view does not score. Never PASS, never FAIL. */
 export const NOT_SCORED = 'NOT SCORED';
 
+// Every result is PASS, FAIL or NOT SCORED (2026-11-07, DCMA phase 2). The
+// amber middle band this page used to print between PASS and FAIL was never
+// in DCMA's pamphlet, and it is gone: a check passes its threshold or it
+// does not.
 const BADGE_COLORS = {
   PASS:   { bg: '#15803D', text: '#ffffff' },
-  REVIEW: { bg: '#B45309', text: '#ffffff' },
   FAIL:   { bg: '#C8392F', text: '#ffffff' },
   [NOT_SCORED]: { bg: '#5A6675', text: '#ffffff' }
 };
@@ -39,6 +59,35 @@ function norm(v) {
 /** True when a raw XER cell holds a number (a blank or non-numeric cell does not). */
 function isNumeric(raw) {
   return raw != null && String(raw).trim() !== '' && Number.isFinite(parseFloat(raw));
+}
+
+/** 'YYYY-MM-DD HH:MM' from a raw XER date cell (a date with no time is 00:00), or ''. */
+function instantOf(raw) {
+  const x = norm(raw).replace('T', ' ');
+  if (!dayOf(x)) return '';
+  return x.length >= 16 ? x.slice(0, 16) : `${x.slice(0, 10)} 00:00`;
+}
+
+/** D8. The Activity ID as matched across files: task_code, spaces trimmed, case ignored. */
+function activityKey(t) {
+  return norm(t && t.task_code).toLowerCase();
+}
+
+function keyCounts(model) {
+  const counts = new Map();
+  for (const t of getTable(model, 'TASK')) {
+    const k = activityKey(t);
+    if (k) counts.set(k, (counts.get(k) || 0) + 1);
+  }
+  return counts;
+}
+
+function plural(n, one, many) {
+  return n === 1 ? one : many;
+}
+
+function num(n) {
+  return n.toLocaleString();
 }
 
 function projectName(p) {
@@ -80,9 +129,9 @@ function taskCounts(model) {
  *
  * A multi-project XER used to be graded as one blended schedule against the
  * FIRST PROJECT row's data date, so reordering two PROJECT rows changed the
- * result. One project is scored, by the rule CPP's Python validator uses: the
- * only PROJECT row; else the one with the latest last_recalc_date, ties broken
- * by the most TASK rows, then file order.
+ * result. D0: one project is scored: the only PROJECT row; else the one with
+ * the latest last_recalc_date, ties broken by the most TASK rows, then file
+ * order.
  *
  * @param {object|null} model
  * @returns {{ project: object, position: number, total: number }|null}
@@ -117,41 +166,60 @@ function scopeToProject(model, project, total) {
 }
 
 /**
- * The baseline project #11 compares with: the one with the same
- * proj_short_name as the scored project, else the one sharing the most
- * Activity IDs with it, else the one with the latest data date.
+ * D9. The baseline project #8 and #11 read. A baseline file with one project
+ * is read on it. With several: the one with the same proj_id as the scored
+ * project, else the same proj_short_name, else the one sharing the most
+ * Activity IDs with it (ties by the D0 rule). With none of those, the baseline
+ * is not used: `project` is null and `unmatched` is true. Until 2026-11-07 the
+ * last resort was "the latest data date", which compared the scored project
+ * with a baseline of some other project.
+ *
+ * @returns {{ project: object|null, total: number, basis: string|null, unmatched: boolean }|null}
+ *   null when the baseline file carries no PROJECT row (it is read whole).
  */
 function selectBaselineProject(B, scoredProject, scopedA) {
   const projects = getTable(B, 'PROJECT');
   if (projects.length === 0) return null;
   const counts = taskCounts(B);
   const all = projects.map((p, i) => ({ p, i }));
-  const pick = (cands, basis) => {
-    const best = bestProject(cands, counts);
-    return { project: best.p, position: best.i + 1, total: projects.length, basis };
-  };
+  const pick = (cands, basis) => ({ project: bestProject(cands, counts).p, total: projects.length, basis, unmatched: false });
   if (projects.length === 1) return pick(all, 'the only project');
+  const id = scoredProject ? norm(scoredProject.proj_id) : '';
+  const byId = id === '' ? [] : all.filter(c => norm(c.p.proj_id) === id);
+  if (byId.length > 0) return pick(byId, 'the same project ID');
   const name = scoredProject ? norm(scoredProject.proj_short_name) : '';
   const byName = name === '' ? [] : all.filter(c => norm(c.p.proj_short_name) === name);
   if (byName.length > 0) return pick(byName, 'the same project short name');
-  const keys = new Set(getTable(scopedA, 'TASK').map(taskKey).filter(Boolean));
-  const shared = new Map();
+  const keys = new Set(getTable(scopedA, 'TASK').map(activityKey).filter(Boolean));
+  const shared = new Map();   // proj_id -> Set of shared Activity IDs
   for (const t of getTable(B, 'TASK')) {
-    const k = taskKey(t);
-    if (k && keys.has(k)) shared.set(norm(t.proj_id), (shared.get(norm(t.proj_id)) || 0) + 1);
+    const k = activityKey(t);
+    if (!k || !keys.has(k)) continue;
+    const pid = norm(t.proj_id);
+    if (!shared.has(pid)) shared.set(pid, new Set());
+    shared.get(pid).add(k);
   }
-  const most = Math.max(0, ...shared.values());
-  if (most > 0) return pick(all.filter(c => (shared.get(norm(c.p.proj_id)) || 0) === most), 'the most Activity IDs shared with the scored project');
-  return pick(all, 'the latest data date');
+  const size = c => (shared.get(norm(c.p.proj_id)) || new Set()).size;
+  const most = Math.max(0, ...all.map(size));
+  if (most > 0) return pick(all.filter(c => size(c) === most), 'the most Activity IDs shared with the scored project');
+  return { project: null, total: projects.length, basis: null, unmatched: true };
 }
 
-function pct(num, den) {
-  if (den === 0) return 0;
-  return (num / den) * 100;
+function pct(n, d) {
+  if (d === 0) return 0;
+  return (n / d) * 100;
 }
 
 function fmtPct(val) {
   return `${val.toFixed(1)}%`;
+}
+
+/** D7. A percentage threshold is tested on the counts, never on a rounded percentage. */
+function atMostPct(n, d, limit) {
+  return n * 100 <= limit * d;
+}
+function atLeastPct(n, d, limit) {
+  return n * 100 >= limit * d;
 }
 
 /**
@@ -159,21 +227,123 @@ function fmtPct(val) {
  * cell. It is never stamped PASS: a check that was not run has not passed.
  */
 function notScored(name, reason, target) {
-  return { name, result: `Not scored here: ${reason}`, count: '', target, status: NOT_SCORED };
+  return { name, result: `Not scored here: ${reason}`, count: '', target, status: NOT_SCORED, num: null, den: null };
+}
+
+/** A scored row: PASS or FAIL, with its numerator and denominator as numbers. */
+function scored(name, result, count, target, pass, n, d) {
+  return { name, result, count, target, status: pass ? 'PASS' : 'FAIL', num: n, den: d };
+}
+
+/**
+ * One loop in the logic, or null. Tarjan's strongly connected components,
+ * iterative so a long chain cannot overflow the stack; returns the activities
+ * of the first loop found (a relationship from an activity to itself is one).
+ *
+ * @param {Array<{pred: object, succ: object}>} links
+ * @returns {object[]|null}
+ */
+function findLoop(links) {
+  const out = new Map();
+  for (const { pred, succ } of links) {
+    if (pred === succ) return [pred];
+    if (!out.has(pred)) out.set(pred, []);
+    out.get(pred).push(succ);
+  }
+  const index = new Map();
+  const low = new Map();
+  const onStack = new Set();
+  const stack = [];
+  let next = 0;
+  const visit = (v) => {
+    index.set(v, next); low.set(v, next); next++;
+    stack.push(v); onStack.add(v);
+  };
+  for (const root of out.keys()) {
+    if (index.has(root)) continue;
+    visit(root);
+    const work = [[root, 0]];
+    while (work.length > 0) {
+      const frame = work[work.length - 1];
+      const v = frame[0];
+      const succs = out.get(v) || [];
+      if (frame[1] < succs.length) {
+        const w = succs[frame[1]++];
+        if (!index.has(w)) { visit(w); work.push([w, 0]); }
+        else if (onStack.has(w)) low.set(v, Math.min(low.get(v), index.get(w)));
+        continue;
+      }
+      work.pop();
+      if (work.length > 0) {
+        const u = work[work.length - 1][0];
+        low.set(u, Math.min(low.get(u), low.get(v)));
+      }
+      if (low.get(v) === index.get(v)) {
+        const component = [];
+        let w;
+        do { w = stack.pop(); onStack.delete(w); component.push(w); } while (w !== v);
+        if (component.length > 1) return component.reverse();
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * D14. The data date the checks compare with: the scored project's
+ * last_recalc_date. Blank, it is the project's planned start
+ * (plan_start_date); on a DAY before a later planned start, it is lifted to the
+ * planned start. Both are what P6 does when it opens the project, and the
+ * result says so. (2026-11-07, from a run over 581 real files: three carry a
+ * blank data date, which this screen did not score, and one a filed data date
+ * months before its planned start.)
+ *
+ * @param {object|undefined} project  the scored project's PROJECT row
+ * @returns {{ instant: string, day: string, note: string }}
+ *   `instant` is 'YYYY-MM-DD HH:MM', `day` 'YYYY-MM-DD'; both '' when the file
+ *   states neither date. `note` is the disclosure, '' when the filed date is used.
+ */
+function scoredDataDate(project) {
+  const filed = instantOf(project && project.last_recalc_date);
+  const planned = instantOf(project && project.plan_start_date);
+  const at = (instant, note) => ({ instant, day: instant.slice(0, 10), note });
+  if (!filed) {
+    return planned
+      ? at(planned, `the file states no data date, so the project's planned start, ${planned.slice(0, 10)}, is used, as P6 does`)
+      : at('', '');
+  }
+  if (planned && filed.slice(0, 10) < planned.slice(0, 10)) {
+    return at(planned, `the file's data date, ${filed.slice(0, 10)}, is before the project's planned start, ` +
+      `${planned.slice(0, 10)}, so the planned start is used, as P6 does`);
+  }
+  return at(filed, '');
+}
+
+function activityList(rows, max = 5) {
+  const ids = rows.map(t => norm(t.task_code) || norm(t.task_id));
+  if (ids.length <= max) return ids.length === 1 ? ids[0] : `${ids.slice(0, -1).join(', ')} and ${ids[ids.length - 1]}`;
+  return `${ids.slice(0, max).join(', ')} and ${num(ids.length - max)} more`;
 }
 
 /**
  * The fourteen rows. Exported so the Executive Dashboard banner reads the same
  * results this page prints instead of forming a second opinion.
  *
- * @param {object} A       current schedule
- * @param {object|null} B  baseline schedule, or null. Only Missed Tasks reads it.
+ * Each row carries name, result, count, target and status, and `num` / `den`:
+ * the numerator and denominator the status was decided on (null when the row
+ * is not scored, and on the Critical Path Test, which has no counts). What
+ * they count is the definition's: for #4 the Finish-to-Start relationships,
+ * for #10 the resourced activities, otherwise the findings.
+ *
+ * @param {object} file          current schedule
+ * @param {object|null} baselineFile  baseline schedule, or null. #8 and #11 read it.
  */
 export function computeMetrics(file, baselineFile = null) {
-  // ONE PROJECT (2026-11-07). Everything below reads the scored project only:
-  // its activities, relationships with both ends in them, their assignments,
-  // and its own data date.
+  // ONE PROJECT (D0, 2026-11-07). Everything below reads the scored project
+  // only: its activities, relationships with both ends in them, their
+  // assignments, and its own data date.
   const selection = selectScoredProject(file);
+  const multi = !!selection && selection.total > 1;
   const A = scopeToProject(file, selection && selection.project, selection ? selection.total : 0);
   const B = baselineFile;
   const allTasks = getTable(A, 'TASK');
@@ -181,81 +351,140 @@ export function computeMetrics(file, baselineFile = null) {
   const rsrc     = getTable(A, 'TASKRSRC');
   // Hours become working days in exactly one module — see _shared/working-days.js.
   const cal      = workingDayContext(A);
+  // D14. A blank data date is the planned start; one on a day before a later
+  // planned start is lifted to it. #9 and #11 compare with this one.
+  const dd       = scoredDataDate(getTable(A, 'PROJECT')[0]);
+  const dataDate = dd.day;
+  const dataDateNote = dd.note ? `; ${dd.note}` : '';
+  const isDone   = t => t.status_code === COMPLETE;
 
-  // THE POPULATION. The published DCMA percentages are measured over INCOMPLETE
-  // ordinary activities: not milestones, not level of effort, not WBS summary,
-  // and not finished work. This view used to divide by every activity, so
-  // finished work and milestones diluted each result. Measured on the public
-  // demonstration file: High Float read 152 of 404 = 37.6% where the full
-  // assessment, on this population, reads 152 of 287 = 53.0%.
-  const normal = allTasks.filter(t => !LOE_WBS.has(t.task_type) && !MILESTONES.has(t.task_type));
-  const tasks  = normal.filter(t => t.status_code !== 'TK_Complete');
+  // THE POPULATIONS. The published DCMA percentages are measured over
+  // INCOMPLETE ordinary activities: not milestones, not level of effort, not
+  // WBS summary, and not finished work. This view used to divide by every
+  // activity, so finished work and milestones diluted each result. Measured on
+  // the public demonstration file: High Float read 152 of 404 = 37.6% where
+  // the full assessment, on this population, reads 152 of 287 = 53.0%.
+  // #1 adds incomplete milestones, and #9 counts milestones and finished work.
+  const counted   = allTasks.filter(t => !LOE_WBS.has(t.task_type));   // ordinary + milestones
+  const normal    = counted.filter(t => !MILESTONES.has(t.task_type));
+  const tasks     = normal.filter(t => !isDone(t));
+  const openWork  = counted.filter(t => !isDone(t));                    // incomplete ordinary + milestones
+  const openMilestones = openWork.filter(t => MILESTONES.has(t.task_type));
   const n = tasks.length;
-  const relsTotal = rels.length;
-  const ofTasks = (count) => `${count.toLocaleString()} of ${n.toLocaleString()} incomplete activities`;
-  const ofRels  = (count) => `${count.toLocaleString()} of ${relsTotal.toLocaleString()} relationships`;
+  const ofTasks = (count) => `${num(count)} of ${num(n)} incomplete activities`;
   // A percentage over nothing is not a pass. Say so instead of printing 0.0%.
   const noTasks = n === 0 ? 'the file has no incomplete activities to measure' : null;
-  const noRels  = relsTotal === 0 ? 'the file has no relationships to measure' : null;
 
-  const { predecessors, successors } = buildPredecessorMap(A);
+  // D4. LOGIC RELATIONSHIPS: both ends in the scored project, neither end level
+  // of effort or WBS summary. LIVE relationships: logic relationships whose
+  // successor is not finished. A relationship between finished activities is
+  // history and is not graded (CPP reading).
+  const byTaskId = new Map(allTasks.map(t => [norm(t.task_id), t]));
+  const logicRels = [];
+  for (const r of rels) {
+    const pred = byTaskId.get(norm(r.pred_task_id));
+    const succ = byTaskId.get(norm(r.task_id));
+    if (!pred || !succ || LOE_WBS.has(pred.task_type) || LOE_WBS.has(succ.task_type)) continue;
+    logicRels.push({ r, pred, succ });
+  }
+  const liveRels = logicRels.filter(x => !isDone(x.succ));
+  const nLive = liveRels.length;
+  const historicRels = logicRels.length - nLive;
 
-  // 1. Logic — % with both pred AND succ
-  const withBoth = tasks.filter(t =>
-    (predecessors[t.task_id] && predecessors[t.task_id].length > 0) &&
-    (successors[t.task_id]   && successors[t.task_id].length   > 0)
-  ).length;
-  const logicPct = pct(withBoth, n);
-  const metric1 = noTasks ? notScored('Logic (% with pred + succ)', noTasks, '≥ 95%') : {
-    name:   'Logic (% with pred + succ)',
-    result: fmtPct(logicPct),
-    count:  ofTasks(withBoth),
-    target: '≥ 95%',
-    status: logicPct >= 95 ? 'PASS' : logicPct >= 90 ? 'REVIEW' : 'FAIL'
-  };
+  // 1. Logic. An incomplete activity or milestone with no logic relationship in
+  // (no predecessor) or out (no successor). Until 2026-11-07 this counted the
+  // share WITH both, over ordinary activities only, and any relationship
+  // counted, so a link to a level of effort hid an open end and a milestone
+  // dangling in mid-network was never looked at.
+  //
+  // D10. The network starts at the earliest start (actual, else early, else
+  // planned) of any ordinary or milestone activity, finished work included, and
+  // finishes at the latest finish of the incomplete ones. A start milestone
+  // with no predecessor at or before that start, and a finish milestone with no
+  // successor at or after that finish, are the ends of the network, not open
+  // ends.
+  const startOf  = t => instantOf(t.act_start_date) || instantOf(t.early_start_date) || instantOf(t.target_start_date);
+  const finishOf = t => instantOf(t.act_end_date) || instantOf(t.early_end_date) || instantOf(t.target_end_date);
+  let networkStart = '';
+  let networkFinish = '';
+  for (const t of counted) {
+    const s = startOf(t);
+    if (s && (!networkStart || s < networkStart)) networkStart = s;
+  }
+  for (const t of openWork) {
+    const f = finishOf(t);
+    if (f > networkFinish) networkFinish = f;
+  }
+  const hasPred = new Set();
+  const hasSucc = new Set();
+  for (const { pred, succ } of logicRels) { hasSucc.add(pred); hasPred.add(succ); }
+  let noPred = 0, noSucc = 0, openEnds = 0, networkEnds = 0;
+  for (const t of openWork) {
+    let missingPred = !hasPred.has(t);
+    let missingSucc = !hasSucc.has(t);
+    if (missingPred && t.task_type === 'TT_Mile' && networkStart && startOf(t) && startOf(t) <= networkStart) {
+      missingPred = false; networkEnds++;
+    }
+    if (missingSucc && t.task_type === 'TT_FinMile' && networkFinish && finishOf(t) >= networkFinish) {
+      missingSucc = false; networkEnds++;
+    }
+    if (missingPred) noPred++;
+    if (missingSucc) noSucc++;
+    if (missingPred || missingSucc) openEnds++;
+  }
+  const M1 = 'Logic (missing a predecessor or successor)';
+  const metric1 = openWork.length === 0
+    ? notScored(M1, 'the file has no incomplete activities or milestones to measure', '≤ 5%')
+    : scored(M1, fmtPct(pct(openEnds, openWork.length)),
+        `${num(openEnds)} of ${num(openWork.length)} incomplete activities and milestones: ` +
+        `${num(noPred)} with no predecessor, ${num(noSucc)} with no successor` +
+        (networkEnds > 0 ? '; the start and finish milestones at the ends of the network are not counted as open ends' : ''),
+        '≤ 5%', atMostPct(openEnds, openWork.length, 5), openEnds, openWork.length);
 
-  // 2. Leads — TASKPRED with lag < 0 (target = 0)
-  const leadsCount = rels.filter(r => parseFloat(r.lag_hr_cnt) < 0).length;
-  const metric2 = noRels ? notScored('Leads (negative lag)', noRels, '0') : {
-    name:   'Leads (negative lag)',
-    result: String(leadsCount),
-    count:  ofRels(leadsCount),
-    target: '0',
-    status: leadsCount === 0 ? 'PASS' : 'FAIL'
-  };
+  // 2 to 4. Relationship checks, over the relationships into unfinished work
+  // (2026-11-07). They used to grade every TASKPRED row, so a lead between two
+  // finished activities failed Leads, and links to level of effort counted.
+  const noLive = nLive > 0 ? null
+    : logicRels.length === 0 ? 'the file has no relationships to measure'
+    : 'every relationship ends on finished work, so there is none into unfinished work to grade';
+  const ofRels = (count) => `${num(count)} of ${num(nLive)} relationships into unfinished work` +
+    (historicRels > 0 ? `; ${num(historicRels)} more end on finished work and are not graded` : '');
 
-  // 3. Lags — % of TASKPRED with lag > 0 (target ≤ 5%)
-  const lagPositiveCount = rels.filter(r => parseFloat(r.lag_hr_cnt) > 0).length;
-  const lagsPct = pct(lagPositiveCount, relsTotal);
-  const metric3 = noRels ? notScored('Lags (% with lag > 0)', noRels, '≤ 5%') : {
-    name:   'Lags (% with lag > 0)',
-    result: fmtPct(lagsPct),
-    count:  ofRels(lagPositiveCount),
-    target: '≤ 5%',
-    status: lagsPct <= 5 ? 'PASS' : lagsPct <= 10 ? 'REVIEW' : 'FAIL'
-  };
+  // 2. Leads — lag below 0 (target none)
+  const leadsCount = liveRels.filter(x => parseFloat(x.r.lag_hr_cnt) < 0).length;
+  const metric2 = noLive ? notScored('Leads (negative lag)', noLive, '0')
+    : scored('Leads (negative lag)', String(leadsCount), ofRels(leadsCount), '0', leadsCount === 0, leadsCount, nLive);
 
-  // 4. FS Relationships — % with pred_type = PR_FS (target ≥ 90%)
-  const fsCount = rels.filter(r => r.pred_type === 'PR_FS').length;
-  const fsPct   = pct(fsCount, relsTotal);
-  const metric4 = noRels ? notScored('FS Relationships (% PR_FS)', noRels, '≥ 90%') : {
-    name:   'FS Relationships (% PR_FS)',
-    result: fmtPct(fsPct),
-    count:  ofRels(fsCount),
-    target: '≥ 90%',
-    status: fsPct >= 90 ? 'PASS' : fsPct >= 80 ? 'REVIEW' : 'FAIL'
-  };
+  // 3. Lags — lag above 0 (target ≤ 5%). A lag over 44 working days on the
+  // successor's calendar is listed for information; it decides nothing.
+  const lagged = liveRels.filter(x => parseFloat(x.r.lag_hr_cnt) > 0);
+  const lagPositiveCount = lagged.length;
+  const longLags = lagged.filter(x => {
+    const wd = cal.hoursToDays(x.r.lag_hr_cnt, x.succ.clndr_id, x.succ.proj_id);
+    return wd != null && wd > LONG_LAG_WD;
+  }).length;
+  const metric3 = noLive ? notScored('Lags (% with lag > 0)', noLive, '≤ 5%')
+    : scored('Lags (% with lag > 0)', fmtPct(pct(lagPositiveCount, nLive)),
+        ofRels(lagPositiveCount) +
+        (longLags > 0 ? `; for information, ${num(longLags)} of the lags ${plural(longLags, 'is', 'are')} over ${LONG_LAG_WD} working days` : ''),
+        '≤ 5%', atMostPct(lagPositiveCount, nLive, 5), lagPositiveCount, nLive);
 
-  // 5. Hard Constraints — % with a hard primary OR secondary constraint (target ≤ 5%)
-  const hardCount = tasks.filter(t => HARD_CONSTRAINTS.has(t.cstr_type) || HARD_CONSTRAINTS.has(t.cstr_type2)).length;
-  const hardPct   = pct(hardCount, n);
-  const metric5 = noTasks ? notScored(HARD_CONSTRAINTS_NAME, noTasks, '≤ 5%') : {
-    name:   HARD_CONSTRAINTS_NAME,
-    result: fmtPct(hardPct),
-    count:  ofTasks(hardCount),
-    target: '≤ 5%',
-    status: hardPct <= 5 ? 'PASS' : hardPct <= 10 ? 'REVIEW' : 'FAIL'
-  };
+  // 4. FS Relationships — share that are Finish-to-Start (target ≥ 90%)
+  const fsCount = liveRels.filter(x => x.r.pred_type === 'PR_FS').length;
+  const metric4 = noLive ? notScored('FS Relationships (% PR_FS)', noLive, '≥ 90%')
+    : scored('FS Relationships (% PR_FS)', fmtPct(pct(fsCount, nLive)), ofRels(fsCount), '≥ 90%',
+        atLeastPct(fsCount, nLive, 90), fsCount, nLive);
+
+  // 5. Hard Constraints — a hard primary OR secondary constraint (target ≤ 5%).
+  // A constrained milestone is not counted; it is listed for information.
+  const isHard = t => HARD_CONSTRAINTS.has(t.cstr_type) || HARD_CONSTRAINTS.has(t.cstr_type2);
+  const hardCount = tasks.filter(isHard).length;
+  const hardMilestones = openMilestones.filter(isHard).length;
+  const metric5 = noTasks ? notScored(HARD_CONSTRAINTS_NAME, noTasks, '≤ 5%')
+    : scored(HARD_CONSTRAINTS_NAME, fmtPct(pct(hardCount, n)),
+        ofTasks(hardCount) +
+        (hardMilestones > 0 ? `; for information, ${num(hardMilestones)} incomplete ${plural(hardMilestones, 'milestone carries', 'milestones carry')} one too and ${plural(hardMilestones, 'is', 'are')} not counted` : ''),
+        '≤ 5%', atMostPct(hardCount, n, 5), hardCount, n);
 
   // 6. High Float — > 44 WORKING DAYS on the activity's own calendar (target ≤ 5%).
   // Not "> 352 hr": 352 is 44 days only where a day is 8 hours. On the 10 hr/day
@@ -273,45 +502,69 @@ export function computeMetrics(file, baselineFile = null) {
   const noFloat = n - nFloat;
   const noFloatReason = noTasks || (nFloat === 0 ? 'the file carries no computed total float; recalculate in P6 and re-export' : null);
   const ofFloat = (count) => noFloat === 0 ? ofTasks(count)
-    : `${count.toLocaleString()} of ${nFloat.toLocaleString()} incomplete activities that carry a total float; ` +
-      `${noFloat.toLocaleString()} more carry no total float and are left out`;
+    : `${num(count)} of ${num(nFloat)} incomplete activities that carry a total float; ` +
+      `${num(noFloat)} more carry no total float and are left out`;
   const highFloatCount = floatTasks.filter(t => {
     const wd = cal.workingDays(t, HOUR_FIELDS.TOTAL_FLOAT);
     return wd != null && wd > HIGH_FLOAT_WD;
   }).length;
-  const highFloatPct   = pct(highFloatCount, nFloat);
-  const metric6 = noFloatReason ? notScored(`High Float (> ${HIGH_FLOAT_WD} wd)`, noFloatReason, '≤ 5%') : {
-    name:   `High Float (> ${HIGH_FLOAT_WD} wd)`,
-    result: fmtPct(highFloatPct),
-    count:  ofFloat(highFloatCount),
-    target: '≤ 5%',
-    status: highFloatPct <= 5 ? 'PASS' : highFloatPct <= 10 ? 'REVIEW' : 'FAIL'
-  };
+  const metric6 = noFloatReason ? notScored(`High Float (> ${HIGH_FLOAT_WD} wd)`, noFloatReason, '≤ 5%')
+    : scored(`High Float (> ${HIGH_FLOAT_WD} wd)`, fmtPct(pct(highFloatCount, nFloat)), ofFloat(highFloatCount),
+        '≤ 5%', atMostPct(highFloatCount, nFloat, 5), highFloatCount, nFloat);
 
-  // 7. Negative Float — % with total_float_hr_cnt < 0 (target = 0)
+  // 7. Negative Float — total float below 0 (target none)
   const negFloatCount = floatTasks.filter(t => parseFloat(t.total_float_hr_cnt) < 0).length;
-  const negFloatPct   = pct(negFloatCount, nFloat);
-  const metric7 = noFloatReason ? notScored('Negative Float', noFloatReason, '0%') : {
-    name:   'Negative Float',
-    result: fmtPct(negFloatPct),
-    count:  ofFloat(negFloatCount),
-    target: '0%',
-    status: negFloatCount === 0 ? 'PASS' : negFloatPct <= 5 ? 'REVIEW' : 'FAIL'
-  };
+  const metric7 = noFloatReason ? notScored('Negative Float', noFloatReason, '0%')
+    : scored('Negative Float', fmtPct(pct(negFloatCount, nFloat)), ofFloat(negFloatCount),
+        '0%', negFloatCount === 0, negFloatCount, nFloat);
 
-  // 8. High Duration — > 44 WORKING DAYS on the activity's own calendar (target ≤ 5%).
-  const highDurCount = tasks.filter(t => {
-    const wd = cal.workingDays(t, HOUR_FIELDS.ORIGINAL_DURATION);
-    return wd != null && wd > HIGH_DURATION_WD;
-  }).length;
-  const highDurPct   = pct(highDurCount, n);
-  const metric8 = noTasks ? notScored(`High Duration (> ${HIGH_DURATION_WD} wd)`, noTasks, '≤ 5%') : {
-    name:   `High Duration (> ${HIGH_DURATION_WD} wd)`,
-    result: fmtPct(highDurPct),
-    count:  ofTasks(highDurCount),
-    target: '≤ 5%',
-    status: highDurPct <= 5 ? 'PASS' : highDurPct <= 10 ? 'REVIEW' : 'FAIL'
-  };
+  // THE BASELINE (D8, D9), read by #8 and #11. Activities are matched on the
+  // Activity ID, spaces trimmed and case ignored. An ID that appears more than
+  // once in either file matches no single activity: it is left out of #8's
+  // baseline reading and of both counts of #11, and the number is given.
+  const bSel = B ? selectBaselineProject(B, selection && selection.project, A) : null;
+  const baselineUsable = !!B && !(bSel && bSel.unmatched);
+  const Bs = baselineUsable ? (bSel ? scopeToProject(B, bSel.project, bSel.total) : B) : null;
+  const baselineNote = bSel && bSel.total > 1 && bSel.project
+    ? `; baseline project: ${projectName(bSel.project)} (1 of ${bSel.total} projects in the baseline file, chosen on ${bSel.basis})`
+    : '';
+  const unmatchedBaseline = B && !baselineUsable
+    ? `the baseline file holds ${num(bSel.total)} projects and none matches the scored project by project ID, short name or Activity ID`
+    : null;
+  const aKeys = keyCounts(A);
+  const bKeys = baselineUsable ? keyCounts(Bs) : new Map();
+  const ambiguous = k => (aKeys.get(k) || 0) > 1 || (bKeys.get(k) || 0) > 1;
+  const baselineByKey = new Map();
+  if (baselineUsable) {
+    for (const bt of getTable(Bs, 'TASK')) {
+      const k = activityKey(bt);
+      if (k && !ambiguous(k)) baselineByKey.set(k, bt);
+    }
+  }
+  const bcal = baselineUsable ? workingDayContext(Bs) : null;
+
+  // 8. High Duration — > 44 WORKING DAYS (target ≤ 5%). The duration is the
+  // BASELINE's original duration of the same activity, on the baseline
+  // activity's calendar, when a baseline is loaded and the activity is in it,
+  // else the current original duration (2026-11-07). Splitting a long activity
+  // in the current schedule does not hide that it was planned long.
+  let highDurCount = 0, fromBaseline = 0, fromCurrent = 0, repeatedIds = 0;
+  for (const t of tasks) {
+    const k = activityKey(t);
+    if (baselineUsable && k && ambiguous(k)) repeatedIds++;
+    const bt = baselineUsable && k ? baselineByKey.get(k) : null;
+    let wd = bt ? bcal.workingDays(bt, HOUR_FIELDS.ORIGINAL_DURATION) : null;
+    if (wd != null) fromBaseline++;
+    else { wd = cal.workingDays(t, HOUR_FIELDS.ORIGINAL_DURATION); fromCurrent++; }
+    if (wd != null && wd > HIGH_DURATION_WD) highDurCount++;
+  }
+  const durationBasis = !B ? ''
+    : !baselineUsable ? `; durations read from the current file, because ${unmatchedBaseline}`
+    : `; original durations read from the baseline for ${num(fromBaseline)} and from the current file for ${num(fromCurrent)}` +
+      (repeatedIds > 0 ? ` (${num(repeatedIds)} of them ${plural(repeatedIds, 'has an Activity ID', 'have Activity IDs')} that ${plural(repeatedIds, 'appears', 'appear')} more than once)` : '');
+  const metric8 = noTasks ? notScored(`High Duration (> ${HIGH_DURATION_WD} wd)`, noTasks, '≤ 5%')
+    : scored(`High Duration (> ${HIGH_DURATION_WD} wd)`, fmtPct(pct(highDurCount, n)), ofTasks(highDurCount) + durationBasis,
+        '≤ 5%', atMostPct(highDurCount, n, 5), highDurCount, n);
 
   // 9. Invalid Dates. The published check compares dates WITH THE DATA DATE:
   // an actual date must not be after it, and a forecast (early) date of
@@ -319,36 +572,37 @@ export function computeMetrics(file, baselineFile = null) {
   // looked for a MISSING actual date and never compared anything with the data
   // date, so the public demonstration file read "0 PASS" with 103 ordinary
   // activities statused past its data date. It counts ACTIVITIES, not fields,
-  // over ordinary activities, finished ones included; dates are compared by
-  // day (see _shared/input-quality.js). The missing-actual condition is kept,
-  // under its own label, in `missingActuals` below.
-  const dataDate = dataDateOf(A);
+  // over ordinary activities AND milestones (2026-11-07), finished ones
+  // included; dates are compared by day (see _shared/input-quality.js). The
+  // missing-actual condition is kept, under its own label, in `missingActuals`.
   let actualAfterCount = 0;
   let forecastBeforeCount = 0;
   let invalidDatesCount = 0;
-  for (const t of normal) {
+  for (const t of counted) {
     const actualAfter = actualsAfter(t, dataDate).any;
     let forecastBefore = false;
-    if (t.status_code !== 'TK_Complete' && !dayOf(t.act_end_date)) {
-      const notStarted = !dayOf(t.act_start_date) && t.status_code !== 'TK_Active';
+    if (dataDate && !isDone(t)) {
+      const started = dayOf(t.act_start_date) !== '' || t.status_code === 'TK_Active';
       const earlyStart = dayOf(t.early_start_date);
       const earlyEnd   = dayOf(t.early_end_date);
-      forecastBefore = (notStarted && earlyStart !== '' && earlyStart < dataDate) ||
+      forecastBefore = (!started && earlyStart !== '' && earlyStart < dataDate) ||
                        (earlyEnd !== '' && earlyEnd < dataDate);
     }
     if (actualAfter) actualAfterCount++;
     if (forecastBefore) forecastBeforeCount++;
     if (actualAfter || forecastBefore) invalidDatesCount++;
   }
-  const metric9 = !dataDate ? notScored('Invalid Dates', 'the file states no data date to compare with', '0') : {
-    name:   'Invalid Dates',
-    result: String(invalidDatesCount),
-    count:  `${invalidDatesCount.toLocaleString()} of ${normal.length.toLocaleString()} activities: ` +
-            `${actualAfterCount.toLocaleString()} with an actual date after the data date, ` +
-            `${forecastBeforeCount.toLocaleString()} with a forecast date before it`,
-    target: '0',
-    status: invalidDatesCount === 0 ? 'PASS' : 'FAIL'
-  };
+  const forecastsUnreadable = openWork.length > 0 &&
+    !openWork.some(t => dayOf(t.early_start_date) !== '' || dayOf(t.early_end_date) !== '');
+  const metric9 = !dataDate ? notScored('Invalid Dates', 'the file states no data date or planned start to compare with', '0')
+    : forecastsUnreadable ? notScored('Invalid Dates',
+        'none of the unfinished work carries an early start or early finish, so its forecast dates cannot be read; recalculate in P6 and re-export', '0')
+    : counted.length === 0 ? notScored('Invalid Dates', 'the file has no activities to measure', '0')
+    : scored('Invalid Dates', String(invalidDatesCount),
+        `${num(invalidDatesCount)} of ${num(counted.length)} activities, milestones included: ` +
+        `${num(actualAfterCount)} with an actual date after the data date, ` +
+        `${num(forecastBeforeCount)} with a forecast date before it` + dataDateNote,
+        '0', invalidDatesCount === 0, invalidDatesCount, counted.length);
 
   // Not one of the fourteen points, and not scored: a finished activity with no
   // actual finish, or an activity in progress with no actual start. This is
@@ -358,29 +612,36 @@ export function computeMetrics(file, baselineFile = null) {
     (t.status_code === 'TK_Active'   && !t.act_start_date)
   ).length;
 
-  // 10. Resources — % of tasks with at least one TASKRSRC assignment.
-  // DCMA-EA PAM 200.1 §4.10 verifies that ALL tasks with duration above zero
-  // carry dollars or hours: the target is 100%, not a band. This surface
-  // published "≥ 80%" until 2026-08-28 — a threshold the standard never
-  // contained, and one the earlier 90%→100% correction could not find because
-  // it searched for the 90% variant. A schedule with a fifth of its
-  // activities unresourced was stamped PASS here. When the export carries no
-  // TASKRSRC table at all the criterion is not scored, matching the dashboard's
-  // "Not scored" behaviour, rather than a fake FAIL.
-  // Whether the EXPORT carries assignments is a file-level question; which
-  // activities are resourced is counted in the scored project.
-  const taskIdsWithRsrc = new Set(rsrc.map(r => r.task_id));
-  const rsrcCount = tasks.filter(t => taskIdsWithRsrc.has(t.task_id)).length;
-  const rsrcPct   = pct(rsrcCount, n);
-  const metric10 = getTable(file, 'TASKRSRC').length === 0
-    ? notScored('Resources (% assigned)', 'the file carries no resource assignments (no TASKRSRC rows)', '100%')
-    : noTasks ? notScored('Resources (% assigned)', noTasks, '100%') : {
-    name:   'Resources (% assigned)',
-    result: fmtPct(rsrcPct),
-    count:  ofTasks(rsrcCount),
-    target: '100%',
-    status: rsrcPct >= 100 ? 'PASS' : 'FAIL'
-  };
+  // 10. Resources. DCMA-EA PAM 200.1 §4.10 verifies that ALL tasks with
+  // duration carry dollars or hours: the target is 100%, not a band. This
+  // surface published "≥ 80%" until 2026-08-28 — a threshold the standard
+  // never contained. When the scored project carries no TASKRSRC rows at all
+  // the criterion is not scored, rather than a fake FAIL.
+  //
+  // 2026-11-07. An activity is resourced when an assignment on it carries
+  // hours or cost (target or remaining quantity or cost above 0): an
+  // assignment of nothing used to count. Activities shorter than one working
+  // day are left out of the population.
+  const carries = r => RESOURCE_FIELDS.some(f => parseFloat(r[f]) > 0);
+  const resourcedIds = new Set(rsrc.filter(carries).map(r => norm(r.task_id)));
+  const assignedIds  = new Set(rsrc.map(r => norm(r.task_id)));
+  const rsrcPop = tasks.filter(t => {
+    const wd = cal.workingDays(t, HOUR_FIELDS.ORIGINAL_DURATION);
+    return wd != null && wd >= MIN_RESOURCE_WD;
+  });
+  const shortTasks = n - rsrcPop.length;
+  const rsrcCount = rsrcPop.filter(t => resourcedIds.has(norm(t.task_id))).length;
+  const emptyAssignments = rsrcPop.filter(t => !resourcedIds.has(norm(t.task_id)) && assignedIds.has(norm(t.task_id))).length;
+  const M10 = 'Resources (% assigned)';
+  const metric10 = rsrc.length === 0
+    ? notScored(M10, `${multi ? 'the scored project' : 'the file'} carries no resource assignments (no TASKRSRC rows)`, '100%')
+    : noTasks ? notScored(M10, noTasks, '100%')
+    : rsrcPop.length === 0 ? notScored(M10, 'no incomplete activity is one working day or longer', '100%')
+    : scored(M10, fmtPct(pct(rsrcCount, rsrcPop.length)),
+        `${num(rsrcCount)} of ${num(rsrcPop.length)} incomplete activities of one working day or more carry hours or cost` +
+        (emptyAssignments > 0 ? `; ${num(emptyAssignments)} more ${plural(emptyAssignments, 'has an assignment', 'have assignments')} with no hours and no cost` : '') +
+        (shortTasks > 0 ? `; ${num(shortTasks)} shorter than one working day ${plural(shortTasks, 'is', 'are')} left out` : ''),
+        '100%', rsrcCount === rsrcPop.length, rsrcCount, rsrcPop.length);
 
   // 11. Missed Tasks. DCMA-EA PAM 200.1 §4.11 is a FINISH test against the
   // BASELINE with a 5% ceiling: of the activities whose baseline finish is on
@@ -396,51 +657,46 @@ export function computeMetrics(file, baselineFile = null) {
   // a PASS it did not earn.
   //
   // Who was due is decided on the BASELINE side, over its ordinary activities,
-  // and matched to the current file on the Activity ID (_shared/identity.js).
+  // and matched to the current file on the Activity ID (D8).
   //
   // 2026-11-07. A due baseline activity that is NOT IN the current file is
   // deleted or renumbered scope, and it did not finish by its baseline finish:
-  // it counts as missed. It used to be left out of the rate, so deleting one of
-  // two due activities read 0 of 1 = PASS. When fewer than 80% of the due
-  // baseline activities match a current activity the baseline looks
-  // renumbered, and the row is not scored. A multi-project baseline is read on
-  // one project: the one named like the scored project, else the one sharing
-  // the most Activity IDs with it, else the latest data date.
+  // it counts as missed. When fewer than 80% of the due baseline activities
+  // match a current activity the baseline looks renumbered, and the row is not
+  // scored. A multi-project baseline is read on one project (D9).
   const M11 = 'Missed Tasks (late against the baseline finish)';
   let metric11;
   if (!B) {
-    metric11 = notScored('Missed Tasks (late against the baseline finish)',
-      'needs a baseline. Load one in the Baseline schedule box', '≤ 5%');
+    metric11 = notScored(M11, 'needs a baseline. Load one in the Baseline schedule box', '≤ 5%');
   } else if (!dataDate) {
-    metric11 = notScored('Missed Tasks (late against the baseline finish)', 'the file states no data date to compare with', '≤ 5%');
+    metric11 = notScored(M11, 'the file states no data date or planned start to compare with', '≤ 5%');
+  } else if (!baselineUsable) {
+    metric11 = notScored(M11, unmatchedBaseline, '≤ 5%');
   } else {
-    const bSel = selectBaselineProject(B, selection && selection.project, A);
-    const Bs = bSel ? scopeToProject(B, bSel.project, bSel.total) : B;
-    const baselineNote = bSel && bSel.total > 1
-      ? `; baseline project: ${projectName(bSel.project)} (1 of ${bSel.total} projects in the baseline file, chosen on ${bSel.basis})`
-      : '';
-    const ambiguousKeys = resolveComparisonAmbiguity(A, Bs).keys;
-    const current = indexTasks(A, ambiguousKeys).index;
-    // 'YYYY-MM-DD HH:MM' of the scored project's data date; a date with no time
-    // reads as the start of that day.
-    const instantOf = (v) => { const x = norm(v).replace('T', ' '); return x.length >= 16 ? x.slice(0, 16) : (x.slice(0, 10) + ' 00:00'); };
-    const dataInstant = instantOf((getTable(A, 'PROJECT')[0] || {}).last_recalc_date);
-    let due = 0, matched = 0, missed = 0, notInCurrent = 0, unmatched = 0, noActualFinish = 0;
+    const current = new Map();
+    for (const t of allTasks) {
+      const k = activityKey(t);
+      if (k && !ambiguous(k)) current.set(k, t);
+    }
+    const dataInstant = dd.instant;
+    let due = 0, matched = 0, missed = 0, notInCurrent = 0, leftOut = 0, noActualFinish = 0;
     for (const bt of getTable(Bs, 'TASK')) {
       if (LOE_WBS.has(bt.task_type) || MILESTONES.has(bt.task_type)) continue;
-      const baselineFinish = dayOf(bt.target_end_date);
-      // DUE is decided to the minute (2026-11-07), as in the validator and the
-      // health dashboard: a baseline finish later on the data date itself is not
-      // yet due (data date 08:00, baseline finish 16:00). Lateness stays by day.
-      if (baselineFinish === '' || instantOf(bt.target_end_date) > dataInstant) continue;
-      const key = taskKey(bt);
-      // A repeated Activity ID matches no SINGLE activity: left out, as before.
-      if (!key || ambiguousKeys.has(key)) { unmatched++; continue; }
+      // D12. A baseline activity's finish is its planned finish, else its early finish.
+      const finishInstant = instantOf(bt.target_end_date) || instantOf(bt.early_end_date);
+      // DUE is decided to the minute (D5): a baseline finish later on the data
+      // date itself is not yet due (data date 08:00, baseline finish 16:00).
+      // Lateness is decided by the day.
+      if (finishInstant === '' || finishInstant > dataInstant) continue;
+      const baselineFinish = finishInstant.slice(0, 10);
+      const key = activityKey(bt);
+      // A blank or repeated Activity ID matches no SINGLE activity: out of both counts.
+      if (!key || ambiguous(key)) { leftOut++; continue; }
       due++;
       const at = current.get(key);
       if (!at) { notInCurrent++; missed++; continue; }
       matched++;
-      if (at.status_code !== 'TK_Complete') { missed++; continue; }
+      if (!isDone(at)) { missed++; continue; }
       const actualFinish = dayOf(at.act_end_date);
       if (actualFinish === '') noActualFinish++;
       else if (actualFinish > baselineFinish) missed++;
@@ -448,28 +704,25 @@ export function computeMetrics(file, baselineFile = null) {
     // A finished activity with no actual finish has unknown lateness: out of both
     // counts, as in the health dashboard and the validator (2026-11-07).
     const scoredDue = due - noActualFinish;
-    const missedPct = pct(missed, scoredDue);
-    const leftOut = unmatched > 0 ? `; ${unmatched.toLocaleString()} more were due but match no single activity in the current file and are left out` : '';
+    const leftOutNote = leftOut > 0
+      ? `; ${num(leftOut)} more ${plural(leftOut, 'was', 'were')} due but ${plural(leftOut, 'carries an Activity ID', 'carry Activity IDs')} that ${plural(leftOut, 'is', 'are')} blank or ${plural(leftOut, 'appears', 'appear')} more than once in either file, and ${plural(leftOut, 'is', 'are')} left out`
+      : '';
     if (due === 0) {
-      metric11 = notScored(M11, 'no baseline activity was due on or before the data date', '≤ 5%');
-    } else if (matched / due < MIN_BASELINE_MATCH) {
+      metric11 = notScored(M11, 'no baseline activity was due on or before the data date' + leftOutNote + baselineNote + dataDateNote, '≤ 5%');
+    } else if (matched < MIN_BASELINE_MATCH * due) {
       metric11 = notScored(M11,
         "the baseline's Activity IDs do not match the current file; it looks renumbered. " +
-        `${matched.toLocaleString()} of ${due.toLocaleString()} baseline activities due on or before the data date match an activity in the current file, ` +
-        `fewer than ${Math.round(MIN_BASELINE_MATCH * 100)}%` + leftOut + baselineNote, '≤ 5%');
+        `${num(matched)} of ${num(due)} baseline activities due on or before the data date match an activity in the current file, ` +
+        `fewer than ${Math.round(MIN_BASELINE_MATCH * 100)}%` + leftOutNote + baselineNote, '≤ 5%');
     } else if (scoredDue <= 0) {
-      metric11 = notScored(M11, 'every due baseline activity finished with no actual finish date, so lateness is unknown' + leftOut + baselineNote, '≤ 5%');
+      metric11 = notScored(M11, 'every due baseline activity finished with no actual finish date, so lateness is unknown' + leftOutNote + baselineNote, '≤ 5%');
     } else {
-      metric11 = {
-        name:   M11,
-        result: fmtPct(missedPct),
-        count:  `${missed.toLocaleString()} of ${scoredDue.toLocaleString()} activities with a baseline finish on or before the data date` +
-                (notInCurrent > 0 ? `; ${notInCurrent.toLocaleString()} of the missed ${notInCurrent === 1 ? 'is' : 'are'} not in the current file (deleted or renumbered)` : '') +
-                (noActualFinish > 0 ? `; ${noActualFinish.toLocaleString()} finished with no actual finish date, so lateness is unknown and not counted` : '') +
-                leftOut + baselineNote,
-        target: '≤ 5%',
-        status: missedPct <= 5 ? 'PASS' : 'FAIL'
-      };
+      metric11 = scored(M11, fmtPct(pct(missed, scoredDue)),
+        `${num(missed)} of ${num(scoredDue)} activities with a baseline finish on or before the data date` +
+        (notInCurrent > 0 ? `; ${num(notInCurrent)} of the missed ${plural(notInCurrent, 'is', 'are')} not in the current file (deleted or renumbered)` : '') +
+        (noActualFinish > 0 ? `; ${num(noActualFinish)} finished with no actual finish date, so lateness is unknown and not counted` : '') +
+        leftOutNote + baselineNote + dataDateNote,
+        '≤ 5%', atMostPct(missed, scoredDue, 5), missed, scoredDue);
     }
   }
 
@@ -478,17 +731,47 @@ export function computeMetrics(file, baselineFile = null) {
   // needs a schedule recalculation, which this viewer does not do. This row
   // used to PASS on a bare count of activities at or below zero float, with no
   // test behind it. The count is kept, as information only.
+  //
+  // 2026-11-07. Two answers are certain without a recalculation, and on them
+  // the row FAILS: the logic runs in a loop, or the completion activity (D11)
+  // is held by a Mandatory Start or Mandatory Finish, so no delay can move it.
   // A blank total float is not "zero or less": it is skipped, and said so.
   const criticalCount = floatTasks.filter(t => parseFloat(t.total_float_hr_cnt) <= 0).length;
   const criticalInfo = noFloat === 0
     ? `For information, ${ofTasks(criticalCount)} have total float of zero or less`
     : nFloat === 0
       ? 'For information, no incomplete activity carries a total float'
-      : `For information, ${criticalCount.toLocaleString()} of ${nFloat.toLocaleString()} incomplete activities that carry a total float ` +
-        `have total float of zero or less; ${noFloat.toLocaleString()} more carry none`;
-  const metric12 = notScored('Critical Path Test',
-    'the test adds a delay and recalculates the schedule, and this viewer does not recalculate. ' +
-    criticalInfo, 'finish moves with the delay');
+      : `For information, ${num(criticalCount)} of ${num(nFloat)} incomplete activities that carry a total float ` +
+        `have total float of zero or less; ${num(noFloat)} more carry none`;
+  // D11. The completion activity: the ordinary or milestone activity, complete
+  // or not, with the latest early finish (else planned finish). On a tie: a
+  // finish milestone, then an activity of zero original duration (a completion
+  // typed as a task), else the first in the file.
+  const tieRank = t => t.task_type === 'TT_FinMile' ? 2
+    : (isNumeric(t.target_drtn_hr_cnt) && parseFloat(t.target_drtn_hr_cnt) === 0 ? 1 : 0);
+  let completion = null;
+  let completionFinish = '';
+  for (const t of counted) {
+    const f = instantOf(t.early_end_date) || instantOf(t.target_end_date);
+    if (!f) continue;
+    if (!completion || f > completionFinish || (f === completionFinish && tieRank(t) > tieRank(completion))) {
+      completion = t;
+      completionFinish = f;
+    }
+  }
+  const pin = completion ? (MANDATORY[completion.cstr_type] || MANDATORY[completion.cstr_type2] || null) : null;
+  const loop = findLoop(logicRels);
+  const M12 = 'Critical Path Test';
+  const metric12 = loop
+    ? { name: M12, status: 'FAIL', num: null, den: null, target: 'finish moves with the delay', count: '',
+        result: `Fails: the logic runs in a loop (${activityList(loop)}${loop.length === 1 ? ' is its own predecessor' : ' lead back to one another'}), ` +
+          'so a delay cannot be followed through it to the finish' }
+    : pin
+      ? { name: M12, status: 'FAIL', num: null, den: null, target: 'finish moves with the delay', count: '',
+          result: `Fails: the completion activity ${activityList([completion])} is held by a ${pin} constraint, ` +
+            'so a delay on the way to it cannot move the finish' }
+      : notScored(M12, 'the test adds a delay and recalculates the schedule, and this viewer does not recalculate. ' +
+          criticalInfo, 'finish moves with the delay');
 
   // 13 & 14. Never calculated here. They used to show a dash under a heading
   // that claimed all fourteen points.
@@ -505,6 +788,7 @@ export function computeMetrics(file, baselineFile = null) {
               metric8, metric9, metric10, metric11, metric12, metric13, metric14],
     disclosure,
     incompleteCount: n,
+    openMilestoneCount: openMilestones.length,
     missingActuals,
     scoredProject: selection
   };
@@ -533,7 +817,7 @@ function qualityOverlayCard() {
 }
 
 function statusBadge(status) {
-  const c = BADGE_COLORS[status] || BADGE_COLORS.REVIEW;
+  const c = BADGE_COLORS[status] || BADGE_COLORS[NOT_SCORED];
   return h('span', {
     class: 'lens-badge',
     style: {
@@ -565,13 +849,12 @@ export function render({ A, B }) {
     ]);
   }
 
-  const { metrics, disclosure, incompleteCount, missingActuals, scoredProject } = computeMetrics(A, B);
+  const { metrics, disclosure, incompleteCount, openMilestoneCount, missingActuals, scoredProject } = computeMetrics(A, B);
   const multi = scoredProject && scoredProject.total > 1;
   const scopeLine = multi
     ? `Scored project: ${projectName(scoredProject.project)} (1 of ${scoredProject.total} projects in this file). `
     : '';
   const passCount   = metrics.filter(m => m.status === 'PASS').length;
-  const reviewCount = metrics.filter(m => m.status === 'REVIEW').length;
   const failCount   = metrics.filter(m => m.status === 'FAIL').length;
   const notScoredCount = metrics.filter(m => m.status === NOT_SCORED).length;
   const scoredCount = metrics.length - notScoredCount;
@@ -587,11 +870,16 @@ export function render({ A, B }) {
       // a count with no test behind it.
       h('p', { class: 'lens-dcma-heading' },
         scopeLine +
-        `DCMA screening: ${scoredCount} of the 14 points are scored here · ${passCount} PASS · ${reviewCount} REVIEW · ` +
+        `DCMA screening: ${scoredCount} of the 14 points are scored here · ${passCount} PASS · ` +
         `${failCount} FAIL · ${notScoredCount} not scored here, each with its reason in the table.`),
       h('p', { class: 'lens-dcma-population' },
-        `Checks 1, 5, 6, 7, 8 and 10 are measured over the ${incompleteCount.toLocaleString()} incomplete activities in ${multi ? 'the scored project' : 'this file'}. ` +
+        // 2026-11-07 (DCMA phase 2): each check's population, as CPP's one
+        // DCMA definition sets it.
+        `Checks 5, 6, 7 and 8 are measured over the ${incompleteCount.toLocaleString()} incomplete activities in ${multi ? 'the scored project' : 'this file'}. ` +
         'Milestones, level of effort and WBS summary activities are left out, and so is finished work. ' +
+        `Check 1 also counts incomplete milestones (${openMilestoneCount.toLocaleString()} here), and check 10 leaves out activities shorter than one working day. ` +
+        'Checks 2, 3 and 4 grade the relationships into unfinished work, and check 9 reads every activity and milestone, finished ones included. ' +
+        'A link to a level of effort or WBS summary activity is not counted in any check. ' +
         'The Count column gives the numerator and the denominator of every result.')
     ]),
     qualityOverlayCard(),
