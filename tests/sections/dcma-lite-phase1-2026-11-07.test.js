@@ -351,11 +351,24 @@ describe('5. Missed Tasks counts deleted due work as missed, and refuses a renum
     expect(r.result).toContain('0 of 5');
   });
 
+  it('an open activity whose baseline finish is later on the data date itself is not yet due', () => {
+    // Current data date 2026-04-01 08:00 (the xer() default). T11's baseline finish is
+    // 2026-04-01 16:00: by the day it is "on the data date", but it is not due until
+    // 16:00, so it is neither due nor missed (2026-11-07, due decided to the minute).
+    const B = baselineDue(TEN_CODES);
+    B.tables.TASK.records.push({ ...B.tables.TASK.records[0], task_id: '199', task_code: 'T11', target_end_date: '2026-04-01 16:00' });
+    const A = currentDone(TEN_CODES);
+    A.tables.TASK.records.push({ ...A.tables.TASK.records[0], task_id: '299', task_code: 'T11', status_code: 'TK_NotStart', act_start_date: '', act_end_date: '' });
+    const r = metric(computeMetrics(A, B), /^Missed Tasks/);
+    expect(r.count).toContain('0 of 10');
+    expect(r.status).toBe('PASS');
+  });
+
   it('keeps the complete-with-no-actual-finish handling', () => {
     const A = currentDone(TEN_CODES);
     A.tables.TASK.records[0].act_end_date = '';
     const r = metric(computeMetrics(A, baselineDue(TEN_CODES)), /^Missed Tasks/);
-    expect(r.count).toContain('0 of 10');
+    expect(r.count).toContain('0 of 9');
     expect(r.count).toMatch(/1 finished with no actual finish date/);
     expect(r.status).toBe('PASS');
   });

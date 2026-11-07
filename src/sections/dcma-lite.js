@@ -421,11 +421,18 @@ export function computeMetrics(file, baselineFile = null) {
       : '';
     const ambiguousKeys = resolveComparisonAmbiguity(A, Bs).keys;
     const current = indexTasks(A, ambiguousKeys).index;
+    // 'YYYY-MM-DD HH:MM' of the scored project's data date; a date with no time
+    // reads as the start of that day.
+    const instantOf = (v) => { const x = norm(v).replace('T', ' '); return x.length >= 16 ? x.slice(0, 16) : (x.slice(0, 10) + ' 00:00'); };
+    const dataInstant = instantOf((getTable(A, 'PROJECT')[0] || {}).last_recalc_date);
     let due = 0, matched = 0, missed = 0, notInCurrent = 0, unmatched = 0, noActualFinish = 0;
     for (const bt of getTable(Bs, 'TASK')) {
       if (LOE_WBS.has(bt.task_type) || MILESTONES.has(bt.task_type)) continue;
       const baselineFinish = dayOf(bt.target_end_date);
-      if (baselineFinish === '' || baselineFinish > dataDate) continue;
+      // DUE is decided to the minute (2026-11-07), as in the validator and the
+      // health dashboard: a baseline finish later on the data date itself is not
+      // yet due (data date 08:00, baseline finish 16:00). Lateness stays by day.
+      if (baselineFinish === '' || instantOf(bt.target_end_date) > dataInstant) continue;
       const key = taskKey(bt);
       // A repeated Activity ID matches no SINGLE activity: left out, as before.
       if (!key || ambiguousKeys.has(key)) { unmatched++; continue; }
@@ -438,7 +445,10 @@ export function computeMetrics(file, baselineFile = null) {
       if (actualFinish === '') noActualFinish++;
       else if (actualFinish > baselineFinish) missed++;
     }
-    const missedPct = pct(missed, due);
+    // A finished activity with no actual finish has unknown lateness: out of both
+    // counts, as in the health dashboard and the validator (2026-11-07).
+    const scoredDue = due - noActualFinish;
+    const missedPct = pct(missed, scoredDue);
     const leftOut = unmatched > 0 ? `; ${unmatched.toLocaleString()} more were due but match no single activity in the current file and are left out` : '';
     if (due === 0) {
       metric11 = notScored(M11, 'no baseline activity was due on or before the data date', '≤ 5%');
@@ -447,11 +457,13 @@ export function computeMetrics(file, baselineFile = null) {
         "the baseline's Activity IDs do not match the current file; it looks renumbered. " +
         `${matched.toLocaleString()} of ${due.toLocaleString()} baseline activities due on or before the data date match an activity in the current file, ` +
         `fewer than ${Math.round(MIN_BASELINE_MATCH * 100)}%` + leftOut + baselineNote, '≤ 5%');
+    } else if (scoredDue <= 0) {
+      metric11 = notScored(M11, 'every due baseline activity finished with no actual finish date, so lateness is unknown' + leftOut + baselineNote, '≤ 5%');
     } else {
       metric11 = {
         name:   M11,
         result: fmtPct(missedPct),
-        count:  `${missed.toLocaleString()} of ${due.toLocaleString()} activities with a baseline finish on or before the data date` +
+        count:  `${missed.toLocaleString()} of ${scoredDue.toLocaleString()} activities with a baseline finish on or before the data date` +
                 (notInCurrent > 0 ? `; ${notInCurrent.toLocaleString()} of the missed ${notInCurrent === 1 ? 'is' : 'are'} not in the current file (deleted or renumbered)` : '') +
                 (noActualFinish > 0 ? `; ${noActualFinish.toLocaleString()} finished with no actual finish date, so lateness is unknown and not counted` : '') +
                 leftOut + baselineNote,
