@@ -1,6 +1,7 @@
 import { h } from '../lib/dom.js';
 import { getTable } from '@criticalpathpartners/lens-parser';
 import { kpiCard } from './_shared/kpi-card.js';
+import { resolveDataDate, dataDateSource } from './_shared/data-date.js';
 import { svgBarChart } from './_shared/svg-bar-chart.js';
 import { workingDayContext, disclosureCards, HOUR_FIELDS } from './_shared/working-days.js';
 
@@ -139,9 +140,9 @@ export function render({ A, B }) {
   // Hours become working days in exactly one module — see _shared/working-days.js.
   const cal    = workingDayContext(A);
 
-  // Data date from PROJECT
-  const projRows = getTable(A, 'PROJECT');
-  const dataDate = (projRows[0] && projRows[0].last_recalc_date) || null;
+  // Data date from _shared/data-date.js (2026-11-07), the one every section reads.
+  const dd = resolveDataDate(A);
+  const dataDate = dd.instant || null;
 
   const durData   = buildDurationHistogram(tasks, cal);
   const floatData = buildFloatHistogram(tasks, cal);
@@ -155,7 +156,7 @@ export function render({ A, B }) {
   const kpiRow = h('div', { class: 'kpi-grid' }, [
     kpiCard({ title: 'Activities (excl. LOE/WBS)', big: totalFiltered, sub: 'included in histograms' }),
     kpiCard({ title: 'LOE / WBS excluded',         big: loeCount,      sub: 'TT_LOE + TT_WBS' }),
-    kpiCard({ title: 'Data Date',                  big: dataDate ? dataDate.slice(0, 10) : '—', sub: 'from PROJECT' })
+    kpiCard({ title: 'Data Date',                  big: dataDate ? dataDate.slice(0, 10) : '—', sub: dataDateSource(dd) })
   ]);
 
   const card1 = h('div', { class: 'lens-card' }, [

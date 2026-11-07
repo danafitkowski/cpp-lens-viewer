@@ -1,5 +1,8 @@
 import { h } from '../../lib/dom.js';
 import { getTable } from '@criticalpathpartners/lens-parser';
+import { dayOf, resolveDataDate, dataDateDisclosure, scopedToScoredProject } from './data-date.js';
+
+export { dayOf };
 
 /**
  * ONE place that asks whether the input file is statused past its own data date.
@@ -25,15 +28,16 @@ import { getTable } from '@criticalpathpartners/lens-parser';
 
 const LOE_WBS = new Set(['TT_LOE', 'TT_WBS']);
 
-/** 'YYYY-MM-DD' from a raw XER date cell, or '' when the cell holds no date. */
-export function dayOf(raw) {
-  const s = raw == null ? '' : String(raw).trim().slice(0, 10);
-  return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : '';
-}
-
-/** The data date (first PROJECT row's last_recalc_date) as 'YYYY-MM-DD', or ''. */
+/**
+ * The data date as 'YYYY-MM-DD', or ''. Decided in _shared/data-date.js
+ * (2026-11-07): the project D0 picks, its last_recalc_date, else its planned
+ * start, lifted to a later planned start as P6 does. It used to be the FIRST
+ * PROJECT row's raw last_recalc_date, so on a file with a blank data date this
+ * card found nothing while DCMA check 9 on the same page measured against the
+ * planned start.
+ */
 export function dataDateOf(model) {
-  return dayOf((getTable(model, 'PROJECT')[0] || {}).last_recalc_date);
+  return resolveDataDate(model).day;
 }
 
 /**
@@ -57,19 +61,28 @@ export function actualsAfter(task, dataDate) {
  * data date. Level of effort and WBS summary activities are left out, because
  * P6 derives their dates from other activities; milestones are counted.
  *
+ * ONE PROJECT (2026-11-07). The activities counted are the project the data
+ * date belongs to, cut by the helper DCMA Lite scores with: a file with one
+ * PROJECT row is read whole; with several, only the project D0 picks. This
+ * card used to count every activity in the file against one project's date,
+ * so on a multi-project file it judged other projects' work by it, and its
+ * count did not match DCMA check 9's on the same page.
+ *
  * @param {object|null} model
  * @returns {{
- *   dataDate: string, population: number, activities: number,
+ *   dataDate: string, dataDateNote: string, population: number, activities: number,
  *   starts: number, finishes: number, latestActual: string
  * }}
  *   `activities` counts ACTIVITIES, not fields: one with both a future start
  *   and a future finish is one. `latestActual` is the latest actual date in
- *   the file, 'YYYY-MM-DD', or '' when there is none.
+ *   the activities counted, 'YYYY-MM-DD', or '' when there is none.
  */
 export function actualsAfterDataDate(model) {
-  const dataDate = dataDateOf(model);
-  const out = { dataDate, population: 0, activities: 0, starts: 0, finishes: 0, latestActual: '' };
-  for (const t of getTable(model, 'TASK')) {
+  const dd = resolveDataDate(model);
+  const dataDate = dd.day;
+  // `dataDateNote` says, in DCMA check 9's words, when the date is the planned start.
+  const out = { dataDate, dataDateNote: dataDateDisclosure(dd), population: 0, activities: 0, starts: 0, finishes: 0, latestActual: '' };
+  for (const t of getTable(scopedToScoredProject(model).model, 'TASK')) {
     if (LOE_WBS.has(t.task_type || '')) continue;
     out.population++;
     for (const d of [dayOf(t.act_start_date), dayOf(t.act_end_date)]) {
@@ -102,12 +115,20 @@ export function inputQualityCards(model, role = '') {
   if (f.activities === 0) return [];
   const name = model && model.filename ? ` (${model.filename})` : '';
   const file = `${role ? `the ${role} file` : 'this file'}${name}`;
+  // On a multi-project file, say which project was counted (2026-11-07).
+  const sel = scopedToScoredProject(model).selection;
+  const multi = !!sel && sel.total > 1;
+  const projectLabel = multi
+    ? ` in project ${String(sel.project.proj_short_name || '').trim() || String(sel.project.proj_id || '').trim()} ` +
+      `(1 of ${sel.total.toLocaleString()} projects in the file; the others are not counted)`
+    : '';
   return [h('div', { class: 'lens-card lens-warn lens-input-quality' },
-    `Input file finding: in ${file}, ${f.activities.toLocaleString()} of ${f.population.toLocaleString()} activities ` +
+    `Input file finding: in ${file}, ${f.activities.toLocaleString()} of ${f.population.toLocaleString()} activities${projectLabel} ` +
     `${plural(f.activities, 'has', 'have')} an actual start or actual finish after the data date, ${f.dataDate} ` +
     `(${f.starts.toLocaleString()} actual ${plural(f.starts, 'start', 'starts')} and ` +
     `${f.finishes.toLocaleString()} actual ${plural(f.finishes, 'finish', 'finishes')}). ` +
-    `The latest actual date in the file is ${f.latestActual}. A data date is the day progress is recorded up to, ` +
+    (f.dataDateNote ? `${f.dataDateNote.charAt(0).toUpperCase()}${f.dataDateNote.slice(1)}. ` : '') +
+    `The latest actual date ${multi ? 'in that project' : 'in the file'} is ${f.latestActual}. A data date is the day progress is recorded up to, ` +
     'so these dates disagree with it. Level of effort and WBS summary activities are not counted. Counts of started ' +
     'and finished work on this page include these activities unless the page says it leaves them out.')];
 }

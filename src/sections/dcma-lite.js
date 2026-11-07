@@ -2,7 +2,15 @@ import { h } from '../lib/dom.js';
 import { getTable, getTableAliased } from '@criticalpathpartners/lens-parser';
 import { dataTable } from './_shared/data-table.js';
 import { workingDayContext, disclosureCards, HOUR_FIELDS } from './_shared/working-days.js';
-import { dayOf, actualsAfter, inputQualityCards } from './_shared/input-quality.js';
+import { actualsAfter, inputQualityCards } from './_shared/input-quality.js';
+// The data date and the D0 project choice live in one shared module (2026-11-07),
+// so every section names the same date this screen scores against.
+import {
+  dayOf, instantOf, bestProject, taskCountsByProject, selectScoredProject, scopeToProject, dataDateOfProject,
+  dataDateDisclosure
+} from './_shared/data-date.js';
+
+export { selectScoredProject };
 
 // ONE DEFINITION (2026-11-07, DCMA phase 2). CPP's three DCMA engines (the
 // validator, the health dashboard and this screen) measure the fourteen checks
@@ -61,13 +69,6 @@ function isNumeric(raw) {
   return raw != null && String(raw).trim() !== '' && Number.isFinite(parseFloat(raw));
 }
 
-/** 'YYYY-MM-DD HH:MM' from a raw XER date cell (a date with no time is 00:00), or ''. */
-function instantOf(raw) {
-  const x = norm(raw).replace('T', ' ');
-  if (!dayOf(x)) return '';
-  return x.length >= 16 ? x.slice(0, 16) : `${x.slice(0, 10)} 00:00`;
-}
-
 /** D8. The Activity ID as matched across files: task_code, spaces trimmed, case ignored. */
 function activityKey(t) {
   return norm(t && t.task_code).toLowerCase();
@@ -96,76 +97,6 @@ function projectName(p) {
 }
 
 /**
- * The best of some PROJECT rows by the rule CPP's Python validator uses: the
- * latest last_recalc_date, ties broken by the most TASK rows, then file order.
- *
- * @param {Array<{p: object, i: number}>} candidates  rows with their file position
- * @param {Map<string, number>} counts  proj_id -> TASK rows
- */
-function bestProject(candidates, counts) {
-  const stamp = p => (dayOf(p.last_recalc_date) ? norm(p.last_recalc_date) : '');
-  let best = null;
-  for (const c of candidates) {
-    if (!best) { best = c; continue; }
-    const sa = stamp(c.p), sb = stamp(best.p);
-    const na = counts.get(norm(c.p.proj_id)) || 0, nb = counts.get(norm(best.p.proj_id)) || 0;
-    if (sa > sb || (sa === sb && na > nb)) best = c;
-  }
-  return best;
-}
-
-function taskCounts(model) {
-  const counts = new Map();
-  for (const t of getTable(model, 'TASK')) {
-    const pid = norm(t.proj_id);
-    counts.set(pid, (counts.get(pid) || 0) + 1);
-  }
-  return counts;
-}
-
-/**
- * Which project of a file DCMA Lite scores. Exported so every caller of
- * computeMetrics (the Executive Dashboard banner included) reads the same one.
- *
- * A multi-project XER used to be graded as one blended schedule against the
- * FIRST PROJECT row's data date, so reordering two PROJECT rows changed the
- * result. D0: one project is scored: the only PROJECT row; else the one with
- * the latest last_recalc_date, ties broken by the most TASK rows, then file
- * order.
- *
- * @param {object|null} model
- * @returns {{ project: object, position: number, total: number }|null}
- *   null when the file carries no PROJECT row.
- */
-export function selectScoredProject(model) {
-  const projects = getTable(model, 'PROJECT');
-  if (projects.length === 0) return null;
-  const best = bestProject(projects.map((p, i) => ({ p, i })), taskCounts(model));
-  return { project: best.p, position: best.i + 1, total: projects.length };
-}
-
-/**
- * The model cut down to one project: its PROJECT row, its TASK rows, the
- * relationships with both ends in those tasks and the assignments on them.
- * Every other table (calendars included) is left whole. A file with one
- * PROJECT row (or none) is returned as it is.
- */
-function scopeToProject(model, project, total) {
-  if (!model || !project || total <= 1) return model;
-  const pid = norm(project.proj_id);
-  const tables = { ...model.tables };
-  const cut = (name, keep) => {
-    if (tables[name]) tables[name] = { ...tables[name], records: (tables[name].records || []).filter(keep) };
-  };
-  cut('PROJECT', p => p === project);
-  cut('TASK', t => norm(t.proj_id) === pid);
-  const ids = new Set(getTable({ tables }, 'TASK').map(t => norm(t.task_id)));
-  cut('TASKPRED', r => ids.has(norm(r.task_id)) && ids.has(norm(r.pred_task_id)));
-  cut('TASKRSRC', r => ids.has(norm(r.task_id)));
-  return { ...model, tables };
-}
-
-/**
  * D9. The baseline project #8 and #11 read. A baseline file with one project
  * is read on it. With several: the one with the same proj_id as the scored
  * project, else the same proj_short_name, else the one sharing the most
@@ -180,7 +111,7 @@ function scopeToProject(model, project, total) {
 function selectBaselineProject(B, scoredProject, scopedA) {
   const projects = getTable(B, 'PROJECT');
   if (projects.length === 0) return null;
-  const counts = taskCounts(B);
+  const counts = taskCountsByProject(B);
   const all = projects.map((p, i) => ({ p, i }));
   const pick = (cands, basis) => ({ project: bestProject(cands, counts).p, total: projects.length, basis, unmatched: false });
   if (projects.length === 1) return pick(all, 'the only project');
@@ -289,36 +220,6 @@ function findLoop(links) {
   return null;
 }
 
-/**
- * D14. The data date the checks compare with: the scored project's
- * last_recalc_date. Blank, it is the project's planned start
- * (plan_start_date); on a DAY before a later planned start, it is lifted to the
- * planned start. Both are what P6 does when it opens the project, and the
- * result says so. (2026-11-07, from a run over 581 real files: three carry a
- * blank data date, which this screen did not score, and one a filed data date
- * months before its planned start.)
- *
- * @param {object|undefined} project  the scored project's PROJECT row
- * @returns {{ instant: string, day: string, note: string }}
- *   `instant` is 'YYYY-MM-DD HH:MM', `day` 'YYYY-MM-DD'; both '' when the file
- *   states neither date. `note` is the disclosure, '' when the filed date is used.
- */
-function scoredDataDate(project) {
-  const filed = instantOf(project && project.last_recalc_date);
-  const planned = instantOf(project && project.plan_start_date);
-  const at = (instant, note) => ({ instant, day: instant.slice(0, 10), note });
-  if (!filed) {
-    return planned
-      ? at(planned, `the file states no data date, so the project's planned start, ${planned.slice(0, 10)}, is used, as P6 does`)
-      : at('', '');
-  }
-  if (planned && filed.slice(0, 10) < planned.slice(0, 10)) {
-    return at(planned, `the file's data date, ${filed.slice(0, 10)}, is before the project's planned start, ` +
-      `${planned.slice(0, 10)}, so the planned start is used, as P6 does`);
-  }
-  return at(filed, '');
-}
-
 function activityList(rows, max = 5) {
   const ids = rows.map(t => norm(t.task_code) || norm(t.task_id));
   if (ids.length <= max) return ids.length === 1 ? ids[0] : `${ids.slice(0, -1).join(', ')} and ${ids[ids.length - 1]}`;
@@ -353,9 +254,9 @@ export function computeMetrics(file, baselineFile = null) {
   const cal      = workingDayContext(A);
   // D14. A blank data date is the planned start; one on a day before a later
   // planned start is lifted to it. #9 and #11 compare with this one.
-  const dd       = scoredDataDate(getTable(A, 'PROJECT')[0]);
+  const dd       = dataDateOfProject(selection && selection.project);
   const dataDate = dd.day;
-  const dataDateNote = dd.note ? `; ${dd.note}` : '';
+  const dataDateNote = dd.disclosure ? `; ${dataDateDisclosure(dd)}` : '';
   const isDone   = t => t.status_code === COMPLETE;
 
   // THE POPULATIONS. The published DCMA percentages are measured over

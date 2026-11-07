@@ -7,6 +7,7 @@ import {
 } from './_shared/identity.js';
 import { percentComplete, describeProgressBasis } from './_shared/percent-complete.js';
 import { inputQualityCards } from './_shared/input-quality.js';
+import { resolveDataDate } from './_shared/data-date.js';
 import { registerCsvButton, countNoun } from './_shared/register-csv.js';
 
 /**
@@ -41,14 +42,16 @@ export function indexTasks(model, ambiguousKeys = null) {
 }
 
 /**
- * Get the first PROJECT record's last_recalc_date string, or ''.
+ * A file's data date, 'YYYY-MM-DD HH:MM', or ''. From _shared/data-date.js
+ * (2026-11-07), the one every section reads: last_recalc_date, else the
+ * planned start, lifted to a later planned start as P6 does. It used to be the
+ * first PROJECT row's raw last_recalc_date.
  *
  * @param {object|null} model
  * @returns {string}
  */
 function getDataDate(model) {
-  const recs = getTable(model, 'PROJECT');
-  return recs[0]?.last_recalc_date || '';
+  return resolveDataDate(model).instant;
 }
 
 /**

@@ -2,6 +2,7 @@ import { h } from '../lib/dom.js';
 import { getTable } from '@criticalpathpartners/lens-parser';
 import { workingDayContext, divisorCaption, HOUR_FIELDS } from './_shared/working-days.js';
 import { inputQualityCards } from './_shared/input-quality.js';
+import { resolveDataDate, dataDateDisclosure } from './_shared/data-date.js';
 
 const MILESTONE_TYPES = new Set(['TT_Mile', 'TT_FinMile']);
 const EXCLUDED_TYPES = new Set(['TT_LOE', 'TT_WBS']);
@@ -20,7 +21,11 @@ export function render({ A, B }) {
   const tasks = getTable(A, 'TASK');
   const realTasks = tasks.filter(t => !EXCLUDED_TYPES.has(t.task_type || ''));
   const projects = getTable(A, 'PROJECT');
-  const proj = projects[0] || {};
+  // The data date and its project from _shared/data-date.js (2026-11-07); the
+  // name and finish in the narrative are read off the same project.
+  const dd = resolveDataDate(A);
+  const proj = dd.project || projects[0] || {};
+  const ddNote = dataDateDisclosure(dd);
 
   const completeCount = realTasks.filter(t => t.status_code === 'TK_Complete').length;
   const activeCount   = realTasks.filter(t => t.status_code === 'TK_Active').length;
@@ -38,7 +43,8 @@ export function render({ A, B }) {
   // (bid-stage schedules especially) never have the latter set at all.
   const projectFinish = (proj.scd_end_date || proj.plan_end_date || '').slice(0, 10);
 
-  const narrative = `Project ${proj.proj_short_name || '(unnamed)'} as of data date ${(proj.last_recalc_date || '').slice(0, 10) || 'unknown'}. ` +
+  const narrative = `Project ${proj.proj_short_name || '(unnamed)'} as of data date ${dd.day || 'unknown'}` +
+    (ddNote ? ` (${ddNote}). ` : '. ') +
     `${realTasks.length.toLocaleString()} activities (${completeCount} complete, ${activeCount} in progress). ${pctActivitiesComplete}% of activities complete by count, not weighted physical % complete. ` +
     `${criticalCount.toLocaleString()} activities sit on the critical path (total float ≤ 0). ` +
     `Project finish: ${projectFinish || 'not set'}.`;

@@ -26,7 +26,7 @@ import { describe, it, expect } from 'vitest';
 import { actualsAfterDataDate, inputQualityCards } from '../../src/sections/_shared/input-quality.js';
 import { render as renderDashboard } from '../../src/sections/dashboard.js';
 import { render as renderSummary } from '../../src/sections/summary.js';
-import { render as renderDcma } from '../../src/sections/dcma-lite.js';
+import { render as renderDcma, computeMetrics as computeDcma } from '../../src/sections/dcma-lite.js';
 import { render as renderEvm } from '../../src/sections/evm.js';
 import { render as renderPeriod } from '../../src/sections/period-reporting.js';
 import { reexport, assertDivergentSurrogates } from '../fixtures/reexport.js';
@@ -98,8 +98,11 @@ function banners(el) {
 
 describe('actualsAfterDataDate', () => {
   it('counts activities, not fields, and leaves level of effort and WBS summary out', () => {
+    // 2026-11-07: the finding also carries `dataDateNote`, the plain-words
+    // disclosure when the data date is the project's planned start (empty here:
+    // the filed data date is used). The data date comes from _shared/data-date.js.
     expect(actualsAfterDataDate(dirty())).toEqual({
-      dataDate: '2026-03-02', population: 5, activities: 3, starts: 3, finishes: 2, latestActual: '2026-03-09'
+      dataDate: '2026-03-02', dataDateNote: '', population: 5, activities: 3, starts: 3, finishes: 2, latestActual: '2026-03-09'
     });
   });
 
@@ -110,6 +113,8 @@ describe('actualsAfterDataDate', () => {
   });
 
   it('finds nothing, rather than everything, when the file states no data date', () => {
+    // 2026-11-07: ...and no planned start either. With a planned start, that is
+    // the data date (see "the card and DCMA check 9 name the same data date").
     expect(actualsAfterDataDate(dirty('')).activities).toBe(0);
   });
 });
@@ -207,5 +212,104 @@ describe('Period Reporting checks both files', () => {
 
   it('shows none when both files are clean', () => {
     expect(banners(renderPeriod({ A: clean(), B: cleanBaseline() })).length).toBe(0);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ONE data date (2026-11-07, src/sections/_shared/data-date.js). On a file with
+// a blank data date the card used to find nothing (it read the first PROJECT
+// row's raw last_recalc_date) while DCMA check 9 on the same page measured
+// against the project's planned start, as P6 does. Both now read one rule.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('the card and DCMA check 9 name the same data date', () => {
+  function withPlannedStart(dataDate, planStart) {
+    const A = dirty(dataDate);
+    A.tables.PROJECT.fields.push('plan_start_date');
+    A.tables.PROJECT.records[0].plan_start_date = planStart;
+    return A;
+  }
+
+  function row9(el) {
+    const tr = [...el.querySelectorAll('tbody tr')].find(r => /^Invalid Dates/.test(r.children[0].textContent));
+    return [...tr.children].map(td => td.textContent);
+  }
+
+  const cases = [
+    ['blank data date', '', "the file states no data date, so the project's planned start, 2026-03-02, is used, as P6 does"],
+    ['data date before the planned start', '2026-01-05 08:00',
+      "the file's data date, 2026-01-05, is before the project's planned start, 2026-03-02, so the planned start is used, as P6 does"]
+  ];
+
+  for (const [label, filed, words] of cases) {
+    it(`${label}: the card and check 9 count against the planned start and say so in the same words`, () => {
+      const el = renderDcma({ A: withPlannedStart(filed, '2026-03-02 08:00'), B: null });
+      const card = banners(el)[0].textContent;
+      expect(card).toContain('3 of 5 activities');
+      expect(card).toContain('after the data date, 2026-03-02');
+      expect(card).toContain(words.charAt(0).toUpperCase() + words.slice(1) + '.');
+      const r = row9(el);
+      expect(r[2]).toContain('3 of 5 activities');
+      expect(r[2]).toContain(words);
+      expect(r[4]).toBe('FAIL');
+    });
+  }
+
+  it('the dashboard tile and the summary narrative name the planned start too', () => {
+    const A = withPlannedStart('', '2026-03-02 08:00');
+    const dash = renderDashboard({ A, B: null });
+    const tile = [...dash.querySelectorAll('.kpi')].find(k => k.querySelector('.kpi-title').textContent === 'Data date');
+    expect(tile.querySelector('.kpi-big').textContent).toBe('2026-03-02');
+    expect(tile.querySelector('.kpi-sub').textContent).toBe('planned start: the file states no data date');
+    expect(renderSummary({ A, B: null }).textContent).toContain(
+      "as of data date 2026-03-02 (the file states no data date, so the project's planned start, 2026-03-02, is used, as P6 does)");
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ONE PROJECT (2026-11-07). The card counts the activities of the project the
+// data date belongs to, with the helper DCMA Lite scores with (D0: one
+// PROJECT row is read whole; with several, only the scored project). It used
+// to count every activity in the file against the FIRST PROJECT row's date.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('on a multi-project file the card counts the scored project, as DCMA check 9 does', () => {
+  // OLD comes first in the file, with an older data date (2026-01-05) and two
+  // activities of its own statused 03-20, after SYN's data date too. D0 reads
+  // SYN (the latest data date); OLD's activities are not counted.
+  function twoProjects() {
+    const A = dirty();
+    A.tables.PROJECT.records.unshift({ proj_id: '2', proj_short_name: 'OLD', last_recalc_date: '2026-01-05 08:00', scd_end_date: '2026-02-27 17:00' });
+    A.tables.TASK.records.push(
+      task(21, 'O1', { proj_id: '2', act_start_date: '2026-03-20 08:00', act_end_date: '2026-03-20 17:00' }),
+      task(22, 'O2', { proj_id: '2', task_type: 'TT_Mile', target_drtn_hr_cnt: '0', act_start_date: '2026-03-20 08:00', act_end_date: '2026-03-20 08:00' }),
+      task(23, 'OL', { proj_id: '2', task_type: 'TT_LOE', act_start_date: '2026-03-20 08:00' })
+    );
+    return A;
+  }
+
+  it("the card's count and population equal check 9's (no forecast is early here, so the findings are the same too)", () => {
+    const A = twoProjects();
+    const f = actualsAfterDataDate(A);
+    const m9 = computeDcma(A).metrics[8];
+    expect(f.dataDate).toBe('2026-03-02');
+    expect(f.population).toBe(5);
+    expect(f.activities).toBe(3);
+    expect(f.population).toBe(m9.den);
+    expect(f.activities).toBe(m9.num);
+    expect(f.latestActual).toBe('2026-03-09');
+  });
+
+  it('the card names the project it counts', () => {
+    const text = inputQualityCards(twoProjects())[0].textContent;
+    expect(text).toContain('3 of 5 activities in project SYN (1 of 2 projects in the file; the others are not counted)');
+    expect(text).toContain('The latest actual date in that project is 2026-03-09');
+  });
+
+  it('a single PROJECT row is read whole, whatever project ID its activities carry', () => {
+    const A = dirty();
+    A.tables.TASK.records.find(t => t.task_code === 'Q2').proj_id = '7777';
+    const f = actualsAfterDataDate(A);
+    expect(f.population).toBe(5);
+    expect(f.activities).toBe(3);
+    expect(inputQualityCards(A)[0].textContent).not.toContain('in project');
   });
 });
