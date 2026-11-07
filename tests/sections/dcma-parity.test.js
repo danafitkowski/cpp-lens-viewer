@@ -46,9 +46,9 @@ function resultsFor(name) {
 }
 
 describe('DCMA parity fixtures', () => {
-  it('expected.json lists the nine fixtures', () => {
+  it('expected.json lists the ten fixtures', () => {
     expect(Object.keys(expected).sort()).toEqual([
-      'p1_logic', 'p2_activities', 'p3_pair', 'p4_cycle', 'p5_mandatory',
+      'p10_late_no_baseline', 'p1_logic', 'p2_activities', 'p3_pair', 'p4_cycle', 'p5_mandatory',
       'p6_two_projects', 'p7_as_built', 'p8_no_links', 'p9_data_date'
     ]);
   });

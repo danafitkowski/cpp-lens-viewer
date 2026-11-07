@@ -44,5 +44,6 @@ Synthetic schedules (no client data) with the results `references/DCMA_DEFINITIO
 | p7_as_built | every incomplete-work check not scored; #9 still scored on actuals |
 | p8_no_links | #1 with no relationships; #2 to #4 not scored |
 | p9_data_date | D14: a blank data date is the planned start (#9 scored against it); D0: a single-project file is read whole, an activity with a stray project ID included |
+| p10_late_no_baseline | #13 with no baseline: a deadline on the completion makes its negative P6 float count (CPLI 0.5, FAIL) |
 
 Working-day counts assume the fixtures' calendars, which carry no holidays.

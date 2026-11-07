@@ -246,5 +246,20 @@
     "den": 5
    }
   }
+ },
+ "p10_late_no_baseline": {
+  "current": "p10_late_no_baseline.xer",
+  "baseline": null,
+  "checks": {
+   "7": {
+    "status": "FAIL",
+    "num": 1,
+    "den": 1
+   },
+   "13": {
+    "status": "FAIL",
+    "value": 0.5
+   }
+  }
  }
 }
