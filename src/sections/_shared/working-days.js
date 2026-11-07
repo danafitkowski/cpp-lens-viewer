@@ -50,8 +50,8 @@ function plural(n, one, many) {
  * @param {object|null} A  parsed XER model
  * @returns {{
  *   calMap: Record<string, object>,
- *   divisorFor: (clndrId: any) => { hoursPerDay: number, source: 'calendar'|'unusable'|'missing', clndrId: string|null, raw: string|null },
- *   hoursToDays: (hours: any, clndrId: any) => number|null,
+ *   divisorFor: (clndrId: any, projId?: any) => { hoursPerDay: number, source: 'calendar'|'unusable'|'missing', clndrId: string|null, raw: string|null, inherited: 'project'|'default'|null },
+ *   hoursToDays: (hours: any, clndrId: any, projId?: any) => number|null,
  *   workingDays: (task: object, field: string) => number|null,
  *   disclose: (tasks: object[], fields?: string[]) => object
  * }}
@@ -86,6 +86,52 @@ export function workingDayContext(A) {
     }
   }
 
+  // CALENDAR INHERITANCE (2026-11-07). An activity with a BLANK clndr_id is
+  // not scheduled on an 8-hour guess: P6 schedules it on its PROJECT calendar
+  // (PROJECT.clndr_id), else on the database default calendar (the CALENDAR row
+  // flagged default_flag = 'Y'). This module used to send a blank straight to
+  // the 8-hour fallback, so on a 10 h/day project calendar 400 h read as 50
+  // working days instead of 40. Only a blank id inherits: an activity that
+  // names a calendar this file does not carry is still reported as missing.
+  const projectCalendar = new Map();   // proj_id -> clndr_id
+  const projectRows = A ? getTable(A, 'PROJECT') : [];
+  for (const p of projectRows) {
+    const pid = p.proj_id == null ? '' : String(p.proj_id).trim();
+    const cid = p.clndr_id == null ? '' : String(p.clndr_id).trim();
+    if (pid !== '' && cid !== '' && !projectCalendar.has(pid)) projectCalendar.set(pid, cid);
+  }
+  const onlyProjectCalendar = projectRows.length === 1
+    ? (projectRows[0].clndr_id == null ? '' : String(projectRows[0].clndr_id).trim())
+    : '';
+  let defaultCalendar = '';
+  if (A) {
+    for (const row of getTable(A, 'CALENDAR')) {
+      const id = row.clndr_id == null ? '' : String(row.clndr_id).trim();
+      if (id !== '' && String(row.default_flag == null ? '' : row.default_flag).trim().toUpperCase() === 'Y') {
+        defaultCalendar = id;
+        break;
+      }
+    }
+  }
+
+  /** True when this file carries a CALENDAR row (or parsed calendar) for the id. */
+  function inFile(id) {
+    return id !== '' && (stated.has(id) || unusable.has(id) || calMap[id] != null);
+  }
+
+  /**
+   * The calendar a blank-calendar activity inherits, and from where. The
+   * project is the activity's proj_id; where the caller does not pass one and
+   * the file holds a single project, that project's calendar applies.
+   */
+  function inheritedCalendar(projId) {
+    const pid = projId == null ? '' : String(projId).trim();
+    const fromProject = pid !== '' ? (projectCalendar.get(pid) || '') : onlyProjectCalendar;
+    if (inFile(fromProject)) return { id: fromProject, inherited: 'project' };
+    if (inFile(defaultCalendar)) return { id: defaultCalendar, inherited: 'default' };
+    return null;
+  }
+
   /**
    * Which hours-per-day applies to an activity, and where that number came
    * from. 'calendar' = the calendar's hours per day as P6 schedules it:
@@ -95,9 +141,20 @@ export function workingDayContext(A) {
    * rules, measured on P6's own F9). 'unusable' = the CALENDAR row is there
    * but states no usable day_hr_cnt and has no shifts to read one from.
    * 'missing' = the activity names a calendar this file does not contain, or
-   * names none at all.
+   * names none at all and no project or default calendar is in the file.
+   * `inherited` is 'project' or 'default' when the activity names no calendar
+   * and the divisor came from the calendar P6 schedules it on instead.
    */
-  function divisorFor(clndrId) {
+  function divisorFor(clndrId, projId) {
+    const blank = clndrId == null || String(clndrId).trim() === '';
+    if (blank) {
+      const inh = inheritedCalendar(projId);
+      if (inh) return { ...resolve(inh.id), inherited: inh.inherited };
+    }
+    return { ...resolve(blank ? null : clndrId), inherited: null };
+  }
+
+  function resolve(clndrId) {
     const id = (clndrId == null || clndrId === '') ? null : String(clndrId);
     const cal = id !== null ? calMap[id] : null;
     // The hours its shifts work, where P6 schedules on them instead of the
@@ -124,9 +181,9 @@ export function workingDayContext(A) {
    * @returns {number|null} null when the cell is absent or unparsable — never 0,
    *                        because 0 is a real duration and a real float.
    */
-  function hoursToDays(hours, clndrId) {
+  function hoursToDays(hours, clndrId, projId) {
     if (!isConvertible(hours)) return null;
-    const d = divisorFor(clndrId);
+    const d = divisorFor(clndrId, projId);
     return durationHoursToDays(hours, { hours_per_day: d.hoursPerDay }, P6_DEFAULT_HOURS_PER_DAY);
   }
 
@@ -135,7 +192,7 @@ export function workingDayContext(A) {
    */
   function workingDays(task, field) {
     if (!task) return null;
-    return hoursToDays(task[field], task.clndr_id);
+    return hoursToDays(task[field], task.clndr_id, task.proj_id);
   }
 
   /**
@@ -152,12 +209,16 @@ export function workingDayContext(A) {
     let converted = 0;
     let missing = 0;
     let unusableCount = 0;
+    let inheritedProject = 0;
+    let inheritedDefault = 0;
 
     for (const t of rows) {
       if (!t) continue;
       if (!fields.some(f => isConvertible(t[f]))) continue;
       converted++;
-      const d = divisorFor(t.clndr_id);
+      const d = divisorFor(t.clndr_id, t.proj_id);
+      if (d.inherited === 'project') inheritedProject++;
+      else if (d.inherited === 'default') inheritedDefault++;
       if (d.source === 'calendar') { hoursPerDaySet.add(d.hoursPerDay); bases.add(d.basis); }
       else if (d.source === 'unusable') { unusableCount++; unusableValues.add(d.raw); }
       else missing++;
@@ -175,9 +236,18 @@ export function workingDayContext(A) {
       bases.has('shifts') ? 'the hours a calendar\'s shifts work, where they differ from day_hr_cnt, as P6 schedules' : null,
       bases.has('standard') ? 'P6\'s internal 8-hour Standard for a calendar record with no week defined' : null,
     ].filter(Boolean).join('; ');
-    const note = hoursPerDay.length > 0
+    let note = hoursPerDay.length > 0
       ? `Durations and float converted to working days at ${hoursPerDay.join(' / ')} hr per day (${source}).`
       : `No activity in this file resolves to a CALENDAR record with a usable day_hr_cnt. Durations and float converted at the P6 default ${P6_DEFAULT_HOURS_PER_DAY} hr per day.`;
+    const inherited = inheritedProject + inheritedDefault;
+    if (inherited > 0) {
+      const on = [
+        inheritedProject > 0 ? `${inheritedProject.toLocaleString()} on the project calendar` : null,
+        inheritedDefault > 0 ? `${inheritedDefault.toLocaleString()} on the default calendar` : null
+      ].filter(Boolean).join(' and ');
+      note += ` ${inherited.toLocaleString()} ${plural(inherited, 'activity names no calendar of its own and was', 'activities name no calendar of their own and were')} ` +
+        `converted on the calendar P6 schedules ${plural(inherited, 'it', 'them')} on: ${on}.`;
+    }
 
     let warning = null;
     if (fallback > 0) {
@@ -208,6 +278,8 @@ export function workingDayContext(A) {
       missing,
       unusable: unusableCount,
       unusableValues: [...unusableValues].sort(),
+      inheritedProject,
+      inheritedDefault,
       fallback,
       note,
       warning
