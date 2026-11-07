@@ -7,7 +7,16 @@ import { dayOf, dataDateOf, actualsAfter, inputQualityCards } from './_shared/in
 
 const LOE_WBS = new Set(['TT_LOE', 'TT_WBS']);
 const MILESTONES = new Set(['TT_Mile', 'TT_FinMile']);
-const HARD_CONSTRAINTS = new Set(['CS_MSO', 'CS_MEO', 'CS_MANDSTART', 'CS_MANDFIN']);
+// DCMA-EA PAM 200.1 s4.5 lists four hard types: Must Start On, Must Finish On,
+// Start No Later Than and Finish No Later Than. In P6 the last two are Start On
+// or Before (CS_MSOB) and Finish On or Before (CS_MEOB); P6's Mandatory Start
+// and Mandatory Finish are hard as well. Until 2026-11-07 the On or Before
+// types were left out and only the primary constraint was read.
+const HARD_CONSTRAINTS = new Set(['CS_MSO', 'CS_MEO', 'CS_MANDSTART', 'CS_MANDFIN', 'CS_MSOB', 'CS_MEOB']);
+const HARD_CONSTRAINTS_NAME = 'Hard Constraints (Mandatory, Start / Finish On, Start / Finish On or Before)';
+
+/** Share of the due baseline activities that must match the current file before #11 is scored. */
+const MIN_BASELINE_MATCH = 0.8;
 
 /** DCMA-14 High Float / High Duration threshold, in WORKING DAYS. */
 const HIGH_FLOAT_WD    = 44;
@@ -22,6 +31,119 @@ const BADGE_COLORS = {
   FAIL:   { bg: '#C8392F', text: '#ffffff' },
   [NOT_SCORED]: { bg: '#5A6675', text: '#ffffff' }
 };
+
+function norm(v) {
+  return v == null ? '' : String(v).trim();
+}
+
+/** True when a raw XER cell holds a number (a blank or non-numeric cell does not). */
+function isNumeric(raw) {
+  return raw != null && String(raw).trim() !== '' && Number.isFinite(parseFloat(raw));
+}
+
+function projectName(p) {
+  if (!p) return '';
+  return norm(p.proj_short_name) || `project ${norm(p.proj_id)}`;
+}
+
+/**
+ * The best of some PROJECT rows by the rule CPP's Python validator uses: the
+ * latest last_recalc_date, ties broken by the most TASK rows, then file order.
+ *
+ * @param {Array<{p: object, i: number}>} candidates  rows with their file position
+ * @param {Map<string, number>} counts  proj_id -> TASK rows
+ */
+function bestProject(candidates, counts) {
+  const stamp = p => (dayOf(p.last_recalc_date) ? norm(p.last_recalc_date) : '');
+  let best = null;
+  for (const c of candidates) {
+    if (!best) { best = c; continue; }
+    const sa = stamp(c.p), sb = stamp(best.p);
+    const na = counts.get(norm(c.p.proj_id)) || 0, nb = counts.get(norm(best.p.proj_id)) || 0;
+    if (sa > sb || (sa === sb && na > nb)) best = c;
+  }
+  return best;
+}
+
+function taskCounts(model) {
+  const counts = new Map();
+  for (const t of getTable(model, 'TASK')) {
+    const pid = norm(t.proj_id);
+    counts.set(pid, (counts.get(pid) || 0) + 1);
+  }
+  return counts;
+}
+
+/**
+ * Which project of a file DCMA Lite scores. Exported so every caller of
+ * computeMetrics (the Executive Dashboard banner included) reads the same one.
+ *
+ * A multi-project XER used to be graded as one blended schedule against the
+ * FIRST PROJECT row's data date, so reordering two PROJECT rows changed the
+ * result. One project is scored, by the rule CPP's Python validator uses: the
+ * only PROJECT row; else the one with the latest last_recalc_date, ties broken
+ * by the most TASK rows, then file order.
+ *
+ * @param {object|null} model
+ * @returns {{ project: object, position: number, total: number }|null}
+ *   null when the file carries no PROJECT row.
+ */
+export function selectScoredProject(model) {
+  const projects = getTable(model, 'PROJECT');
+  if (projects.length === 0) return null;
+  const best = bestProject(projects.map((p, i) => ({ p, i })), taskCounts(model));
+  return { project: best.p, position: best.i + 1, total: projects.length };
+}
+
+/**
+ * The model cut down to one project: its PROJECT row, its TASK rows, the
+ * relationships with both ends in those tasks and the assignments on them.
+ * Every other table (calendars included) is left whole. A file with one
+ * PROJECT row (or none) is returned as it is.
+ */
+function scopeToProject(model, project, total) {
+  if (!model || !project || total <= 1) return model;
+  const pid = norm(project.proj_id);
+  const tables = { ...model.tables };
+  const cut = (name, keep) => {
+    if (tables[name]) tables[name] = { ...tables[name], records: (tables[name].records || []).filter(keep) };
+  };
+  cut('PROJECT', p => p === project);
+  cut('TASK', t => norm(t.proj_id) === pid);
+  const ids = new Set(getTable({ tables }, 'TASK').map(t => norm(t.task_id)));
+  cut('TASKPRED', r => ids.has(norm(r.task_id)) && ids.has(norm(r.pred_task_id)));
+  cut('TASKRSRC', r => ids.has(norm(r.task_id)));
+  return { ...model, tables };
+}
+
+/**
+ * The baseline project #11 compares with: the one with the same
+ * proj_short_name as the scored project, else the one sharing the most
+ * Activity IDs with it, else the one with the latest data date.
+ */
+function selectBaselineProject(B, scoredProject, scopedA) {
+  const projects = getTable(B, 'PROJECT');
+  if (projects.length === 0) return null;
+  const counts = taskCounts(B);
+  const all = projects.map((p, i) => ({ p, i }));
+  const pick = (cands, basis) => {
+    const best = bestProject(cands, counts);
+    return { project: best.p, position: best.i + 1, total: projects.length, basis };
+  };
+  if (projects.length === 1) return pick(all, 'the only project');
+  const name = scoredProject ? norm(scoredProject.proj_short_name) : '';
+  const byName = name === '' ? [] : all.filter(c => norm(c.p.proj_short_name) === name);
+  if (byName.length > 0) return pick(byName, 'the same project short name');
+  const keys = new Set(getTable(scopedA, 'TASK').map(taskKey).filter(Boolean));
+  const shared = new Map();
+  for (const t of getTable(B, 'TASK')) {
+    const k = taskKey(t);
+    if (k && keys.has(k)) shared.set(norm(t.proj_id), (shared.get(norm(t.proj_id)) || 0) + 1);
+  }
+  const most = Math.max(0, ...shared.values());
+  if (most > 0) return pick(all.filter(c => (shared.get(norm(c.p.proj_id)) || 0) === most), 'the most Activity IDs shared with the scored project');
+  return pick(all, 'the latest data date');
+}
 
 function pct(num, den) {
   if (den === 0) return 0;
@@ -47,7 +169,13 @@ function notScored(name, reason, target) {
  * @param {object} A       current schedule
  * @param {object|null} B  baseline schedule, or null. Only Missed Tasks reads it.
  */
-export function computeMetrics(A, B = null) {
+export function computeMetrics(file, baselineFile = null) {
+  // ONE PROJECT (2026-11-07). Everything below reads the scored project only:
+  // its activities, relationships with both ends in them, their assignments,
+  // and its own data date.
+  const selection = selectScoredProject(file);
+  const A = scopeToProject(file, selection && selection.project, selection ? selection.total : 0);
+  const B = baselineFile;
   const allTasks = getTable(A, 'TASK');
   const rels     = getTableAliased(A, 'REL');
   const rsrc     = getTable(A, 'TASKRSRC');
@@ -118,11 +246,11 @@ export function computeMetrics(A, B = null) {
     status: fsPct >= 90 ? 'PASS' : fsPct >= 80 ? 'REVIEW' : 'FAIL'
   };
 
-  // 5. Hard Constraints — % with hard cstr_type (target ≤ 5%)
-  const hardCount = tasks.filter(t => HARD_CONSTRAINTS.has(t.cstr_type)).length;
+  // 5. Hard Constraints — % with a hard primary OR secondary constraint (target ≤ 5%)
+  const hardCount = tasks.filter(t => HARD_CONSTRAINTS.has(t.cstr_type) || HARD_CONSTRAINTS.has(t.cstr_type2)).length;
   const hardPct   = pct(hardCount, n);
-  const metric5 = noTasks ? notScored('Hard Constraints', noTasks, '≤ 5%') : {
-    name:   'Hard Constraints',
+  const metric5 = noTasks ? notScored(HARD_CONSTRAINTS_NAME, noTasks, '≤ 5%') : {
+    name:   HARD_CONSTRAINTS_NAME,
     result: fmtPct(hardPct),
     count:  ofTasks(hardCount),
     target: '≤ 5%',
@@ -133,26 +261,40 @@ export function computeMetrics(A, B = null) {
   // Not "> 352 hr": 352 is 44 days only where a day is 8 hours. On the 10 hr/day
   // calendars this viewer is handed all the time it is 35.2 days, and the card
   // still said "44 wd".
-  const highFloatCount = tasks.filter(t => {
+  //
+  // BLANK TOTAL FLOAT (2026-11-07). An activity whose total_float_hr_cnt is
+  // blank or not a number has no float to test. It used to read as "not high"
+  // and "not negative" and stay in the denominator, so an export that was never
+  // rescheduled, with no float in it at all, read PASS on #6 and #7. It is left
+  // out of both populations and the Count says how many; when no incomplete
+  // activity carries a float, neither row is scored.
+  const floatTasks = tasks.filter(t => isNumeric(t.total_float_hr_cnt));
+  const nFloat = floatTasks.length;
+  const noFloat = n - nFloat;
+  const noFloatReason = noTasks || (nFloat === 0 ? 'the file carries no computed total float; recalculate in P6 and re-export' : null);
+  const ofFloat = (count) => noFloat === 0 ? ofTasks(count)
+    : `${count.toLocaleString()} of ${nFloat.toLocaleString()} incomplete activities that carry a total float; ` +
+      `${noFloat.toLocaleString()} more carry no total float and are left out`;
+  const highFloatCount = floatTasks.filter(t => {
     const wd = cal.workingDays(t, HOUR_FIELDS.TOTAL_FLOAT);
     return wd != null && wd > HIGH_FLOAT_WD;
   }).length;
-  const highFloatPct   = pct(highFloatCount, n);
-  const metric6 = noTasks ? notScored(`High Float (> ${HIGH_FLOAT_WD} wd)`, noTasks, '≤ 5%') : {
+  const highFloatPct   = pct(highFloatCount, nFloat);
+  const metric6 = noFloatReason ? notScored(`High Float (> ${HIGH_FLOAT_WD} wd)`, noFloatReason, '≤ 5%') : {
     name:   `High Float (> ${HIGH_FLOAT_WD} wd)`,
     result: fmtPct(highFloatPct),
-    count:  ofTasks(highFloatCount),
+    count:  ofFloat(highFloatCount),
     target: '≤ 5%',
     status: highFloatPct <= 5 ? 'PASS' : highFloatPct <= 10 ? 'REVIEW' : 'FAIL'
   };
 
   // 7. Negative Float — % with total_float_hr_cnt < 0 (target = 0)
-  const negFloatCount = tasks.filter(t => parseFloat(t.total_float_hr_cnt) < 0).length;
-  const negFloatPct   = pct(negFloatCount, n);
-  const metric7 = noTasks ? notScored('Negative Float', noTasks, '0%') : {
+  const negFloatCount = floatTasks.filter(t => parseFloat(t.total_float_hr_cnt) < 0).length;
+  const negFloatPct   = pct(negFloatCount, nFloat);
+  const metric7 = noFloatReason ? notScored('Negative Float', noFloatReason, '0%') : {
     name:   'Negative Float',
     result: fmtPct(negFloatPct),
-    count:  ofTasks(negFloatCount),
+    count:  ofFloat(negFloatCount),
     target: '0%',
     status: negFloatCount === 0 ? 'PASS' : negFloatPct <= 5 ? 'REVIEW' : 'FAIL'
   };
@@ -225,10 +367,12 @@ export function computeMetrics(A, B = null) {
   // activities unresourced was stamped PASS here. When the export carries no
   // TASKRSRC table at all the criterion is not scored, matching the dashboard's
   // "Not scored" behaviour, rather than a fake FAIL.
+  // Whether the EXPORT carries assignments is a file-level question; which
+  // activities are resourced is counted in the scored project.
   const taskIdsWithRsrc = new Set(rsrc.map(r => r.task_id));
   const rsrcCount = tasks.filter(t => taskIdsWithRsrc.has(t.task_id)).length;
   const rsrcPct   = pct(rsrcCount, n);
-  const metric10 = rsrc.length === 0
+  const metric10 = getTable(file, 'TASKRSRC').length === 0
     ? notScored('Resources (% assigned)', 'the file carries no resource assignments (no TASKRSRC rows)', '100%')
     : noTasks ? notScored('Resources (% assigned)', noTasks, '100%') : {
     name:   'Resources (% assigned)',
@@ -253,6 +397,16 @@ export function computeMetrics(A, B = null) {
   //
   // Who was due is decided on the BASELINE side, over its ordinary activities,
   // and matched to the current file on the Activity ID (_shared/identity.js).
+  //
+  // 2026-11-07. A due baseline activity that is NOT IN the current file is
+  // deleted or renumbered scope, and it did not finish by its baseline finish:
+  // it counts as missed. It used to be left out of the rate, so deleting one of
+  // two due activities read 0 of 1 = PASS. When fewer than 80% of the due
+  // baseline activities match a current activity the baseline looks
+  // renumbered, and the row is not scored. A multi-project baseline is read on
+  // one project: the one named like the scored project, else the one sharing
+  // the most Activity IDs with it, else the latest data date.
+  const M11 = 'Missed Tasks (late against the baseline finish)';
   let metric11;
   if (!B) {
     metric11 = notScored('Missed Tasks (late against the baseline finish)',
@@ -260,33 +414,51 @@ export function computeMetrics(A, B = null) {
   } else if (!dataDate) {
     metric11 = notScored('Missed Tasks (late against the baseline finish)', 'the file states no data date to compare with', '≤ 5%');
   } else {
-    const current = indexTasks(A, resolveComparisonAmbiguity(A, B).keys).index;
-    let due = 0, missed = 0, unmatched = 0, noActualFinish = 0;
-    for (const bt of getTable(B, 'TASK')) {
+    const bSel = selectBaselineProject(B, selection && selection.project, A);
+    const Bs = bSel ? scopeToProject(B, bSel.project, bSel.total) : B;
+    const baselineNote = bSel && bSel.total > 1
+      ? `; baseline project: ${projectName(bSel.project)} (1 of ${bSel.total} projects in the baseline file, chosen on ${bSel.basis})`
+      : '';
+    const ambiguousKeys = resolveComparisonAmbiguity(A, Bs).keys;
+    const current = indexTasks(A, ambiguousKeys).index;
+    let due = 0, matched = 0, missed = 0, notInCurrent = 0, unmatched = 0, noActualFinish = 0;
+    for (const bt of getTable(Bs, 'TASK')) {
       if (LOE_WBS.has(bt.task_type) || MILESTONES.has(bt.task_type)) continue;
       const baselineFinish = dayOf(bt.target_end_date);
       if (baselineFinish === '' || baselineFinish > dataDate) continue;
       const key = taskKey(bt);
-      const at = key ? current.get(key) : undefined;
-      if (!at) { unmatched++; continue; }
+      // A repeated Activity ID matches no SINGLE activity: left out, as before.
+      if (!key || ambiguousKeys.has(key)) { unmatched++; continue; }
       due++;
+      const at = current.get(key);
+      if (!at) { notInCurrent++; missed++; continue; }
+      matched++;
       if (at.status_code !== 'TK_Complete') { missed++; continue; }
       const actualFinish = dayOf(at.act_end_date);
       if (actualFinish === '') noActualFinish++;
       else if (actualFinish > baselineFinish) missed++;
     }
     const missedPct = pct(missed, due);
-    metric11 = due === 0
-      ? notScored('Missed Tasks (late against the baseline finish)', 'no baseline activity was due on or before the data date', '≤ 5%')
-      : {
-        name:   'Missed Tasks (late against the baseline finish)',
+    const leftOut = unmatched > 0 ? `; ${unmatched.toLocaleString()} more were due but match no single activity in the current file and are left out` : '';
+    if (due === 0) {
+      metric11 = notScored(M11, 'no baseline activity was due on or before the data date', '≤ 5%');
+    } else if (matched / due < MIN_BASELINE_MATCH) {
+      metric11 = notScored(M11,
+        "the baseline's Activity IDs do not match the current file; it looks renumbered. " +
+        `${matched.toLocaleString()} of ${due.toLocaleString()} baseline activities due on or before the data date match an activity in the current file, ` +
+        `fewer than ${Math.round(MIN_BASELINE_MATCH * 100)}%` + leftOut + baselineNote, '≤ 5%');
+    } else {
+      metric11 = {
+        name:   M11,
         result: fmtPct(missedPct),
         count:  `${missed.toLocaleString()} of ${due.toLocaleString()} activities with a baseline finish on or before the data date` +
+                (notInCurrent > 0 ? `; ${notInCurrent.toLocaleString()} of the missed ${notInCurrent === 1 ? 'is' : 'are'} not in the current file (deleted or renumbered)` : '') +
                 (noActualFinish > 0 ? `; ${noActualFinish.toLocaleString()} finished with no actual finish date, so lateness is unknown and not counted` : '') +
-                (unmatched > 0 ? `; ${unmatched.toLocaleString()} more were due but match no single activity in the current file and are left out` : ''),
+                leftOut + baselineNote,
         target: '≤ 5%',
         status: missedPct <= 5 ? 'PASS' : 'FAIL'
       };
+    }
   }
 
   // 12. Critical Path Test. The published test adds a large delay to a critical
@@ -294,10 +466,17 @@ export function computeMetrics(A, B = null) {
   // needs a schedule recalculation, which this viewer does not do. This row
   // used to PASS on a bare count of activities at or below zero float, with no
   // test behind it. The count is kept, as information only.
-  const criticalCount = tasks.filter(t => parseFloat(t.total_float_hr_cnt) <= 0).length;
+  // A blank total float is not "zero or less": it is skipped, and said so.
+  const criticalCount = floatTasks.filter(t => parseFloat(t.total_float_hr_cnt) <= 0).length;
+  const criticalInfo = noFloat === 0
+    ? `For information, ${ofTasks(criticalCount)} have total float of zero or less`
+    : nFloat === 0
+      ? 'For information, no incomplete activity carries a total float'
+      : `For information, ${criticalCount.toLocaleString()} of ${nFloat.toLocaleString()} incomplete activities that carry a total float ` +
+        `have total float of zero or less; ${noFloat.toLocaleString()} more carry none`;
   const metric12 = notScored('Critical Path Test',
     'the test adds a delay and recalculates the schedule, and this viewer does not recalculate. ' +
-    `For information, ${ofTasks(criticalCount)} have total float of zero or less`, 'finish moves with the delay');
+    criticalInfo, 'finish moves with the delay');
 
   // 13 & 14. Never calculated here. They used to show a dash under a heading
   // that claimed all fourteen points.
@@ -314,7 +493,8 @@ export function computeMetrics(A, B = null) {
               metric8, metric9, metric10, metric11, metric12, metric13, metric14],
     disclosure,
     incompleteCount: n,
-    missingActuals
+    missingActuals,
+    scoredProject: selection
   };
 }
 
@@ -373,7 +553,11 @@ export function render({ A, B }) {
     ]);
   }
 
-  const { metrics, disclosure, incompleteCount, missingActuals } = computeMetrics(A, B);
+  const { metrics, disclosure, incompleteCount, missingActuals, scoredProject } = computeMetrics(A, B);
+  const multi = scoredProject && scoredProject.total > 1;
+  const scopeLine = multi
+    ? `Scored project: ${projectName(scoredProject.project)} (1 of ${scoredProject.total} projects in this file). `
+    : '';
   const passCount   = metrics.filter(m => m.status === 'PASS').length;
   const reviewCount = metrics.filter(m => m.status === 'REVIEW').length;
   const failCount   = metrics.filter(m => m.status === 'FAIL').length;
@@ -390,10 +574,11 @@ export function render({ A, B }) {
       // CPLI and BEI hard-coded to a dash and the Critical Path Test passing on
       // a count with no test behind it.
       h('p', { class: 'lens-dcma-heading' },
+        scopeLine +
         `DCMA screening: ${scoredCount} of the 14 points are scored here · ${passCount} PASS · ${reviewCount} REVIEW · ` +
         `${failCount} FAIL · ${notScoredCount} not scored here, each with its reason in the table.`),
       h('p', { class: 'lens-dcma-population' },
-        `Checks 1, 5, 6, 7, 8 and 10 are measured over the ${incompleteCount.toLocaleString()} incomplete activities in this file. ` +
+        `Checks 1, 5, 6, 7, 8 and 10 are measured over the ${incompleteCount.toLocaleString()} incomplete activities in ${multi ? 'the scored project' : 'this file'}. ` +
         'Milestones, level of effort and WBS summary activities are left out, and so is finished work. ' +
         'The Count column gives the numerator and the denominator of every result.')
     ]),
