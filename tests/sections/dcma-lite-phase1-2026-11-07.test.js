@@ -452,3 +452,54 @@ describe('6. a zero-duration completion typed as a task wins a tie on the latest
     expect(r.status).toBe(NOT_SCORED);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 7. The data date and the baseline finish (2026-11-07 DCMA phase 2, D14, D12)
+// ─────────────────────────────────────────────────────────────────────────────
+// D14: a blank data date is the project's planned start (fixture p9 pins it);
+// a filed data date on a day before a later planned start is lifted to the
+// planned start, as P6 does on opening the project, and the result says so.
+// D12: a baseline activity's finish is its planned finish, else its early finish.
+describe('7. the data date is lifted to a later planned start, and a baseline finish falls back to the early finish', () => {
+  function lifted(planStart) {
+    // Filed data date 2026-02-02. A1 not started, early start 2026-03-02.
+    const tasks = [task(1, 'A1', { early_start_date: '2026-03-02 08:00', early_end_date: '2026-03-06 16:00' }), task(2, 'A2')];
+    const A = xer({ projects: [proj('1', 'SYN', '2026-02-02 08:00')], tasks, rels: chain(tasks) });
+    A.tables.PROJECT.records[0].plan_start_date = planStart;
+    return metric(computeMetrics(A), /^Invalid Dates/);
+  }
+
+  it('a filed data date before the planned start is lifted: A1 forecast before 2026-04-01 is invalid, and said', () => {
+    const r = lifted('2026-04-01 08:00');
+    expect(r.status).toBe('FAIL');
+    expect(r.num).toBe(1);
+    expect(r.den).toBe(2);
+    expect(r.count).toContain("the file's data date, 2026-02-02, is before the project's planned start, 2026-04-01, so the planned start is used, as P6 does");
+  });
+
+  it('a blank data date is the planned start, and said', () => {
+    const tasks = [task(1, 'A1', { early_start_date: '2026-03-02 08:00', early_end_date: '2026-03-06 16:00' }), task(2, 'A2')];
+    const A = xer({ projects: [proj('1', 'SYN', '')], tasks, rels: chain(tasks) });
+    A.tables.PROJECT.records[0].plan_start_date = '2026-04-01 08:00';
+    const r = metric(computeMetrics(A), /^Invalid Dates/);
+    expect(r.num).toBe(1);
+    expect(r.count).toContain("the file states no data date, so the project's planned start, 2026-04-01, is used, as P6 does");
+  });
+
+  it('a planned start on or before the filed data date changes nothing and discloses nothing', () => {
+    const r = lifted('2026-01-05 08:00');
+    expect(r.status).toBe('PASS');
+    expect(r.count).not.toContain('planned start');
+  });
+
+  it('a baseline activity with no planned finish is due on its early finish', () => {
+    const B = xer({ projects: [proj('1', 'SYN', '2026-02-02 08:00')],
+      tasks: [task(100, 'T1', { target_end_date: '', early_end_date: '2026-03-13 16:00' })] });
+    const A = xer({ tasks: [task(200, 'T1', { ...DONE, act_start_date: '2026-03-09 08:00', act_end_date: '2026-03-16 16:00' })] });
+    const r = metric(computeMetrics(A, B), /^Missed Tasks/);
+    expect(r.status).toBe('FAIL');
+    expect(r.num).toBe(1);
+    expect(r.den).toBe(1);
+  });
+});
+

@@ -12,7 +12,7 @@ The source is the DCMA EVMS Program Analysis Pamphlet, DCMA-EA PAM 200.1 (Octobe
 
 ## Common rules
 
-**D0 One project.** A file with several PROJECT rows is scored on one: the only row; else the latest `last_recalc_date`, ties broken by the most TASK rows, then file order. Its activities, the relationships with both ends in them, the resource assignments on them and its own data date are used; nothing else in the file is read. The result names the project scored when the file holds more than one.
+**D0 One project.** A file with several PROJECT rows is scored on one: the only row; else the latest `last_recalc_date`, ties broken by the most TASK rows, then file order. Its activities, the relationships with both ends in them, the resource assignments on them and its own data date are used; nothing else in the file is read. The result names the project scored when the file holds more than one. A file with one PROJECT row is read whole, whatever project ID its activities carry.
 
 **D1 Activity types.** Ordinary activities: `TT_Task`, `TT_Rsrc` (and any type not listed here). Milestones: `TT_Mile`, `TT_FinMile`. Level of effort and WBS summary (`TT_LOE`, `TT_WBS`) are never counted, and a relationship with either end on one is never counted.
 
@@ -42,6 +42,8 @@ The source is the DCMA EVMS Program Analysis Pamphlet, DCMA-EA PAM 200.1 (Octobe
 **D12 Baseline finish** (#11, #13, #14). A baseline activity's finish is its planned finish (`target_end_date`), else its early finish. On an unprogressed baseline the two are the same.
 
 **D13 Working time** (#13). Measured on the calendar's own shift times: the part of a day before the data date's clock time is not counted, nor the part after a finish's clock time. A data date at the start of a working day and a finish at the end of a working day five working days later is 5.0 working days.
+
+**D14 Data date.** The scored project's `last_recalc_date`. Blank, it is the project's planned start (`plan_start_date`); on a day before a later planned start, it is lifted to the planned start. Both are what P6 does when it opens the project, and the result discloses either.
 
 ## The fourteen checks
 

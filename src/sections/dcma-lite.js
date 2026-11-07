@@ -2,7 +2,7 @@ import { h } from '../lib/dom.js';
 import { getTable, getTableAliased } from '@criticalpathpartners/lens-parser';
 import { dataTable } from './_shared/data-table.js';
 import { workingDayContext, disclosureCards, HOUR_FIELDS } from './_shared/working-days.js';
-import { dayOf, dataDateOf, actualsAfter, inputQualityCards } from './_shared/input-quality.js';
+import { dayOf, actualsAfter, inputQualityCards } from './_shared/input-quality.js';
 
 // ONE DEFINITION (2026-11-07, DCMA phase 2). CPP's three DCMA engines (the
 // validator, the health dashboard and this screen) measure the fourteen checks
@@ -289,6 +289,36 @@ function findLoop(links) {
   return null;
 }
 
+/**
+ * D14. The data date the checks compare with: the scored project's
+ * last_recalc_date. Blank, it is the project's planned start
+ * (plan_start_date); on a DAY before a later planned start, it is lifted to the
+ * planned start. Both are what P6 does when it opens the project, and the
+ * result says so. (2026-11-07, from a run over 581 real files: three carry a
+ * blank data date, which this screen did not score, and one a filed data date
+ * months before its planned start.)
+ *
+ * @param {object|undefined} project  the scored project's PROJECT row
+ * @returns {{ instant: string, day: string, note: string }}
+ *   `instant` is 'YYYY-MM-DD HH:MM', `day` 'YYYY-MM-DD'; both '' when the file
+ *   states neither date. `note` is the disclosure, '' when the filed date is used.
+ */
+function scoredDataDate(project) {
+  const filed = instantOf(project && project.last_recalc_date);
+  const planned = instantOf(project && project.plan_start_date);
+  const at = (instant, note) => ({ instant, day: instant.slice(0, 10), note });
+  if (!filed) {
+    return planned
+      ? at(planned, `the file states no data date, so the project's planned start, ${planned.slice(0, 10)}, is used, as P6 does`)
+      : at('', '');
+  }
+  if (planned && filed.slice(0, 10) < planned.slice(0, 10)) {
+    return at(planned, `the file's data date, ${filed.slice(0, 10)}, is before the project's planned start, ` +
+      `${planned.slice(0, 10)}, so the planned start is used, as P6 does`);
+  }
+  return at(filed, '');
+}
+
 function activityList(rows, max = 5) {
   const ids = rows.map(t => norm(t.task_code) || norm(t.task_id));
   if (ids.length <= max) return ids.length === 1 ? ids[0] : `${ids.slice(0, -1).join(', ')} and ${ids[ids.length - 1]}`;
@@ -321,7 +351,11 @@ export function computeMetrics(file, baselineFile = null) {
   const rsrc     = getTable(A, 'TASKRSRC');
   // Hours become working days in exactly one module — see _shared/working-days.js.
   const cal      = workingDayContext(A);
-  const dataDate = dataDateOf(A);
+  // D14. A blank data date is the planned start; one on a day before a later
+  // planned start is lifted to it. #9 and #11 compare with this one.
+  const dd       = scoredDataDate(getTable(A, 'PROJECT')[0]);
+  const dataDate = dd.day;
+  const dataDateNote = dd.note ? `; ${dd.note}` : '';
   const isDone   = t => t.status_code === COMPLETE;
 
   // THE POPULATIONS. The published DCMA percentages are measured over
@@ -560,14 +594,14 @@ export function computeMetrics(file, baselineFile = null) {
   }
   const forecastsUnreadable = openWork.length > 0 &&
     !openWork.some(t => dayOf(t.early_start_date) !== '' || dayOf(t.early_end_date) !== '');
-  const metric9 = !dataDate ? notScored('Invalid Dates', 'the file states no data date to compare with', '0')
+  const metric9 = !dataDate ? notScored('Invalid Dates', 'the file states no data date or planned start to compare with', '0')
     : forecastsUnreadable ? notScored('Invalid Dates',
         'none of the unfinished work carries an early start or early finish, so its forecast dates cannot be read; recalculate in P6 and re-export', '0')
     : counted.length === 0 ? notScored('Invalid Dates', 'the file has no activities to measure', '0')
     : scored('Invalid Dates', String(invalidDatesCount),
         `${num(invalidDatesCount)} of ${num(counted.length)} activities, milestones included: ` +
         `${num(actualAfterCount)} with an actual date after the data date, ` +
-        `${num(forecastBeforeCount)} with a forecast date before it`,
+        `${num(forecastBeforeCount)} with a forecast date before it` + dataDateNote,
         '0', invalidDatesCount === 0, invalidDatesCount, counted.length);
 
   // Not one of the fourteen points, and not scored: a finished activity with no
@@ -635,7 +669,7 @@ export function computeMetrics(file, baselineFile = null) {
   if (!B) {
     metric11 = notScored(M11, 'needs a baseline. Load one in the Baseline schedule box', '≤ 5%');
   } else if (!dataDate) {
-    metric11 = notScored(M11, 'the file states no data date to compare with', '≤ 5%');
+    metric11 = notScored(M11, 'the file states no data date or planned start to compare with', '≤ 5%');
   } else if (!baselineUsable) {
     metric11 = notScored(M11, unmatchedBaseline, '≤ 5%');
   } else {
@@ -644,11 +678,12 @@ export function computeMetrics(file, baselineFile = null) {
       const k = activityKey(t);
       if (k && !ambiguous(k)) current.set(k, t);
     }
-    const dataInstant = instantOf((getTable(A, 'PROJECT')[0] || {}).last_recalc_date);
+    const dataInstant = dd.instant;
     let due = 0, matched = 0, missed = 0, notInCurrent = 0, leftOut = 0, noActualFinish = 0;
     for (const bt of getTable(Bs, 'TASK')) {
       if (LOE_WBS.has(bt.task_type) || MILESTONES.has(bt.task_type)) continue;
-      const finishInstant = instantOf(bt.target_end_date);
+      // D12. A baseline activity's finish is its planned finish, else its early finish.
+      const finishInstant = instantOf(bt.target_end_date) || instantOf(bt.early_end_date);
       // DUE is decided to the minute (D5): a baseline finish later on the data
       // date itself is not yet due (data date 08:00, baseline finish 16:00).
       // Lateness is decided by the day.
@@ -673,7 +708,7 @@ export function computeMetrics(file, baselineFile = null) {
       ? `; ${num(leftOut)} more ${plural(leftOut, 'was', 'were')} due but ${plural(leftOut, 'carries an Activity ID', 'carry Activity IDs')} that ${plural(leftOut, 'is', 'are')} blank or ${plural(leftOut, 'appears', 'appear')} more than once in either file, and ${plural(leftOut, 'is', 'are')} left out`
       : '';
     if (due === 0) {
-      metric11 = notScored(M11, 'no baseline activity was due on or before the data date' + leftOutNote + baselineNote, '≤ 5%');
+      metric11 = notScored(M11, 'no baseline activity was due on or before the data date' + leftOutNote + baselineNote + dataDateNote, '≤ 5%');
     } else if (matched < MIN_BASELINE_MATCH * due) {
       metric11 = notScored(M11,
         "the baseline's Activity IDs do not match the current file; it looks renumbered. " +
@@ -686,7 +721,7 @@ export function computeMetrics(file, baselineFile = null) {
         `${num(missed)} of ${num(scoredDue)} activities with a baseline finish on or before the data date` +
         (notInCurrent > 0 ? `; ${num(notInCurrent)} of the missed ${plural(notInCurrent, 'is', 'are')} not in the current file (deleted or renumbered)` : '') +
         (noActualFinish > 0 ? `; ${num(noActualFinish)} finished with no actual finish date, so lateness is unknown and not counted` : '') +
-        leftOutNote + baselineNote,
+        leftOutNote + baselineNote + dataDateNote,
         '≤ 5%', atMostPct(missed, scoredDue, 5), missed, scoredDue);
     }
   }
