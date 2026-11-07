@@ -86,6 +86,44 @@ export function selectScoredProject(model) {
 }
 
 /**
+ * D0. The model cut down to one project: its PROJECT row, its TASK rows, the
+ * relationships with both ends in those tasks and the assignments on them.
+ * Every other table (calendars included) is left whole. A file with one
+ * PROJECT row (or none) is returned as it is, whatever project ID its
+ * activities carry. DCMA Lite scores this, and the input-file finding counts it.
+ *
+ * @param {object|null} model
+ * @param {object|null} project  a PROJECT row of the model
+ * @param {number} total         how many PROJECT rows the model holds
+ * @returns {object|null}
+ */
+export function scopeToProject(model, project, total) {
+  if (!model || !project || total <= 1) return model;
+  const pid = norm(project.proj_id);
+  const tables = { ...model.tables };
+  const cut = (name, keep) => {
+    if (tables[name]) tables[name] = { ...tables[name], records: (tables[name].records || []).filter(keep) };
+  };
+  cut('PROJECT', p => p === project);
+  cut('TASK', t => norm(t.proj_id) === pid);
+  const ids = new Set(getTable({ tables }, 'TASK').map(t => norm(t.task_id)));
+  cut('TASKPRED', r => ids.has(norm(r.task_id)) && ids.has(norm(r.pred_task_id)));
+  cut('TASKRSRC', r => ids.has(norm(r.task_id)));
+  return { ...model, tables };
+}
+
+/**
+ * D0 in one call: the project read and the model cut down to it.
+ *
+ * @param {object|null} model
+ * @returns {{ model: object|null, selection: { project: object, position: number, total: number }|null }}
+ */
+export function scopedToScoredProject(model) {
+  const selection = selectScoredProject(model);
+  return { model: scopeToProject(model, selection && selection.project, selection ? selection.total : 0), selection };
+}
+
+/**
  * D14 applied to one PROJECT row.
  *
  * @param {object|null|undefined} project
@@ -139,7 +177,8 @@ export function dataDateDisclosure(dd) {
  * @returns {string}
  */
 export function dataDateSource(dd) {
-  if (!dd || !dd.disclosure) return 'last_recalc_date';
+  if (!dd || !dd.day) return 'the file states no data date or planned start';
+  if (!dd.disclosure) return 'last_recalc_date';
   return dd.disclosure.filed
     ? `planned start: the data date in the file, ${dd.disclosure.filed.slice(0, 10)}, is earlier`
     : 'planned start: the file states no data date';

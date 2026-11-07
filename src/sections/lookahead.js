@@ -154,7 +154,7 @@ function deriveRow(task, cal) {
  * Exported for regression testing.
  *
  * @param {object} A - Parsed current model
- * @returns {{ dataDate: Date, windows: object[], weekRows: object[][],
+ * @returns {{ dataDate: Date, dataDateCaption: string, windows: object[], weekRows: object[][],
  *             activitiesInWindow: number, totalIncomplete: number,
  *             progressBasis: string }}
  */
@@ -162,11 +162,15 @@ export function computeLookahead(A) {
   // Data date from _shared/data-date.js (2026-11-07), the one every section
   // reads: last_recalc_date, else the planned start, lifted to a later planned
   // start as P6 does.
-  let dataDate = parseP6Date(resolveDataDate(A).day);
+  const dd = resolveDataDate(A);
+  let dataDate = parseP6Date(dd.day);
+  let dataDateCaption = dataDateSource(dd);
   if (!dataDate) {
-    // Fallback: today in UTC
+    // Fallback: today in UTC, and the tile says so (2026-11-07). It used to
+    // caption today's date "last_recalc_date".
     const now = new Date();
     dataDate = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+    dataDateCaption = 'today: the file states no data date or planned start';
   }
 
   // Three week windows: [dataDate, +7d), [+7d, +14d), [+14d, +21d)
@@ -205,6 +209,7 @@ export function computeLookahead(A) {
 
   return {
     dataDate,
+    dataDateCaption,
     windows,
     weekRows,
     activitiesInWindow: inWindow.size,
@@ -248,11 +253,11 @@ export function render({ A, B }) {
     ]);
   }
 
-  const { dataDate, windows, weekRows, activitiesInWindow, totalIncomplete, progressBasis, disclosure } = computeLookahead(A);
+  const { dataDate, dataDateCaption, windows, weekRows, activitiesInWindow, totalIncomplete, progressBasis, disclosure } = computeLookahead(A);
 
   // KPI row
   const kpiRow = h('div', { class: 'kpi-grid' }, [
-    kpiCard({ title: 'Data Date',          big: fmtShort(dataDate),                    sub: dataDateSource(resolveDataDate(A)) }),
+    kpiCard({ title: 'Data Date',          big: fmtShort(dataDate),                    sub: dataDateCaption }),
     kpiCard({ title: 'In 3-Week Window',   big: activitiesInWindow,                    sub: 'distinct activities in weeks 1-3 (spanning counted once)' }),
     kpiCard({ title: 'All Incomplete',     big: totalIncomplete,                       sub: 'eligible incomplete activities in the whole schedule' }),
     kpiCard({ title: 'Week 1',             big: weekRows[0].length,                    sub: `${fmtShort(windows[0].start)} → ${fmtShort(windows[0].end)}` }),

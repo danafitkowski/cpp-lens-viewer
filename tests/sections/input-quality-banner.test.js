@@ -26,7 +26,7 @@ import { describe, it, expect } from 'vitest';
 import { actualsAfterDataDate, inputQualityCards } from '../../src/sections/_shared/input-quality.js';
 import { render as renderDashboard } from '../../src/sections/dashboard.js';
 import { render as renderSummary } from '../../src/sections/summary.js';
-import { render as renderDcma } from '../../src/sections/dcma-lite.js';
+import { render as renderDcma, computeMetrics as computeDcma } from '../../src/sections/dcma-lite.js';
 import { render as renderEvm } from '../../src/sections/evm.js';
 import { render as renderPeriod } from '../../src/sections/period-reporting.js';
 import { reexport, assertDivergentSurrogates } from '../fixtures/reexport.js';
@@ -262,5 +262,54 @@ describe('the card and DCMA check 9 name the same data date', () => {
     expect(tile.querySelector('.kpi-sub').textContent).toBe('planned start: the file states no data date');
     expect(renderSummary({ A, B: null }).textContent).toContain(
       "as of data date 2026-03-02 (the file states no data date, so the project's planned start, 2026-03-02, is used, as P6 does)");
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ONE PROJECT (2026-11-07). The card counts the activities of the project the
+// data date belongs to, with the helper DCMA Lite scores with (D0: one
+// PROJECT row is read whole; with several, only the scored project). It used
+// to count every activity in the file against the FIRST PROJECT row's date.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('on a multi-project file the card counts the scored project, as DCMA check 9 does', () => {
+  // OLD comes first in the file, with an older data date (2026-01-05) and two
+  // activities of its own statused 03-20, after SYN's data date too. D0 reads
+  // SYN (the latest data date); OLD's activities are not counted.
+  function twoProjects() {
+    const A = dirty();
+    A.tables.PROJECT.records.unshift({ proj_id: '2', proj_short_name: 'OLD', last_recalc_date: '2026-01-05 08:00', scd_end_date: '2026-02-27 17:00' });
+    A.tables.TASK.records.push(
+      task(21, 'O1', { proj_id: '2', act_start_date: '2026-03-20 08:00', act_end_date: '2026-03-20 17:00' }),
+      task(22, 'O2', { proj_id: '2', task_type: 'TT_Mile', target_drtn_hr_cnt: '0', act_start_date: '2026-03-20 08:00', act_end_date: '2026-03-20 08:00' }),
+      task(23, 'OL', { proj_id: '2', task_type: 'TT_LOE', act_start_date: '2026-03-20 08:00' })
+    );
+    return A;
+  }
+
+  it("the card's count and population equal check 9's (no forecast is early here, so the findings are the same too)", () => {
+    const A = twoProjects();
+    const f = actualsAfterDataDate(A);
+    const m9 = computeDcma(A).metrics[8];
+    expect(f.dataDate).toBe('2026-03-02');
+    expect(f.population).toBe(5);
+    expect(f.activities).toBe(3);
+    expect(f.population).toBe(m9.den);
+    expect(f.activities).toBe(m9.num);
+    expect(f.latestActual).toBe('2026-03-09');
+  });
+
+  it('the card names the project it counts', () => {
+    const text = inputQualityCards(twoProjects())[0].textContent;
+    expect(text).toContain('3 of 5 activities in project SYN (1 of 2 projects in the file; the others are not counted)');
+    expect(text).toContain('The latest actual date in that project is 2026-03-09');
+  });
+
+  it('a single PROJECT row is read whole, whatever project ID its activities carry', () => {
+    const A = dirty();
+    A.tables.TASK.records.find(t => t.task_code === 'Q2').proj_id = '7777';
+    const f = actualsAfterDataDate(A);
+    expect(f.population).toBe(5);
+    expect(f.activities).toBe(3);
+    expect(inputQualityCards(A)[0].textContent).not.toContain('in project');
   });
 });

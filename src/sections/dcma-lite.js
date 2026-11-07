@@ -6,7 +6,8 @@ import { actualsAfter, inputQualityCards } from './_shared/input-quality.js';
 // The data date and the D0 project choice live in one shared module (2026-11-07),
 // so every section names the same date this screen scores against.
 import {
-  dayOf, instantOf, bestProject, taskCountsByProject, selectScoredProject, dataDateOfProject, dataDateDisclosure
+  dayOf, instantOf, bestProject, taskCountsByProject, selectScoredProject, scopeToProject, dataDateOfProject,
+  dataDateDisclosure
 } from './_shared/data-date.js';
 
 export { selectScoredProject };
@@ -93,27 +94,6 @@ function num(n) {
 function projectName(p) {
   if (!p) return '';
   return norm(p.proj_short_name) || `project ${norm(p.proj_id)}`;
-}
-
-/**
- * The model cut down to one project: its PROJECT row, its TASK rows, the
- * relationships with both ends in those tasks and the assignments on them.
- * Every other table (calendars included) is left whole. A file with one
- * PROJECT row (or none) is returned as it is.
- */
-function scopeToProject(model, project, total) {
-  if (!model || !project || total <= 1) return model;
-  const pid = norm(project.proj_id);
-  const tables = { ...model.tables };
-  const cut = (name, keep) => {
-    if (tables[name]) tables[name] = { ...tables[name], records: (tables[name].records || []).filter(keep) };
-  };
-  cut('PROJECT', p => p === project);
-  cut('TASK', t => norm(t.proj_id) === pid);
-  const ids = new Set(getTable({ tables }, 'TASK').map(t => norm(t.task_id)));
-  cut('TASKPRED', r => ids.has(norm(r.task_id)) && ids.has(norm(r.pred_task_id)));
-  cut('TASKRSRC', r => ids.has(norm(r.task_id)));
-  return { ...model, tables };
 }
 
 /**

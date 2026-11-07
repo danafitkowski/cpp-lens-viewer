@@ -45,6 +45,8 @@ describe('D14: the data date of one project', () => {
     const dd = resolveDataDate(model([proj('1', '  ', '')]));
     expect(dd).toMatchObject({ instant: '', day: '', disclosure: null });
     expect(dataDateDisclosure(dd)).toBe('');
+    // A tile with no date never claims to show last_recalc_date.
+    expect(dataDateSource(dd)).toBe('the file states no data date or planned start');
   });
 
   it('on a day before a later planned start: lifted to the planned start, disclosed', () => {

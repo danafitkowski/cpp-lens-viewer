@@ -67,3 +67,38 @@ describe('3-Week Lookahead', () => {
     }
   });
 });
+
+// 2026-11-07: the data date comes from _shared/data-date.js, and the Data Date
+// tile says where it came from. With neither a data date nor a planned start
+// the window still starts today, and the tile says so instead of captioning
+// today's date "last_recalc_date".
+describe('3-Week Lookahead data date caption', () => {
+  function withProject(fields) {
+    const A = parseXer(readFileSync(join(FIX, 'minimal-3-task.xer'), 'utf-8'));
+    Object.assign(A.tables.PROJECT.records[0], fields);
+    return A;
+  }
+  function caption(A) {
+    const tile = [...render({ A, B: null }).querySelectorAll('.kpi')]
+      .find(k => k.querySelector('.kpi-title').textContent === 'Data Date');
+    return [tile.querySelector('.kpi-big').textContent, tile.querySelector('.kpi-sub').textContent];
+  }
+
+  it('a filed data date: last_recalc_date', () => {
+    expect(caption(withProject({ last_recalc_date: '2026-02-02 08:00', plan_start_date: '' })))
+      .toEqual(['2026-02-02', 'last_recalc_date']);
+  });
+
+  it('a blank data date: the planned start, said', () => {
+    expect(caption(withProject({ last_recalc_date: '', plan_start_date: '2026-03-02 08:00' })))
+      .toEqual(['2026-03-02', 'planned start: the file states no data date']);
+  });
+
+  it('neither: today, said in plain words, never last_recalc_date', () => {
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const [big, sub] = caption(withProject({ last_recalc_date: '', plan_start_date: '' }));
+    expect(big).toBe(today);
+    expect(sub).toBe('today: the file states no data date or planned start');
+  });
+});
