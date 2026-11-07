@@ -51,4 +51,4 @@ Synthetic schedules (no client data) with the results `references/DCMA_DEFINITIO
 | p14_current + p14_baseline | #8: a blank duration left out; a baseline activity's duration on its own inherited calendar; a blank baseline duration reads the current one |
 | p15_no_forecasts | #9: an actual after the data date fails even when the incomplete work carries no forecasts |
 
-Working-day counts assume the fixtures' calendars, which carry no holidays.
+Working-day counts assume the fixtures' calendars, which carry no holidays except the one p11_short_day tests.
