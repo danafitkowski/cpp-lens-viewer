@@ -97,6 +97,18 @@ export function selectScoredProject(model) {
  * @param {number} total         how many PROJECT rows the model holds
  * @returns {object|null}
  */
+/**
+ * The model cut to the project D0 scores: what a section counts must come
+ * from the same project its data date comes from (review of 7-Nov-26: EVM on
+ * a two-project file read the chosen project's data date against both
+ * projects' activities, SPI 0.14 instead of 1.00). A single-project file is
+ * returned whole.
+ */
+export function scopedModel(model) {
+  const sel = selectScoredProject(model);
+  return scopeToProject(model, sel && sel.project, sel ? sel.total : 0);
+}
+
 export function scopeToProject(model, project, total) {
   if (!model || !project || total <= 1) return model;
   const pid = norm(project.proj_id);

@@ -17,7 +17,7 @@ export { selectScoredProject };
 // exactly as tests/fixtures/dcma_parity/DCMA_DEFINITION.md writes them, a
 // byte-for-byte copy of CPP's shared definition. tests/sections/
 // dcma-parity.test.js holds this screen to the results worked out by hand from
-// that text on eight synthetic schedules. "D0" to "D11" below are the
+// that text on fifteen synthetic schedules. "D0" to "D11" below are the
 // definition's common rules.
 //
 // D1. Ordinary activities are every type but milestones, level of effort and
@@ -113,7 +113,26 @@ function selectBaselineProject(B, scoredProject, scopedA) {
   if (projects.length === 0) return null;
   const counts = taskCountsByProject(B);
   const all = projects.map((p, i) => ({ p, i }));
-  const pick = (cands, basis) => ({ project: bestProject(cands, counts).p, total: projects.length, basis, unmatched: false });
+  const keys = new Set(getTable(scopedA, 'TASK').map(activityKey).filter(Boolean));
+  const shared = new Map();   // proj_id -> Set of shared Activity IDs
+  const sharedAll = new Set();
+  for (const t of getTable(B, 'TASK')) {
+    const k = activityKey(t);
+    if (!k || !keys.has(k)) continue;
+    sharedAll.add(k);
+    const pid = norm(t.proj_id);
+    if (!shared.has(pid)) shared.set(pid, new Set());
+    shared.get(pid).add(k);
+  }
+  const size = c => (shared.get(norm(c.p.proj_id)) || new Set()).size;
+  // Whatever chose it, a baseline project that shares no Activity ID with the
+  // scored project is not used (D9; review of 7-Nov-26).
+  const pick = (cands, basis) => {
+    const best = bestProject(cands, counts);
+    const n = projects.length === 1 ? sharedAll.size : size(best);
+    return n > 0 ? { project: best.p, total: projects.length, basis, unmatched: false }
+                 : { project: null, total: projects.length, basis: null, unmatched: true };
+  };
   if (projects.length === 1) return pick(all, 'the only project');
   const id = scoredProject ? norm(scoredProject.proj_id) : '';
   const byId = id === '' ? [] : all.filter(c => norm(c.p.proj_id) === id);
@@ -121,16 +140,6 @@ function selectBaselineProject(B, scoredProject, scopedA) {
   const name = scoredProject ? norm(scoredProject.proj_short_name) : '';
   const byName = name === '' ? [] : all.filter(c => norm(c.p.proj_short_name) === name);
   if (byName.length > 0) return pick(byName, 'the same project short name');
-  const keys = new Set(getTable(scopedA, 'TASK').map(activityKey).filter(Boolean));
-  const shared = new Map();   // proj_id -> Set of shared Activity IDs
-  for (const t of getTable(B, 'TASK')) {
-    const k = activityKey(t);
-    if (!k || !keys.has(k)) continue;
-    const pid = norm(t.proj_id);
-    if (!shared.has(pid)) shared.set(pid, new Set());
-    shared.get(pid).add(k);
-  }
-  const size = c => (shared.get(norm(c.p.proj_id)) || new Set()).size;
   const most = Math.max(0, ...all.map(size));
   if (most > 0) return pick(all.filter(c => size(c) === most), 'the most Activity IDs shared with the scored project');
   return { project: null, total: projects.length, basis: null, unmatched: true };
@@ -430,7 +439,9 @@ export function computeMetrics(file, baselineFile = null) {
     ? `; baseline project: ${projectName(bSel.project)} (1 of ${bSel.total} projects in the baseline file, chosen on ${bSel.basis})`
     : '';
   const unmatchedBaseline = B && !baselineUsable
-    ? `the baseline file holds ${num(bSel.total)} projects and none matches the scored project by project ID, short name or Activity ID`
+    ? (bSel.total === 1
+        ? 'the baseline project shares no Activity ID with the scored project, so it is not used'
+        : `the baseline file holds ${num(bSel.total)} projects and none shares an Activity ID with the scored project, so it is not used`)
     : null;
   const aKeys = keyCounts(A);
   const bKeys = baselineUsable ? keyCounts(Bs) : new Map();
@@ -449,23 +460,32 @@ export function computeMetrics(file, baselineFile = null) {
   // activity's calendar, when a baseline is loaded and the activity is in it,
   // else the current original duration (2026-11-07). Splitting a long activity
   // in the current schedule does not hide that it was planned long.
-  let highDurCount = 0, fromBaseline = 0, fromCurrent = 0, repeatedIds = 0;
+  let highDurCount = 0, fromBaseline = 0, fromCurrent = 0, repeatedIds = 0, blankDur = 0;
   for (const t of tasks) {
     const k = activityKey(t);
     if (baselineUsable && k && ambiguous(k)) repeatedIds++;
     const bt = baselineUsable && k ? baselineByKey.get(k) : null;
     let wd = bt ? bcal.workingDays(bt, HOUR_FIELDS.ORIGINAL_DURATION) : null;
     if (wd != null) fromBaseline++;
-    else { wd = cal.workingDays(t, HOUR_FIELDS.ORIGINAL_DURATION); fromCurrent++; }
+    else {
+      wd = cal.workingDays(t, HOUR_FIELDS.ORIGINAL_DURATION);
+      // A blank duration is not zero: left out and counted (review of 7-Nov-26).
+      if (wd == null || String(t.target_drtn_hr_cnt ?? '').trim() === '') { blankDur++; continue; }
+      fromCurrent++;
+    }
     if (wd != null && wd > HIGH_DURATION_WD) highDurCount++;
   }
+  const n8 = n - blankDur;
+  const blankNote = blankDur > 0 ? `; ${num(blankDur)} with no original duration ${plural(blankDur, 'is', 'are')} left out` : '';
   const durationBasis = !B ? ''
     : !baselineUsable ? `; durations read from the current file, because ${unmatchedBaseline}`
     : `; original durations read from the baseline for ${num(fromBaseline)} and from the current file for ${num(fromCurrent)}` +
       (repeatedIds > 0 ? ` (${num(repeatedIds)} of them ${plural(repeatedIds, 'has an Activity ID', 'have Activity IDs')} that ${plural(repeatedIds, 'appears', 'appear')} more than once)` : '');
   const metric8 = noTasks ? notScored(`High Duration (> ${HIGH_DURATION_WD} wd)`, noTasks, '≤ 5%')
-    : scored(`High Duration (> ${HIGH_DURATION_WD} wd)`, fmtPct(pct(highDurCount, n)), ofTasks(highDurCount) + durationBasis,
-        '≤ 5%', atMostPct(highDurCount, n, 5), highDurCount, n);
+    : n8 === 0 ? notScored(`High Duration (> ${HIGH_DURATION_WD} wd)`, 'none of the incomplete activities carries an original duration', '≤ 5%')
+    : scored(`High Duration (> ${HIGH_DURATION_WD} wd)`, fmtPct(pct(highDurCount, n8)),
+        `${num(highDurCount)} of ${num(n8)} incomplete activities` + durationBasis + blankNote,
+        '≤ 5%', atMostPct(highDurCount, n8, 5), highDurCount, n8);
 
   // 9. Invalid Dates. The published check compares dates WITH THE DATA DATE:
   // an actual date must not be after it, and a forecast (early) date of
@@ -495,14 +515,14 @@ export function computeMetrics(file, baselineFile = null) {
   }
   const forecastsUnreadable = openWork.length > 0 &&
     !openWork.some(t => dayOf(t.early_start_date) !== '' || dayOf(t.early_end_date) !== '');
+  const unreadableNote = forecastsUnreadable
+    ? '; none of the unfinished work carries an early start or early finish, so its forecast dates cannot be read and only the actual dates are judged' : '';
   const metric9 = !dataDate ? notScored('Invalid Dates', 'the file states no data date or planned start to compare with', '0')
-    : forecastsUnreadable ? notScored('Invalid Dates',
-        'none of the unfinished work carries an early start or early finish, so its forecast dates cannot be read; recalculate in P6 and re-export', '0')
     : counted.length === 0 ? notScored('Invalid Dates', 'the file has no activities to measure', '0')
     : scored('Invalid Dates', String(invalidDatesCount),
         `${num(invalidDatesCount)} of ${num(counted.length)} activities, milestones included: ` +
         `${num(actualAfterCount)} with an actual date after the data date, ` +
-        `${num(forecastBeforeCount)} with a forecast date before it` + dataDateNote,
+        `${num(forecastBeforeCount)} with a forecast date before it` + unreadableNote + dataDateNote,
         '0', invalidDatesCount === 0, invalidDatesCount, counted.length);
 
   // Not one of the fourteen points, and not scored: a finished activity with no
@@ -610,7 +630,7 @@ export function computeMetrics(file, baselineFile = null) {
       : '';
     if (due === 0) {
       metric11 = notScored(M11, 'no baseline activity was due on or before the data date' + leftOutNote + baselineNote + dataDateNote, '≤ 5%');
-    } else if (matched < MIN_BASELINE_MATCH * due) {
+    } else if (matched * 100 < Math.round(MIN_BASELINE_MATCH * 100) * due) {
       metric11 = notScored(M11,
         "the baseline's Activity IDs do not match the current file; it looks renumbered. " +
         `${num(matched)} of ${num(due)} baseline activities due on or before the data date match an activity in the current file, ` +

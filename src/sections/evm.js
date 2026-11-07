@@ -3,7 +3,7 @@ import { getTable } from '@criticalpathpartners/lens-parser';
 import { kpiCard } from './_shared/kpi-card.js';
 import { svgLineChart } from './_shared/svg-line-chart.js';
 import { dayOf, inputQualityCards } from './_shared/input-quality.js';
-import { resolveDataDate, dataDateSource } from './_shared/data-date.js';
+import { resolveDataDate, dataDateSource, scopedModel } from './_shared/data-date.js';
 
 const LOE_WBS = new Set(['TT_LOE', 'TT_WBS']);
 
@@ -56,6 +56,7 @@ function countAtDate(curve, targetMs) {
  * @param {object} A - Parsed current model
  */
 export function computeEvm(A) {
+  A = scopedModel(A);   // the scored project's activities, as its data date
   const tasks    = getTable(A, 'TASK').filter(t => !LOE_WBS.has(t.task_type || ''));
   const projRows = getTable(A, 'PROJECT');
   // The data date and its project from _shared/data-date.js (2026-11-07):

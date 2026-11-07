@@ -2,7 +2,7 @@ import { h } from '../lib/dom.js';
 import { getTable } from '@criticalpathpartners/lens-parser';
 import { workingDayContext, divisorCaption, HOUR_FIELDS } from './_shared/working-days.js';
 import { inputQualityCards } from './_shared/input-quality.js';
-import { resolveDataDate, dataDateDisclosure } from './_shared/data-date.js';
+import { resolveDataDate, dataDateDisclosure, scopedModel } from './_shared/data-date.js';
 
 const MILESTONE_TYPES = new Set(['TT_Mile', 'TT_FinMile']);
 const EXCLUDED_TYPES = new Set(['TT_LOE', 'TT_WBS']);
@@ -18,7 +18,7 @@ export function render({ A, B }) {
     ]);
   }
 
-  const tasks = getTable(A, 'TASK');
+  const tasks = getTable(scopedModel(A), 'TASK');   // the scored project, as its data date
   const realTasks = tasks.filter(t => !EXCLUDED_TYPES.has(t.task_type || ''));
   const projects = getTable(A, 'PROJECT');
   // The data date and its project from _shared/data-date.js (2026-11-07); the

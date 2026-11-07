@@ -271,7 +271,8 @@ describe('2. a multi-project file is scored on one project', () => {
     const m = computeMetrics(twoProjects(), B);
     const r = metric(m, /^Missed Tasks/);
     expect(r.status).toBe(NOT_SCORED);
-    expect(r.result).toContain('the baseline file holds 2 projects and none matches the scored project');
+    // 2026-11-07 DCMA review: same verdict, plainer reason.
+    expect(r.result).toContain('the baseline file holds 2 projects and none shares an Activity ID with the scored project');
     const d = metric(m, /^High Duration/);
     expect(d.count).toContain('durations read from the current file');
     expect(d.den).toBe(2);
@@ -397,8 +398,9 @@ describe('5. Missed Tasks counts deleted due work as missed, and refuses a renum
   it('5 due and none matches the current file: NOT SCORED, the baseline looks renumbered', () => {
     const r = metric(computeMetrics(currentDone(['N1', 'N2', 'N3', 'N4', 'N5']), baselineDue(['T1', 'T2', 'T3', 'T4', 'T5'])), /^Missed Tasks/);
     expect(r.status).toBe(NOT_SCORED);
-    expect(r.result).toContain("the baseline's Activity IDs do not match the current file; it looks renumbered");
-    expect(r.result).toContain('0 of 5');
+    // 2026-11-07 DCMA review (D9): a baseline that shares no Activity ID is not
+    // used at all, so the reason is that, not the 80% match floor.
+    expect(r.result).toContain('shares no Activity ID with the scored project, so it is not used');
   });
 
   it('an open activity whose baseline finish is later on the data date itself is not yet due', () => {

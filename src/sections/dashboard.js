@@ -2,7 +2,7 @@ import { h } from '../lib/dom.js';
 import { getTable, getTableAliased } from '@criticalpathpartners/lens-parser';
 import { kpiCard } from './_shared/kpi-card.js';
 import { actualsAfterDataDate, inputQualityCards } from './_shared/input-quality.js';
-import { resolveDataDate, dataDateSource } from './_shared/data-date.js';
+import { resolveDataDate, dataDateSource, scopedModel } from './_shared/data-date.js';
 import { computeMetrics as computeDcmaLite, NOT_SCORED } from './dcma-lite.js';
 
 const COMPLETE_STATUS = 'TK_Complete';
@@ -71,6 +71,7 @@ export function render({ A, B }) {
 }
 
 function computeMetrics(A) {
+  A = scopedModel(A);   // the scored project's activities, as its data date
   const tasks = getTable(A, 'TASK');
   const rels = getTableAliased(A, 'REL');
   const projects = getTable(A, 'PROJECT');
