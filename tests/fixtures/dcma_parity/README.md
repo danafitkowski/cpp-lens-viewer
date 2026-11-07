@@ -28,7 +28,7 @@ Synthetic schedules (no client data) with the results `references/DCMA_DEFINITIO
 ## Engine scope
 
 - **Validator**: every check as listed.
-- **Dashboard**: renders every fixture; a fixture with no baseline is rendered with the current file as its own baseline (the dashboard always takes two), so #11, #13 and #14 are not compared there.
+- **Dashboard**: renders every fixture; a fixture with no baseline is rendered with the current file as its own baseline (the dashboard always takes two), so #11 and #14 are not compared there. #13 is: with no real baseline the dashboard reads the completion activity’s P6 float, as the definition says.
 - **CPP Lens**: scores 1 to 11 and #12 FAIL-only, so #13 and #14 are expected NOT SCORED, and #12 is expected NOT SCORED unless the fixture expects FAIL.
 
 ## Fixtures
