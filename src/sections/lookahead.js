@@ -1,6 +1,7 @@
 import { h } from '../lib/dom.js';
 import { getTable } from '@criticalpathpartners/lens-parser';
 import { kpiCard } from './_shared/kpi-card.js';
+import { resolveDataDate, dataDateSource } from './_shared/data-date.js';
 import { dataTable } from './_shared/data-table.js';
 import { workingDayContext, disclosureCards, HOUR_FIELDS } from './_shared/working-days.js';
 import { percentComplete, describeProgressBasis } from './_shared/percent-complete.js';
@@ -158,12 +159,10 @@ function deriveRow(task, cal) {
  *             progressBasis: string }}
  */
 export function computeLookahead(A) {
-  // Data date from first PROJECT row's last_recalc_date
-  const projects = getTable(A, 'PROJECT');
-  let dataDate = null;
-  if (projects && projects.length > 0) {
-    dataDate = parseP6Date(projects[0].last_recalc_date);
-  }
+  // Data date from _shared/data-date.js (2026-11-07), the one every section
+  // reads: last_recalc_date, else the planned start, lifted to a later planned
+  // start as P6 does.
+  let dataDate = parseP6Date(resolveDataDate(A).day);
   if (!dataDate) {
     // Fallback: today in UTC
     const now = new Date();
@@ -253,7 +252,7 @@ export function render({ A, B }) {
 
   // KPI row
   const kpiRow = h('div', { class: 'kpi-grid' }, [
-    kpiCard({ title: 'Data Date',          big: fmtShort(dataDate),                    sub: 'from PROJECT.last_recalc_date' }),
+    kpiCard({ title: 'Data Date',          big: fmtShort(dataDate),                    sub: dataDateSource(resolveDataDate(A)) }),
     kpiCard({ title: 'In 3-Week Window',   big: activitiesInWindow,                    sub: 'distinct activities in weeks 1-3 (spanning counted once)' }),
     kpiCard({ title: 'All Incomplete',     big: totalIncomplete,                       sub: 'eligible incomplete activities in the whole schedule' }),
     kpiCard({ title: 'Week 1',             big: weekRows[0].length,                    sub: `${fmtShort(windows[0].start)} → ${fmtShort(windows[0].end)}` }),

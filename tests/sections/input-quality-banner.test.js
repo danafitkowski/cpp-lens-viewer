@@ -98,8 +98,11 @@ function banners(el) {
 
 describe('actualsAfterDataDate', () => {
   it('counts activities, not fields, and leaves level of effort and WBS summary out', () => {
+    // 2026-11-07: the finding also carries `dataDateNote`, the plain-words
+    // disclosure when the data date is the project's planned start (empty here:
+    // the filed data date is used). The data date comes from _shared/data-date.js.
     expect(actualsAfterDataDate(dirty())).toEqual({
-      dataDate: '2026-03-02', population: 5, activities: 3, starts: 3, finishes: 2, latestActual: '2026-03-09'
+      dataDate: '2026-03-02', dataDateNote: '', population: 5, activities: 3, starts: 3, finishes: 2, latestActual: '2026-03-09'
     });
   });
 
@@ -110,6 +113,8 @@ describe('actualsAfterDataDate', () => {
   });
 
   it('finds nothing, rather than everything, when the file states no data date', () => {
+    // 2026-11-07: ...and no planned start either. With a planned start, that is
+    // the data date (see "the card and DCMA check 9 name the same data date").
     expect(actualsAfterDataDate(dirty('')).activities).toBe(0);
   });
 });
@@ -207,5 +212,55 @@ describe('Period Reporting checks both files', () => {
 
   it('shows none when both files are clean', () => {
     expect(banners(renderPeriod({ A: clean(), B: cleanBaseline() })).length).toBe(0);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ONE data date (2026-11-07, src/sections/_shared/data-date.js). On a file with
+// a blank data date the card used to find nothing (it read the first PROJECT
+// row's raw last_recalc_date) while DCMA check 9 on the same page measured
+// against the project's planned start, as P6 does. Both now read one rule.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('the card and DCMA check 9 name the same data date', () => {
+  function withPlannedStart(dataDate, planStart) {
+    const A = dirty(dataDate);
+    A.tables.PROJECT.fields.push('plan_start_date');
+    A.tables.PROJECT.records[0].plan_start_date = planStart;
+    return A;
+  }
+
+  function row9(el) {
+    const tr = [...el.querySelectorAll('tbody tr')].find(r => /^Invalid Dates/.test(r.children[0].textContent));
+    return [...tr.children].map(td => td.textContent);
+  }
+
+  const cases = [
+    ['blank data date', '', "the file states no data date, so the project's planned start, 2026-03-02, is used, as P6 does"],
+    ['data date before the planned start', '2026-01-05 08:00',
+      "the file's data date, 2026-01-05, is before the project's planned start, 2026-03-02, so the planned start is used, as P6 does"]
+  ];
+
+  for (const [label, filed, words] of cases) {
+    it(`${label}: the card and check 9 count against the planned start and say so in the same words`, () => {
+      const el = renderDcma({ A: withPlannedStart(filed, '2026-03-02 08:00'), B: null });
+      const card = banners(el)[0].textContent;
+      expect(card).toContain('3 of 5 activities');
+      expect(card).toContain('after the data date, 2026-03-02');
+      expect(card).toContain(words.charAt(0).toUpperCase() + words.slice(1) + '.');
+      const r = row9(el);
+      expect(r[2]).toContain('3 of 5 activities');
+      expect(r[2]).toContain(words);
+      expect(r[4]).toBe('FAIL');
+    });
+  }
+
+  it('the dashboard tile and the summary narrative name the planned start too', () => {
+    const A = withPlannedStart('', '2026-03-02 08:00');
+    const dash = renderDashboard({ A, B: null });
+    const tile = [...dash.querySelectorAll('.kpi')].find(k => k.querySelector('.kpi-title').textContent === 'Data date');
+    expect(tile.querySelector('.kpi-big').textContent).toBe('2026-03-02');
+    expect(tile.querySelector('.kpi-sub').textContent).toBe('planned start: the file states no data date');
+    expect(renderSummary({ A, B: null }).textContent).toContain(
+      "as of data date 2026-03-02 (the file states no data date, so the project's planned start, 2026-03-02, is used, as P6 does)");
   });
 });

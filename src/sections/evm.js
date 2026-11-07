@@ -2,7 +2,8 @@ import { h } from '../lib/dom.js';
 import { getTable } from '@criticalpathpartners/lens-parser';
 import { kpiCard } from './_shared/kpi-card.js';
 import { svgLineChart } from './_shared/svg-line-chart.js';
-import { dayOf, dataDateOf, inputQualityCards } from './_shared/input-quality.js';
+import { dayOf, inputQualityCards } from './_shared/input-quality.js';
+import { resolveDataDate, dataDateSource } from './_shared/data-date.js';
 
 const LOE_WBS = new Set(['TT_LOE', 'TT_WBS']);
 
@@ -57,9 +58,13 @@ function countAtDate(curve, targetMs) {
 export function computeEvm(A) {
   const tasks    = getTable(A, 'TASK').filter(t => !LOE_WBS.has(t.task_type || ''));
   const projRows = getTable(A, 'PROJECT');
-  const project  = projRows[0] || {};
+  // The data date and its project from _shared/data-date.js (2026-11-07):
+  // last_recalc_date, else the planned start, lifted to a later planned start
+  // as P6 does. The planned finish is read off the same project.
+  const dd       = resolveDataDate(A);
+  const project  = dd.project || projRows[0] || {};
 
-  const dataDate    = project.last_recalc_date || null;
+  const dataDate    = dd.instant || null;
   // scd_end_date = CPM-calculated finish; plan_end_date = optional must-finish
   // constraint, frequently blank. Without this fallback the forecast series (and
   // the "Planned Finish" KPI) silently disappear on most real schedules.
@@ -81,7 +86,7 @@ export function computeEvm(A) {
   // file, 31 true. Dates are compared by day (see _shared/input-quality.js).
   // The finishes left out are counted and reported on the page, never dropped
   // silently.
-  const ddDay = dataDateOf(A);
+  const ddDay = dd.day;
   const finishedTasks = tasks.filter(t => dayOf(t.act_end_date) !== '');
   const finishesAfterDataDate = ddDay
     ? finishedTasks.filter(t => dayOf(t.act_end_date) > ddDay).length
@@ -169,7 +174,7 @@ export function render({ A, B }) {
     kpiCard({ title: 'Planned Finish',         big: planEndDate ? planEndDate.slice(0, 10) : '—', sub: 'scd_end_date' }),
     kpiCard({ title: 'Actual Finishes to Date', big: actualFinishCount,
               sub: ddDay ? 'actual finish (act_end_date) on or before the data date' : 'activities with act_end_date' }),
-    kpiCard({ title: 'Data Date',              big: dataDate ? dataDate.slice(0, 10) : '—', sub: 'last_recalc_date' }),
+    kpiCard({ title: 'Data Date',              big: dataDate ? dataDate.slice(0, 10) : '—', sub: dataDateSource(resolveDataDate(A)) }),
     kpiCard({ title: 'SPI Proxy',              big: spiText,                  sub: 'actual / planned at data date', tone: spiTone })
   ]);
 

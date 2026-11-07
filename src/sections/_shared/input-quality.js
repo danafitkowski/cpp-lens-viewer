@@ -1,5 +1,8 @@
 import { h } from '../../lib/dom.js';
 import { getTable } from '@criticalpathpartners/lens-parser';
+import { dayOf, resolveDataDate, dataDateDisclosure } from './data-date.js';
+
+export { dayOf };
 
 /**
  * ONE place that asks whether the input file is statused past its own data date.
@@ -25,15 +28,16 @@ import { getTable } from '@criticalpathpartners/lens-parser';
 
 const LOE_WBS = new Set(['TT_LOE', 'TT_WBS']);
 
-/** 'YYYY-MM-DD' from a raw XER date cell, or '' when the cell holds no date. */
-export function dayOf(raw) {
-  const s = raw == null ? '' : String(raw).trim().slice(0, 10);
-  return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : '';
-}
-
-/** The data date (first PROJECT row's last_recalc_date) as 'YYYY-MM-DD', or ''. */
+/**
+ * The data date as 'YYYY-MM-DD', or ''. Decided in _shared/data-date.js
+ * (2026-11-07): the project D0 picks, its last_recalc_date, else its planned
+ * start, lifted to a later planned start as P6 does. It used to be the FIRST
+ * PROJECT row's raw last_recalc_date, so on a file with a blank data date this
+ * card found nothing while DCMA check 9 on the same page measured against the
+ * planned start.
+ */
 export function dataDateOf(model) {
-  return dayOf((getTable(model, 'PROJECT')[0] || {}).last_recalc_date);
+  return resolveDataDate(model).day;
 }
 
 /**
@@ -59,7 +63,7 @@ export function actualsAfter(task, dataDate) {
  *
  * @param {object|null} model
  * @returns {{
- *   dataDate: string, population: number, activities: number,
+ *   dataDate: string, dataDateNote: string, population: number, activities: number,
  *   starts: number, finishes: number, latestActual: string
  * }}
  *   `activities` counts ACTIVITIES, not fields: one with both a future start
@@ -67,8 +71,10 @@ export function actualsAfter(task, dataDate) {
  *   the file, 'YYYY-MM-DD', or '' when there is none.
  */
 export function actualsAfterDataDate(model) {
-  const dataDate = dataDateOf(model);
-  const out = { dataDate, population: 0, activities: 0, starts: 0, finishes: 0, latestActual: '' };
+  const dd = resolveDataDate(model);
+  const dataDate = dd.day;
+  // `dataDateNote` says, in DCMA check 9's words, when the date is the planned start.
+  const out = { dataDate, dataDateNote: dataDateDisclosure(dd), population: 0, activities: 0, starts: 0, finishes: 0, latestActual: '' };
   for (const t of getTable(model, 'TASK')) {
     if (LOE_WBS.has(t.task_type || '')) continue;
     out.population++;
@@ -107,6 +113,7 @@ export function inputQualityCards(model, role = '') {
     `${plural(f.activities, 'has', 'have')} an actual start or actual finish after the data date, ${f.dataDate} ` +
     `(${f.starts.toLocaleString()} actual ${plural(f.starts, 'start', 'starts')} and ` +
     `${f.finishes.toLocaleString()} actual ${plural(f.finishes, 'finish', 'finishes')}). ` +
+    (f.dataDateNote ? `${f.dataDateNote.charAt(0).toUpperCase()}${f.dataDateNote.slice(1)}. ` : '') +
     `The latest actual date in the file is ${f.latestActual}. A data date is the day progress is recorded up to, ` +
     'so these dates disagree with it. Level of effort and WBS summary activities are not counted. Counts of started ' +
     'and finished work on this page include these activities unless the page says it leaves them out.')];

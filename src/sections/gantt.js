@@ -1,6 +1,7 @@
 import { h, on } from '../lib/dom.js';
 import { getTable } from '@criticalpathpartners/lens-parser';
 import { kpiCard } from './_shared/kpi-card.js';
+import { resolveDataDate } from './_shared/data-date.js';
 import { taskKey, resolveComparisonAmbiguity } from './_shared/identity.js';
 
 const LOE_WBS = new Set(['TT_LOE', 'TT_WBS']);
@@ -307,10 +308,10 @@ export function render({ A, B }) {
     ]);
   }
 
-  // Data date: first PROJECT row's last_recalc_date, same source as the
-  // Dashboard and Distribution sections.
-  const proj = getTable(A, 'PROJECT')[0];
-  const dataDate = proj ? parseDate(proj.last_recalc_date) : null;
+  // Data date from _shared/data-date.js (2026-11-07), the one every section
+  // reads: last_recalc_date, else the planned start, lifted to a later planned
+  // start as P6 does.
+  const dataDate = parseDate(resolveDataDate(A).day);
 
   let criticalOnly = false;
   let showBaseline = false;

@@ -1,6 +1,7 @@
 import { h, clear } from '../lib/dom.js';
 import { getTable } from '@criticalpathpartners/lens-parser';
 import { kpiCard } from './_shared/kpi-card.js';
+import { resolveDataDate } from './_shared/data-date.js';
 import { prefsStore } from '../state/prefs.js';
 
 // ---------------------------------------------------------------------------
@@ -15,7 +16,8 @@ const TILES = [
   { id: 'assignment-count',   title: 'Assignments',          compute: (A) => getTable(A, 'TASKRSRC').length.toLocaleString() },
   { id: 'calendar-count',     title: 'Calendars',            compute: (A) => getTable(A, 'CALENDAR').length.toString() },
   { id: 'milestone-count',    title: 'Milestones',           compute: (A) => getTable(A, 'TASK').filter(x => ['TT_Mile','TT_FinMile'].includes(x.task_type||'')).length.toString() },
-  { id: 'data-date',          title: 'Data Date',            compute: (A) => (getTable(A,'PROJECT')[0]?.last_recalc_date || '').slice(0,10) || '—' },
+  // The data date from _shared/data-date.js (2026-11-07), as every section reads it.
+  { id: 'data-date',          title: 'Data Date',            compute: (A) => resolveDataDate(A).day || '—' },
   // scd_end_date = CPM-calculated finish; plan_end_date = optional must-finish
   // constraint, frequently blank. Without this fallback the tile shows '—' on
   // most real schedules.

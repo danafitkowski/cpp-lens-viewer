@@ -19,7 +19,7 @@
  */
 
 import { h } from '../lib/dom.js';
-import { getTable } from '@criticalpathpartners/lens-parser';
+import { resolveDataDate } from '../sections/_shared/data-date.js';
 import { LENS_VERSION } from '../version.js';
 
 function fmtTimestamp(d = new Date()) {
@@ -35,10 +35,12 @@ function fmtTimestamp(d = new Date()) {
  */
 export function buildPrintHeader({ A, sectionTitle }) {
   const filename = A ? (A.filename || '(unnamed)') : 'no schedule loaded';
+  // The data date from sections/_shared/data-date.js (2026-11-07), the one every
+  // section reads; marked when it is the project's planned start.
   let dataDate = '';
   if (A) {
-    const projects = getTable(A, 'PROJECT');
-    dataDate = ((projects[0] || {}).last_recalc_date || '').slice(0, 10);
+    const dd = resolveDataDate(A);
+    dataDate = dd.day ? `${dd.day}${dd.disclosure ? ' (planned start)' : ''}` : '';
   }
 
   const meta = [

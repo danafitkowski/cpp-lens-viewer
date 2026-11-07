@@ -2,6 +2,7 @@ import { h } from '../lib/dom.js';
 import { getTable, getTableAliased } from '@criticalpathpartners/lens-parser';
 import { kpiCard } from './_shared/kpi-card.js';
 import { actualsAfterDataDate, inputQualityCards } from './_shared/input-quality.js';
+import { resolveDataDate, dataDateSource } from './_shared/data-date.js';
 import { computeMetrics as computeDcmaLite, NOT_SCORED } from './dcma-lite.js';
 
 const COMPLETE_STATUS = 'TK_Complete';
@@ -42,7 +43,7 @@ export function render({ A, B }) {
       // though it were. Same wording as the Executive Summary narrative.
       kpiCard({ title: 'Activities complete', big: `${m.pctActivitiesComplete}%`, sub: `${m.completeCount} of ${m.totalActivities} by count, not physical % complete` }),
       kpiCard({ title: 'Critical activities', big: m.criticalCount.toLocaleString(), sub: `${m.criticalPercent}% of total`, tone: m.criticalPercent > 25 ? 'red' : m.criticalPercent > 15 ? 'amber' : 'green' }),
-      kpiCard({ title: 'Data date', big: m.dataDate || '—', sub: 'last_recalc_date' }),
+      kpiCard({ title: 'Data date', big: m.dataDate || '—', sub: m.dataDateSource }),
       kpiCard({ title: 'Project finish', big: m.projectFinish || '—', sub: 'scd_end_date' })
     ]),
     h('div', { class: 'kpi-grid' }, [
@@ -116,8 +117,13 @@ function computeMetrics(A) {
 
   const calendarsInUse = new Set(realTasks.map(t => t.clndr_id).filter(Boolean)).size;
 
-  const primary = projects[0] || {};
-  const dataDate = (primary.last_recalc_date || '').slice(0, 10);
+  // The data date, and the project it belongs to, come from _shared/data-date.js
+  // (2026-11-07): last_recalc_date, else the planned start, lifted to a later
+  // planned start as P6 does; on a multi-project file, the project DCMA Lite
+  // scores. The finish below is read off the same project.
+  const dd = resolveDataDate(A);
+  const primary = dd.project || projects[0] || {};
+  const dataDate = dd.day;
   // scd_end_date = CPM-calculated scheduled finish; plan_end_date = optional contractual
   // must-finish constraint, frequently blank. "Project finish" means the former — most
   // real XERs (bid-stage schedules especially) never have the latter set at all.
@@ -141,6 +147,7 @@ function computeMetrics(A) {
     nonPositiveFloatPercent,
     calendarsInUse: calendarsInUse || calendars.length,
     dataDate,
+    dataDateSource: dataDateSource(dd),
     projectFinish
   };
 }

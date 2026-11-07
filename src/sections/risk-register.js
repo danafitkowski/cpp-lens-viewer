@@ -1,6 +1,7 @@
 import { h } from '../lib/dom.js';
 import { getTable, buildPredecessorMap } from '@criticalpathpartners/lens-parser';
 import { kpiCard } from './_shared/kpi-card.js';
+import { resolveDataDate } from './_shared/data-date.js';
 import { dataTable } from './_shared/data-table.js';
 import { workingDayContext, disclosureCards, HOUR_FIELDS } from './_shared/working-days.js';
 
@@ -52,8 +53,6 @@ function severityBadge(severity) {
 function computeRisks(A) {
   const tasks    = getTable(A, 'TASK');
   const taskrsrc = getTable(A, 'TASKRSRC');
-  const projects = getTable(A, 'PROJECT');
-  const proj     = projects[0] || {};
   // Hours become working days in exactly one module — see _shared/working-days.js.
   const cal      = workingDayContext(A);
 
@@ -62,8 +61,10 @@ function computeRisks(A) {
   // Build set of task_ids that have TASKRSRC entries
   const tasksWithRsrc = new Set(taskrsrc.map(tr => tr.task_id || '').filter(Boolean));
 
-  // last_recalc_date from PROJECT (ISO date prefix)
-  const recalcDateStr = (proj.last_recalc_date || '').slice(0, 10);
+  // The data date from _shared/data-date.js (2026-11-07), the one every section
+  // reads: last_recalc_date, else the planned start, lifted to a later planned
+  // start as P6 does.
+  const recalcDateStr = resolveDataDate(A).day;
   const recalcDate = recalcDateStr ? new Date(recalcDateStr) : null;
   const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
 
