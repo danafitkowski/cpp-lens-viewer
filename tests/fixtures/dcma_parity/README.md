@@ -57,5 +57,7 @@ Synthetic schedules (no client data) with the results `references/DCMA_DEFINITIO
 | p20_cross_project_links | D4: a link to another project, by relationship or by P6's external date, counts for #1 |
 | p21_zero_duration | D1: a zero-duration activity is a milestone for the populations (#5, #8); #4 names a Start-to-Finish |
 | p22_mandatory_mid_path | #12, the 600-day test: a Mandatory Start part way along the driving path stops the delay (FAIL); p1, p2 and p10 pass it. A result marked `by: test` needs the recalculation; a view without one reads NOT SCORED |
+| p23_start_link_soft_constraint | #12: the first activity drives the path through its start and carries a Start On or After at the data date; the start delay moves it and the completion by 600 (PASS) |
+| p24_start_link_mandatory | #12: as p23 with a Mandatory Start on that activity's own start; its start cannot take the delay (FAIL) |
 
 Working-day counts assume the fixtures' calendars, which carry no holidays except the one p11_short_day tests.
