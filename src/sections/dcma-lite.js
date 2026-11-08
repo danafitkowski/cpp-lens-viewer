@@ -708,14 +708,18 @@ export function computeMetrics(file, baselineFile = null) {
       : `For information, ${num(criticalCount)} of ${num(nFloat)} incomplete activities that carry a total float ` +
         `have total float of zero or less; ${num(noFloat)} more carry none`;
   // D11. The completion activity: the ordinary or milestone activity, complete
-  // or not, with the latest early finish (else planned finish). On a tie: the
-  // end of the network (an activity no logic relationship leads from), then a
+  // or not, with the latest early finish (else planned finish). On a tie: an
+  // unfinished activity, then the end of the network (no logic relationship to
+  // an unfinished successor leads from it), then a
   // finish milestone, then an activity of zero original duration (a completion
   // typed as a task), else the first in the file. (8-Nov-26: two finish
   // milestones on one instant, the first in the file feeding the second; file
   // order took the first, which is not the project's end.)
-  const withSuccessor = new Set(logicRels.map(x => x.pred));
-  const tieRank = t => (withSuccessor.has(t) ? 0 : 4) + (t.task_type === 'TT_FinMile' ? 2
+  // A relationship to a finished (out-of-sequence) successor does not stop an
+  // activity being the end; an unfinished tied activity comes before a finished
+  // one (review of the tie, 8-Nov-26).
+  const withSuccessor = new Set(logicRels.filter(x => !isDone(x.succ)).map(x => x.pred));
+  const tieRank = t => (isDone(t) ? 0 : 8) + (withSuccessor.has(t) ? 0 : 4) + (t.task_type === 'TT_FinMile' ? 2
     : (isNumeric(t.target_drtn_hr_cnt) && parseFloat(t.target_drtn_hr_cnt) === 0 ? 1 : 0));
   let completion = null;
   let completionFinish = '';
