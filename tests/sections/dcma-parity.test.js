@@ -30,9 +30,11 @@ function load(name) {
 }
 
 /** The status this screen must give, under Lens's engine scope. */
-function lensStatus(check, status) {
+function lensStatus(check, status, by) {
   if (check === '13' || check === '14') return NOT_SCORED;
-  if (check === '12') return status === 'FAIL' ? 'FAIL' : NOT_SCORED;
+  // A #12 result the 600-day test decides (by: 'test') needs a recalculation,
+  // which this screen does not run: NOT SCORED here (definition #12).
+  if (check === '12') return (status === 'FAIL' && by !== 'test') ? 'FAIL' : NOT_SCORED;
   return status === 'NS' ? NOT_SCORED : status;
 }
 
@@ -46,10 +48,10 @@ function resultsFor(name) {
 }
 
 describe('DCMA parity fixtures', () => {
-  it('expected.json lists the twenty-one fixtures', () => {
+  it('expected.json lists the twenty-two fixtures', () => {
     expect(Object.keys(expected).sort()).toEqual([
       'p10_late_no_baseline', 'p11_short_day', 'p12_exact_095', 'p13_unrelated_baseline', 'p14_durations',
-      'p15_no_forecasts', 'p16_as_built_mandatory', 'p17_shift_hours', 'p18_empty_calendar', 'p19_calendar_mix', 'p1_logic', 'p20_cross_project_links', 'p21_zero_duration', 'p2_activities', 'p3_pair', 'p4_cycle', 'p5_mandatory',
+      'p15_no_forecasts', 'p16_as_built_mandatory', 'p17_shift_hours', 'p18_empty_calendar', 'p19_calendar_mix', 'p1_logic', 'p20_cross_project_links', 'p21_zero_duration', 'p22_mandatory_mid_path', 'p2_activities', 'p3_pair', 'p4_cycle', 'p5_mandatory',
       'p6_two_projects', 'p7_as_built', 'p8_no_links', 'p9_data_date'
     ]);
   });
@@ -57,7 +59,7 @@ describe('DCMA parity fixtures', () => {
   for (const [name, fx] of Object.entries(expected)) {
     describe(name, () => {
       for (const [check, want] of Object.entries(fx.checks)) {
-        const status = lensStatus(check, want.status);
+        const status = lensStatus(check, want.status, want.by);
         it(`#${check}: ${status}${status !== NOT_SCORED && want.num != null ? ` ${want.num} of ${want.den}` : ''}`, () => {
           const m = resultsFor(name).metrics[Number(check) - 1];
           expect(m, `#${check} row`).toBeTruthy();
