@@ -17,7 +17,7 @@ export { selectScoredProject };
 // exactly as tests/fixtures/dcma_parity/DCMA_DEFINITION.md writes them, a
 // byte-for-byte copy of CPP's shared definition. tests/sections/
 // dcma-parity.test.js holds this screen to the results worked out by hand from
-// that text on fifteen synthetic schedules. "D0" to "D11" below are the
+// that text on twenty-one synthetic schedules. "D0" to "D11" below are the
 // definition's common rules.
 //
 // D1. Ordinary activities are every type but milestones, level of effort and
@@ -25,6 +25,12 @@ export { selectScoredProject };
 // relationship with either end on one.
 const LOE_WBS = new Set(['TT_LOE', 'TT_WBS']);
 const MILESTONES = new Set(['TT_Mile', 'TT_FinMile']);
+// D1: a milestone type, or an activity whose original duration is zero.
+function isMilestoneLike(t) {
+  if (MILESTONES.has(t.task_type)) return true;
+  const raw = String(t.target_drtn_hr_cnt ?? '').trim();
+  return raw !== '' && Number(raw) === 0;
+}
 // D2. Complete means TK_Complete; everything else is incomplete.
 const COMPLETE = 'TK_Complete';
 // DCMA-EA PAM 200.1 s4.5 lists four hard types: Must Start On, Must Finish On,
@@ -281,10 +287,13 @@ export function computeMetrics(file, baselineFile = null) {
   // the full assessment, on this population, reads 152 of 287 = 53.0%.
   // #1 adds incomplete milestones, and #9 counts milestones and finished work.
   const counted   = allTasks.filter(t => !LOE_WBS.has(t.task_type));   // ordinary + milestones
-  const normal    = counted.filter(t => !MILESTONES.has(t.task_type));
+  // D1: an activity whose original duration is zero carries no work and is a
+  // milestone for the DCMA populations, as the pamphlet reads it (review of
+  // 7-Nov-26). A blank duration is not zero.
+  const normal    = counted.filter(t => !isMilestoneLike(t));
   const tasks     = normal.filter(t => !isDone(t));
   const openWork  = counted.filter(t => !isDone(t));                    // incomplete ordinary + milestones
-  const openMilestones = openWork.filter(t => MILESTONES.has(t.task_type));
+  const openMilestones = openWork.filter(t => isMilestoneLike(t));
   const n = tasks.length;
   const ofTasks = (count) => `${num(count)} of ${num(n)} incomplete activities`;
   // A percentage over nothing is not a pass. Say so instead of printing 0.0%.
@@ -333,10 +342,35 @@ export function computeMetrics(file, baselineFile = null) {
   const hasPred = new Set();
   const hasSucc = new Set();
   for (const { pred, succ } of logicRels) { hasSucc.add(pred); hasPred.add(succ); }
-  let noPred = 0, noSucc = 0, openEnds = 0, networkEnds = 0;
+  // D4: a link to another project is logic for #1 (P6 schedules it), so an
+  // activity whose only predecessor or successor is in another project is not
+  // an open end (review of 7-Nov-26, round 2). Read from the whole file: a
+  // relationship with one end in the scored project and the other outside it
+  // (not a level of effort or WBS summary where the file holds it), or P6's
+  // external dates on the activity. Not graded by #2 to #4.
+  const extPred = new Set();
+  const extSucc = new Set();
+  {
+    const scopedIds = new Set(allTasks.map(t => norm(t.task_id)));
+    const fileById = new Map(getTable(file, 'TASK').map(t => [norm(t.task_id), t]));
+    const logicEnd = t => !t || !LOE_WBS.has(t.task_type);
+    for (const r of getTableAliased(file, 'REL')) {
+      const s = norm(r.task_id), q = norm(r.pred_task_id);
+      const inS = scopedIds.has(s), inP = scopedIds.has(q);
+      if (inS && !inP && logicEnd(fileById.get(q))) extPred.add(s);
+      if (inP && !inS && logicEnd(fileById.get(s))) extSucc.add(q);
+    }
+    for (const t of allTasks) {
+      if (String(t.external_early_start_date ?? '').trim()) extPred.add(norm(t.task_id));
+      if (String(t.external_late_end_date ?? '').trim()) extSucc.add(norm(t.task_id));
+    }
+  }
+  let noPred = 0, noSucc = 0, openEnds = 0, networkEnds = 0, externalOnly = 0;
   for (const t of openWork) {
-    let missingPred = !hasPred.has(t);
-    let missingSucc = !hasSucc.has(t);
+    const id = norm(t.task_id);
+    if ((!hasPred.has(t) && extPred.has(id)) || (!hasSucc.has(t) && extSucc.has(id))) externalOnly++;
+    let missingPred = !hasPred.has(t) && !extPred.has(id);
+    let missingSucc = !hasSucc.has(t) && !extSucc.has(id);
     if (missingPred && t.task_type === 'TT_Mile' && networkStart && startOf(t) && startOf(t) <= networkStart) {
       missingPred = false; networkEnds++;
     }
@@ -353,7 +387,8 @@ export function computeMetrics(file, baselineFile = null) {
     : scored(M1, fmtPct(pct(openEnds, openWork.length)),
         `${num(openEnds)} of ${num(openWork.length)} incomplete activities and milestones: ` +
         `${num(noPred)} with no predecessor, ${num(noSucc)} with no successor` +
-        (networkEnds > 0 ? '; the start and finish milestones at the ends of the network are not counted as open ends' : ''),
+        (networkEnds > 0 ? '; the start and finish milestones at the ends of the network are not counted as open ends' : '') +
+        (externalOnly > 0 ? `; ${num(externalOnly)} linked only to another project on one side, and that link counts` : ''),
         '≤ 5%', atMostPct(openEnds, openWork.length, 5), openEnds, openWork.length);
 
   // 2 to 4. Relationship checks, over the relationships into unfinished work
@@ -386,8 +421,11 @@ export function computeMetrics(file, baselineFile = null) {
 
   // 4. FS Relationships — share that are Finish-to-Start (target ≥ 90%)
   const fsCount = liveRels.filter(x => x.r.pred_type === 'PR_FS').length;
+  const sfCount = liveRels.filter(x => x.r.pred_type === 'PR_SF').length;
   const metric4 = noLive ? notScored('FS Relationships (% PR_FS)', noLive, '≥ 90%')
-    : scored('FS Relationships (% PR_FS)', fmtPct(pct(fsCount, nLive)), ofRels(fsCount), '≥ 90%',
+    : scored('FS Relationships (% PR_FS)', fmtPct(pct(fsCount, nLive)), ofRels(fsCount) +
+        // The pamphlet says Start-to-Finish should not be used: counted for information.
+        (sfCount > 0 ? `; ${num(sfCount)} ${plural(sfCount, 'is', 'are')} Start-to-Finish, which DCMA says should not be used` : ''), '≥ 90%',
         atLeastPct(fsCount, nLive, 90), fsCount, nLive);
 
   // 5. Hard Constraints — a hard primary OR secondary constraint (target ≤ 5%).
@@ -607,7 +645,7 @@ export function computeMetrics(file, baselineFile = null) {
     const dataInstant = dd.instant;
     let due = 0, matched = 0, missed = 0, notInCurrent = 0, leftOut = 0, noActualFinish = 0;
     for (const bt of getTable(Bs, 'TASK')) {
-      if (LOE_WBS.has(bt.task_type) || MILESTONES.has(bt.task_type)) continue;
+      if (LOE_WBS.has(bt.task_type) || isMilestoneLike(bt)) continue;
       // D12. A baseline activity's finish is its planned finish, else its early finish.
       const finishInstant = instantOf(bt.target_end_date) || instantOf(bt.early_end_date);
       // DUE is decided to the minute (D5): a baseline finish later on the data
@@ -808,7 +846,7 @@ export function render({ A, B }) {
         // 2026-11-07 (DCMA phase 2): each check's population, as CPP's one
         // DCMA definition sets it.
         `Checks 5, 6, 7 and 8 are measured over the ${incompleteCount.toLocaleString()} incomplete activities in ${multi ? 'the scored project' : 'this file'}. ` +
-        'Milestones, level of effort and WBS summary activities are left out, and so is finished work. ' +
+        'Milestones (an activity of zero duration counts as one), level of effort and WBS summary activities are left out, and so is finished work. ' +
         `Check 1 also counts incomplete milestones (${openMilestoneCount.toLocaleString()} here), and check 10 leaves out activities shorter than one working day. ` +
         'Checks 2, 3 and 4 grade the relationships into unfinished work, and check 9 reads every activity and milestone, finished ones included. ' +
         'A link to a level of effort or WBS summary activity is not counted in any check. ' +
