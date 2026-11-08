@@ -113,10 +113,15 @@ function selectBaselineProject(B, scoredProject, scopedA) {
   if (projects.length === 0) return null;
   const counts = taskCountsByProject(B);
   const all = projects.map((p, i) => ({ p, i }));
-  const keys = new Set(getTable(scopedA, 'TASK').map(activityKey).filter(Boolean));
+  // D9: an Activity ID is shared when an ordinary activity or milestone
+  // carries it in both files; a level of effort or WBS summary row does not
+  // count, as in the validator (Claude AI review of 7-Nov-26, round 2).
+  const isWork = t => !LOE_WBS.has(String(t.task_type || '').trim());
+  const keys = new Set(getTable(scopedA, 'TASK').filter(isWork).map(activityKey).filter(Boolean));
   const shared = new Map();   // proj_id -> Set of shared Activity IDs
   const sharedAll = new Set();
   for (const t of getTable(B, 'TASK')) {
+    if (!isWork(t)) continue;
     const k = activityKey(t);
     if (!k || !keys.has(k)) continue;
     sharedAll.add(k);
@@ -687,6 +692,12 @@ export function computeMetrics(file, baselineFile = null) {
     ? { name: M12, status: 'FAIL', num: null, den: null, target: 'finish moves with the delay', count: '',
         result: `Fails: the logic runs in a loop (${activityList(loop)}${loop.length === 1 ? ' is its own predecessor' : ' lead back to one another'}), ` +
           'so a delay cannot be followed through it to the finish' }
+    // A finished completion has no remaining network for a delay to move, and
+    // P6 does not apply a constraint to finished work (review of 7-Nov-26,
+    // round 2): its pin decides nothing.
+    : pin && completion.status_code === COMPLETE
+      ? notScored(M12, `the completion activity ${activityList([completion])} is complete, so there is no remaining ` +
+          `network for an inserted delay to move, and its ${pin} constraint no longer applies`, 'finish moves with the delay')
     : pin
       ? { name: M12, status: 'FAIL', num: null, den: null, target: 'finish moves with the delay', count: '',
           result: `Fails: the completion activity ${activityList([completion])} is held by a ${pin} constraint, ` +
@@ -801,6 +812,9 @@ export function render({ A, B }) {
         `Check 1 also counts incomplete milestones (${openMilestoneCount.toLocaleString()} here), and check 10 leaves out activities shorter than one working day. ` +
         'Checks 2, 3 and 4 grade the relationships into unfinished work, and check 9 reads every activity and milestone, finished ones included. ' +
         'A link to a level of effort or WBS summary activity is not counted in any check. ' +
+        // Round 2 review (7-Nov-26): #6 and #7 leave out a blank float and #8
+        // a blank or non-numeric duration, so their denominators can be smaller.
+        'An activity with no total float is left out of checks 6 and 7, and one with no readable original duration out of check 8, so their counts can be smaller. ' +
         'The Count column gives the numerator and the denominator of every result.')
     ]),
     qualityOverlayCard(),

@@ -403,6 +403,18 @@ describe('5. Missed Tasks counts deleted due work as missed, and refuses a renum
     expect(r.result).toContain('shares no Activity ID with the scored project, so it is not used');
   });
 
+  it('a baseline that shares only a level-of-effort row ID is not used (D9, round 2 review)', () => {
+    const current = xer({
+      tasks: [
+        ...['N1', 'N2', 'N3', 'N4', 'N5'].map((c, i) => task(200 + i, c, { ...DONE, act_start_date: '2026-03-09 08:00', act_end_date: '2026-03-13 16:00' })),
+        task(300, 'T1', { task_type: 'TT_LOE' })
+      ]
+    });
+    const r = metric(computeMetrics(current, baselineDue(['T1', 'T2', 'T3', 'T4', 'T5'])), /^Missed Tasks/);
+    expect(r.status).toBe(NOT_SCORED);
+    expect(r.result).toContain('shares no Activity ID with the scored project, so it is not used');
+  });
+
   it('an open activity whose baseline finish is later on the data date itself is not yet due', () => {
     // Current data date 2026-04-01 08:00 (the xer() default). T11's baseline finish is
     // 2026-04-01 16:00: by the day it is "on the data date", but it is not due until
