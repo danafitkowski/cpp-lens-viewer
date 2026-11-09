@@ -48,10 +48,10 @@ function resultsFor(name) {
 }
 
 describe('DCMA parity fixtures', () => {
-  it('expected.json lists the twenty-eight fixtures', () => {
+  it('expected.json lists the twenty-nine fixtures', () => {
     expect(Object.keys(expected).sort()).toEqual([
       'p10_late_no_baseline', 'p11_short_day', 'p12_exact_095', 'p13_unrelated_baseline', 'p14_durations',
-      'p15_no_forecasts', 'p16_as_built_mandatory', 'p17_shift_hours', 'p18_empty_calendar', 'p19_calendar_mix', 'p1_logic', 'p20_cross_project_links', 'p21_zero_duration', 'p22_mandatory_mid_path', 'p23_start_link_soft_constraint', 'p24_start_link_mandatory', 'p25_tied_completion', 'p26_tied_deadline', 'p27_finished_successor', 'p28_parallel_deadline', 'p2_activities', 'p3_pair', 'p4_cycle', 'p5_mandatory',
+      'p15_no_forecasts', 'p16_as_built_mandatory', 'p17_shift_hours', 'p18_empty_calendar', 'p19_calendar_mix', 'p1_logic', 'p20_cross_project_links', 'p21_zero_duration', 'p22_mandatory_mid_path', 'p23_start_link_soft_constraint', 'p24_start_link_mandatory', 'p25_tied_completion', 'p26_tied_deadline', 'p27_finished_successor', 'p28_parallel_deadline', 'p29_dateless_deadline', 'p2_activities', 'p3_pair', 'p4_cycle', 'p5_mandatory',
       'p6_two_projects', 'p7_as_built', 'p8_no_links', 'p9_data_date'
     ]);
   });
