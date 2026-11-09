@@ -34,7 +34,7 @@ export async function parseUploadedFile(file, onStatus) {
     // Say "uploading", not just "converting". A browser cannot parse .mpp, so this
     // path sends the file to the CPP server, and the user is entitled to know that
     // in the same words the Privacy Policy uses. XER and XML never take this path.
-    if (onStatus) onStatus(`Uploading "${name}" to the CPP server to convert it to XER (MS Project files can’t be read in the browser). XER and XML files are never uploaded.`);
+    if (onStatus) onStatus(`Uploading "${name}" to the CPP server to convert it to P6 XML (MS Project files can’t be read in the browser). XER and XML files are not uploaded unless you choose Deep Forensic Analysis.`);
     const buf = await file.arrayBuffer();
     const xml = await convertMpp(buf);
     return parseP6Xml(xml, { filename: name.replace(/\.mpp$/i, '.xml') });

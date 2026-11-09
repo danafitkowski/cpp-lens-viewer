@@ -19,8 +19,8 @@ export function renderHeader() {
     buildPrintButton(),
     // The word "privacy" appeared nowhere in a 231 KB bundle that accepts
     // schedule files — a gap the site's own evaluation-standard page recorded
-    // as an open failure. The posture statements ("XER and XML files are never
-    // uploaded") were scattered through status strings; this is the one
+    // as an open failure. The posture statements ("XER and XML files are not
+    // uploaded unless you choose Deep Forensic Analysis") were scattered through status strings; this is the one
     // always-visible link to the policy that states the whole of it, including
     // the MPP conversion path and the Deep Forensic opt-in.
     h('a', {
