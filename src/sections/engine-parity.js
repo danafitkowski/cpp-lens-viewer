@@ -248,7 +248,10 @@ import { dataTable } from './_shared/data-table.js';
 // clock time, a malformed Must Finish By); nothing computed moves on valid
 // input, so the surface stays at 233 fixtures and 22189/22189. The JavaScript
 // suite went 1524 -> 1546.
-const ENGINE_VERSION = '2.10.18';
+// 2.10.19 discloses an as-built FS overlap (a successor started before its FS
+// predecessor finished) with a WARN; nothing computed moves, so the surface
+// stays at 233 fixtures and 22189/22189. The JavaScript suite went 1546 -> 1554.
+const ENGINE_VERSION = '2.10.19';
 
 // Layer 1 — two ports of the same algorithm, by the same author.
 const CROSSVAL_FIXTURES = 233;
@@ -256,9 +259,9 @@ const CROSSVAL_EXECUTED = 22189;
 const CROSSVAL_POSSIBLE = 22189;
 const CROSSVAL_SKIPPED = 0;
 const CROSSVAL_CLEAN_FIXTURES = 233;
-const JS_UNIT_TESTS = 1546;
-// c8 over cpm-engine.js running the crossval harness at the v2.10.18 tag,
-// measured 2026-11-21: 9,160 of 15,196 statements (60.27%).
+const JS_UNIT_TESTS = 1554;
+// c8 over cpm-engine.js running the crossval harness at the v2.10.19 tag,
+// measured 2026-11-21: 9,219 of 15,255 statements (60.43%).
 const ENGINE_STATEMENT_COVERAGE = '60%';
 
 // Layer 2 — the engine against Primavera P6 itself.
