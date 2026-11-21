@@ -243,7 +243,12 @@ import { dataTable } from './_shared/data-table.js';
 // The JavaScript suite went 1515 -> 1524.
 // 2.10.17 changes no code in this engine: the skills' Python engine counts
 // working days by whole weeks, every computed value identical (Class C).
-const ENGINE_VERSION = '2.10.17';
+// 2.10.18 makes forensic strict mode stop on invalid scheduling inputs (a
+// missing or unknown calendar, a missing or malformed data date, an impossible
+// clock time, a malformed Must Finish By); nothing computed moves on valid
+// input, so the surface stays at 233 fixtures and 22189/22189. The JavaScript
+// suite went 1524 -> 1546.
+const ENGINE_VERSION = '2.10.18';
 
 // Layer 1 — two ports of the same algorithm, by the same author.
 const CROSSVAL_FIXTURES = 233;
@@ -251,9 +256,9 @@ const CROSSVAL_EXECUTED = 22189;
 const CROSSVAL_POSSIBLE = 22189;
 const CROSSVAL_SKIPPED = 0;
 const CROSSVAL_CLEAN_FIXTURES = 233;
-const JS_UNIT_TESTS = 1524;
-// c8 over cpm-engine.js running the crossval harness at the v2.10.17 tag,
-// measured 2026-11-09: 9,078 of 15,089 statements (60.16%).
+const JS_UNIT_TESTS = 1546;
+// c8 over cpm-engine.js running the crossval harness at the v2.10.18 tag,
+// measured 2026-11-21: 9,160 of 15,196 statements (60.27%).
 const ENGINE_STATEMENT_COVERAGE = '60%';
 
 // Layer 2 — the engine against Primavera P6 itself.
