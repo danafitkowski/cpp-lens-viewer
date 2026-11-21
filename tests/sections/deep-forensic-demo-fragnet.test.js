@@ -10,14 +10,21 @@
 //   (b) Engine schema refusals are translated to plain-language guidance for
 //       every tool, so a user-loaded schedule gets told what to do instead of
 //       shown a data structure they cannot enter.
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+// And since 21 Nov 2026 (audit finding: TIA and Collapsed As-Built were
+// selectable for a user file the viewer cannot give their inputs), TIA is
+// labelled demo only and runs on the sample alone, and Collapsed As-Built is
+// labelled analyst / API only and never runs from the viewer. Both say so in
+// the picker, before anything is uploaded.
+//
+// These runs go out anonymized (the default for every run). The demo fragnet
+// still resolves: the anonymizer keeps task_code, which the fragnet ties use.
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { parseXer } from '@criticalpathpartners/lens-parser';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { render, translateEngineError } from '../../src/sections/deep-forensic.js';
+import { render, translateEngineError, TOOL_UNAVAILABLE_TEXT } from '../../src/sections/deep-forensic.js';
 import { SAMPLE_XER, SAMPLE_FILENAME, SAMPLE_DEMO_FRAGNETS } from '../../src/sample/sample-schedule.js';
-import { prefsStore } from '../../src/state/prefs.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const FIX = join(__dirname, '..', 'fixtures');
@@ -63,9 +70,6 @@ async function clickRun(el, { response } = {}) {
 const statusText = (el) => (el.querySelector('#deep-forensic-status')?.textContent || '').trim();
 
 describe('demo fragnet on the built-in sample', () => {
-  beforeEach(() => {
-    prefsStore.set({ ...prefsStore.get(), anonymizeOnMcpUpload: false });
-  });
 
   it('pre-selects Time Impact Analysis when no baseline is loaded (the dead-end scenario)', () => {
     const el = render({ A: sampleModel(), B: null });
@@ -84,7 +88,7 @@ describe('demo fragnet on the built-in sample', () => {
 
   it('hides the demo fragnet card when a tool other than TIA is selected', () => {
     const el = render({ A: sampleModel(), B: null });
-    const radio = el.querySelector('input[type="radio"][value="collapsed-as-built"]');
+    const radio = el.querySelector('input[type="radio"][value="schedule-risk-analysis"]');
     radio.checked = true;
     radio.dispatchEvent(new Event('change'));
     expect(el.querySelector('#deep-forensic-demo-fragnet').style.display).toBe('none');
@@ -102,33 +106,94 @@ describe('demo fragnet on the built-in sample', () => {
     expect(sent.options.fragnets).toEqual(SAMPLE_DEMO_FRAGNETS);
   });
 
-  it('never renders the demo card, and never sends the fragnet, for a user schedule', async () => {
+  it('the canned fragnet still goes out with the run anonymized (the default)', async () => {
+    const el = render({ A: sampleModel(), B: null });
+    expect(el.querySelector('#deep-forensic-anon-toggle').checked).toBe(true);
+    const sent = await clickRun(el);
+    expect(sent.input.anonymized).toBe(true);
+    expect(sent.options.fragnets).toEqual(SAMPLE_DEMO_FRAGNETS);
+  });
+
+  it('never renders the demo card, never offers TIA, and never sends the fragnet, for a user schedule', async () => {
     const el = render({ A: userModel(), B: null });
     expect(el.querySelector('#deep-forensic-demo-fragnet')).toBeNull();
+    const tia = el.querySelector('input[type="radio"][value="time-impact-analysis"]');
+    expect(tia.disabled).toBe(true);
+    expect(tia.checked).toBe(false);
     const sent = await clickRun(el);
-    expect(sent.tool).toBe('time-impact-analysis');
+    expect(sent.tool).not.toBe('time-impact-analysis');
     expect(sent.options.fragnets).toBeUndefined();
   });
 });
 
-describe('Engine schema errors reach the user as guidance, not raw schema', () => {
-  beforeEach(() => {
-    prefsStore.set({ ...prefsStore.get(), anonymizeOnMcpUpload: false });
+describe('TIA is demo only, Collapsed As-Built is analyst / API only', () => {
+  const card = (el, id) => el.querySelector(`#deep-forensic-tool-${id}`).closest('.lens-card');
+  const badge = (el, id) => card(el, id).querySelector('.deep-forensic-availability');
+
+  it('labels both in the picker, for the sample and for a user file', () => {
+    for (const A of [sampleModel(), userModel()]) {
+      const el = render({ A, B: null });
+      expect(badge(el, 'time-impact-analysis').textContent).toBe('Demo only');
+      expect(card(el, 'time-impact-analysis').textContent).toContain('built-in sample schedule and its demo fragnet');
+      expect(badge(el, 'collapsed-as-built').textContent).toBe('Analyst / API only');
+      expect(card(el, 'collapsed-as-built').textContent).toContain('delay-event inputs the viewer cannot collect');
+      // The tools the viewer can run carry no such label.
+      for (const id of ['forensic-delay-analysis', 'claim-workbench', 'schedule-risk-analysis']) {
+        expect(badge(el, id)).toBeNull();
+      }
+    }
   });
 
-  it('a fragnets refusal on a user schedule shows plain-language guidance', async () => {
+  it('on a user file, both are disabled with a plain reason before anything is uploaded', () => {
+    // A baseline is loaded so that baseline availability cannot be what
+    // disables them. Nothing is submitted or matched across the two models.
+    // FIXTURE-EXEMPT(two-model-identity): the pair is never compared; only the picker's disabled state with a baseline loaded is read.
+    const el = render({ A: userModel(), B: userModel() });
+    for (const [id, key] of [['time-impact-analysis', 'demo'], ['collapsed-as-built', 'analyst']]) {
+      const radio = el.querySelector(`#deep-forensic-tool-${id}`);
+      expect(radio.disabled, `${id} is selectable for a user file`).toBe(true);
+      expect(card(el, id).querySelector('.deep-forensic-blocked-reason').textContent)
+        .toBe(TOOL_UNAVAILABLE_TEXT[key]);
+    }
+    expect(TOOL_UNAVAILABLE_TEXT.demo).toMatch(/needs a fragnet/);
+    expect(TOOL_UNAVAILABLE_TEXT.analyst).toMatch(/needs a list of delay events/);
+  });
+
+  it('on the sample, TIA is selectable and Collapsed As-Built is still not', () => {
+    const el = render({ A: sampleModel(), B: null });
+    expect(el.querySelector('#deep-forensic-tool-time-impact-analysis').disabled).toBe(false);
+    expect(el.querySelector('#deep-forensic-tool-collapsed-as-built').disabled).toBe(true);
+  });
+
+  it('a forced selection of an unavailable tool never goes out as that tool', async () => {
+    const el = render({ A: userModel(), B: null });
+    const cab = el.querySelector('#deep-forensic-tool-collapsed-as-built');
+    // Even with the disabled attribute stripped (devtools), the change handler
+    // does not take the selection.
+    cab.disabled = false;
+    cab.checked = true;
+    cab.dispatchEvent(new Event('change'));
+    const sent = await clickRun(el);
+    expect(sent.tool).not.toBe('collapsed-as-built');
+  });
+});
+
+describe('Engine schema errors reach the user as guidance, not raw schema', () => {
+  it('a schema refusal on a user schedule shows plain-language guidance', async () => {
+    // TIA can no longer be submitted for a user file, so the UI path is shown
+    // with a refusal from a tool that can run: the generic translation.
     const el = render({ A: userModel(), B: null });
     await clickRun(el, {
       response: {
         jobId: 'J9', status: 'failed', resultUrl: '',
-        errors: ['time-impact-analysis requires options.fragnets: list of {id, name, liability, activities, ties}']
+        errors: ['claim-workbench requires options.evidence_index: list of {path, kind}']
       }
     });
     const status = statusText(el);
-    expect(status).toContain('fragnet');
-    expect(status).toContain('sample schedule');
-    expect(status).not.toContain('requires options.fragnets');
-    expect(status).not.toContain('{id, name, liability, activities, ties}');
+    expect(status).toContain('evidence_index');
+    expect(status).toContain('cannot collect yet');
+    expect(status).not.toContain('requires options.evidence_index');
+    expect(status).not.toContain('{path, kind}');
   });
 
   it('translateEngineError covers every known "requires options" refusal', () => {

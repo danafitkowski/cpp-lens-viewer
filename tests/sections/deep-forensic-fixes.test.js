@@ -5,18 +5,26 @@ import { render } from '../../src/sections/deep-forensic.js';
 import { prefsStore } from '../../src/state/prefs.js';
 import { runDeepForensic } from '../../src/mcp/client.js';
 
-describe('FX-028: anonymize toggle persists via prefsStore.set (not .update)', () => {
-  it('flipping the checkbox updates + persists the pref without throwing', () => {
+// FX-028 made the toggle persist (prefsStore.update was being passed an
+// object). The 21 Nov 2026 audit found that persisting it was itself the bug:
+// one opt-out stayed off for every later session. The toggle now must NOT
+// touch saved preferences; tests/sections/deep-forensic-privacy.test.js covers
+// the rest.
+describe('FX-028, superseded: the anonymize toggle is never saved', () => {
+  it('flipping the checkbox does not throw and does not write to prefs or localStorage', () => {
     const A = parseXer(SAMPLE_XER, { filename: 'a.xer' });
-    prefsStore.set({ ...prefsStore.get(), anonymizeOnMcpUpload: true });
+    localStorage.removeItem('cpp-lens-prefs-v1');
     const el = render({ A, B: null });
     const box = el.querySelector('#deep-forensic-anon-toggle');
     expect(box).toBeTruthy();
+    expect(box.checked).toBe(true);
     box.checked = false;
-    box.dispatchEvent(new Event('change')); // old code threw "reducer is not a function" here
-    expect(prefsStore.get().anonymizeOnMcpUpload).toBe(false);
+    expect(() => box.dispatchEvent(new Event('change'))).not.toThrow();
+    expect(prefsStore.get().anonymizeOnMcpUpload).toBeUndefined();
+    // Another pref change still saves, and the saved object has no anonymize key.
+    prefsStore.set({ ...prefsStore.get() });
     const saved = JSON.parse(localStorage.getItem('cpp-lens-prefs-v1'));
-    expect(saved.anonymizeOnMcpUpload).toBe(false); // persisted via prefsStore.subscribe(save)
+    expect('anonymizeOnMcpUpload' in saved).toBe(false);
   });
 });
 

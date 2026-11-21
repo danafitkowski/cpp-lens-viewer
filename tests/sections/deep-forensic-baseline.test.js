@@ -1,11 +1,10 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { createHash } from 'node:crypto';
 import { parseXer, gunzipFromBase64 } from '@criticalpathpartners/lens-parser';
 import { render, TOOLS } from '../../src/sections/deep-forensic.js';
 import { runDeepForensic, ENGINE_TOOLS, toolRequiresBaseline } from '../../src/mcp/client.js';
 import { anonymizeModel, anonymizeModelPair } from '../../src/mcp/anonymizer.js';
-import { prefsStore } from '../../src/state/prefs.js';
 import { assertDivergentSurrogates } from '../fixtures/reexport.js';
 
 /**
@@ -77,8 +76,6 @@ const sha256Hex = (text) => createHash('sha256').update(text, 'utf8').digest('he
 
 /** Drive the real Run button and return the JSON body posted to /lens/run. */
 async function submit({ A, B, anonymize = true }) {
-  prefsStore.set({ ...prefsStore.get(), anonymizeOnMcpUpload: anonymize });
-
   let sent = null;
 
   globalThis.fetch = vi.fn(async (url, init) => {
@@ -97,10 +94,23 @@ async function submit({ A, B, anonymize = true }) {
   });
 
   const el = render({ A, B });
+  // Anonymization is on for every render and is no longer read from saved
+  // preferences, so an identifiable run is the user's act in the UI: untick
+  // the box, click Run, then confirm the warning.
+  if (!anonymize) {
+    const box = el.querySelector('#deep-forensic-anon-toggle');
+    box.checked = false;
+    box.dispatchEvent(new Event('change'));
+  }
   const runBtn = [...el.querySelectorAll('button')]
     .find(b => /run deep forensic/i.test(b.textContent));
   expect(runBtn, 'the Run Deep Forensic button is gone').toBeTruthy();
   runBtn.dispatchEvent(new Event('click'));
+  if (!anonymize) {
+    const confirm = el.querySelector('#deep-forensic-confirm-identifiable');
+    expect(confirm, 'no confirmation was asked for before an identifiable upload').toBeTruthy();
+    confirm.dispatchEvent(new Event('click'));
+  }
 
   // Poll rather than await a resolver: when the submission is refused (or
   // never happens) the test must say WHY, not sit until the 30s timeout.
@@ -125,9 +135,6 @@ async function tasksByCode(b64) {
   return byCode;
 }
 
-beforeEach(() => {
-  prefsStore.set({ ...prefsStore.get(), anonymizeOnMcpUpload: true });
-});
 afterEach(() => { vi.restoreAllMocks(); delete globalThis.fetch; });
 
 describe('Deep Forensic — the baseline reaches the wire', () => {
@@ -180,6 +187,10 @@ describe('Deep Forensic — the baseline reaches the wire', () => {
     const el = render({ A: parseA(), B: parseB() });
     expect(el.textContent).toMatch(/Baseline: loaded/i);
     for (const tool of TOOLS) {
+      // Time Impact Analysis (demo only) and Collapsed As-Built (analyst / API
+      // only) cannot run on this user file at all; the picker says that
+      // instead of describing a baseline use that will not happen.
+      if (tool.availability) continue;
       expect(el.textContent,
         `the picker does not say what ${tool.id} does with a loaded baseline`)
         .toContain(ENGINE_TOOLS[tool.id].baselineUse);
@@ -255,10 +266,14 @@ describe('Deep Forensic — a two-file analysis cannot be submitted with one fil
     for (const tool of TOOLS) {
       const radio = el.querySelector(`#deep-forensic-tool-${tool.id}`);
       expect(radio, `radio for ${tool.id} is gone`).toBeTruthy();
+      // A user file (not the sample): the demo-only and analyst-only tools are
+      // disabled too, whatever their baseline needs.
+      const expected = toolRequiresBaseline(tool.id) || !!tool.availability;
       expect(radio.disabled,
-        `${tool.id} requiresBaseline=${toolRequiresBaseline(tool.id)} but its ` +
+        `${tool.id} requiresBaseline=${toolRequiresBaseline(tool.id)} ` +
+        `availability=${tool.availability || 'viewer'} but its ` +
         `radio is ${radio.disabled ? '' : 'not '}disabled with no baseline loaded`)
-        .toBe(toolRequiresBaseline(tool.id));
+        .toBe(expected);
       if (radio.disabled) expect(radio.checked).toBe(false);
     }
     expect(el.textContent).toMatch(/Requires a baseline XER/i);
