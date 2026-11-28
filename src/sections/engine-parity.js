@@ -257,7 +257,11 @@ import { dataTable } from './_shared/data-table.js';
 // 2.10.21 dates the level of effort as P6 dates it (Class A for the level of
 // effort only; the network does not move), so the surface stays at 233
 // fixtures and 22189/22189. The JavaScript suite went 1566 -> 1588.
-const ENGINE_VERSION = '2.10.21';
+// 2.10.22 gives a level of effort the status and actual dates P6 sets on it
+// at the F9 (Class A for the level of effort only; the network does not
+// move), so the surface stays at 233 fixtures and 22189/22189. The
+// JavaScript suite went 1588 -> 1595.
+const ENGINE_VERSION = '2.10.22';
 
 // Layer 1 — two ports of the same algorithm, by the same author.
 const CROSSVAL_FIXTURES = 233;
@@ -265,9 +269,9 @@ const CROSSVAL_EXECUTED = 22189;
 const CROSSVAL_POSSIBLE = 22189;
 const CROSSVAL_SKIPPED = 0;
 const CROSSVAL_CLEAN_FIXTURES = 233;
-const JS_UNIT_TESTS = 1588;
-// c8 over cpm-engine.js running the crossval harness at the v2.10.21 tag,
-// measured 2026-11-27: 9,487 of 15,671 statements (60.54%).
+const JS_UNIT_TESTS = 1595;
+// c8 over cpm-engine.js running the crossval harness at the v2.10.22 tag,
+// measured 2026-11-28: 9,559 of 15,755 statements (60.67%).
 const ENGINE_STATEMENT_COVERAGE = '60%';
 
 // Layer 2 — the engine against Primavera P6 itself.
